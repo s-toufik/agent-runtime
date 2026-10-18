@@ -1,6 +1,6 @@
 import asyncio
 import base64
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx2
@@ -33,7 +33,7 @@ class StreamableHttpSessionFactory:
         self._max_delay = max_delay
 
     @asynccontextmanager
-    async def session(self) -> AsyncIterator[ClientSession]:
+    async def session(self) -> AsyncGenerator[ClientSession]:
         async with AsyncExitStack() as stack:
             yield await self._connect_with_retry(stack)
 

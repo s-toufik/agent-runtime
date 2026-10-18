@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -14,7 +14,7 @@ from agent_orchestrator.domain.exception.agent_unavailable_exception import (
 
 
 @contextmanager
-def model_errors() -> Iterator[None]:
+def model_errors() -> Generator[None]:
     try:
         yield
     except ModelError as exception:

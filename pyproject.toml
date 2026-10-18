@@ -11,9 +11,18 @@ authors = [
 description = "Analytics agent -- talks to its MCP toolbox as an independently deployed service"
 readme = "Readme.md"
 requires-python = ">=3.14"
+keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "asyncio"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+    "Private :: Do Not Upload",
 ]
 license = "MIT"
 dependencies = [
@@ -25,7 +34,7 @@ dependencies = [
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore>=2.0.0",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry]>=2.1.0",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -86,4 +95,6 @@ exclude = [".venv", "tests"]
 
 [project.urls]
 Homepage = "https://github.com/s-toufik/agent-orchestrator"
+Repository = "https://github.com/s-toufik/agent-orchestrator"
+Issues = "https://github.com/s-toufik/agent-orchestrator/issues"
 
