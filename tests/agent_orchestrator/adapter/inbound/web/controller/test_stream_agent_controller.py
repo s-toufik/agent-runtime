@@ -53,7 +53,7 @@ async def test_a_turn_streams_its_status_then_the_answer_then_complete(logger) -
     response = await controller.execute(REQUEST)
     chunks = await _drain(response)
 
-    assert "event: status" in chunks[0] and "Understanding your request" in chunks[0]
+    assert "event: status" in chunks[0] and "Comprehending the request" in chunks[0]
     assert "event: token" in chunks[1] and "Hel" in chunks[1]
     assert "event: final" in chunks[2]
     final_payload = json.loads(chunks[2].split("\n")[1].removeprefix("data: "))
@@ -63,6 +63,7 @@ async def test_a_turn_streams_its_status_then_the_answer_then_complete(logger) -
         "iteration": "0",
         "max_iteration": "6",
         "outcome": "answered",
+        "model": "m",
     }
     assert "event: complete" in chunks[3]
 

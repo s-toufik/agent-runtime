@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from agent_orchestrator.domain.model.model_listing import ModelListing
+from agent_orchestrator.domain.llm_model.model_listing import ModelListing
 from agent_orchestrator.domain.turn.turn_settings import TurnSettings
 
 

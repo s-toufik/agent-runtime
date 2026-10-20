@@ -1,10 +1,13 @@
 import asyncio
 import time
 import traceback
+from dataclasses import replace
 
 from pycraftcore.logger.port import Logger
 
-from agent_orchestrator.application.port.inbound.agent_request import AgentRequest
+from agent_orchestrator.application.port.inbound.handle_message_port import (
+    AGENT_UNAVAILABLE_MESSAGE,
+)
 from agent_orchestrator.application.port.outbound.model_registry import ModelRegistry
 from agent_orchestrator.application.port.outbound.turn_event_stream import TurnEventStream
 from agent_orchestrator.application.port.outbound.workflow_runner import WorkflowRunner
@@ -12,13 +15,9 @@ from agent_orchestrator.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_orchestrator.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_orchestrator.domain.request.agent_request import AgentRequest
 from agent_orchestrator.domain.turn.turn import Turn
 from agent_orchestrator.domain.turn.turn_options import TurnOptions
-
-AGENT_UNAVAILABLE_MESSAGE: str = (
-    "The assistant is temporarily unavailable due to repeated upstream "
-    "failures/maintenance/unavailable resources. Please try again in a moment."
-)
 
 
 class HandleMessage:
@@ -28,7 +27,7 @@ class HandleMessage:
         self._logger = logger
 
     async def handle(self, request: AgentRequest, events: TurnEventStream) -> None:
-        started = time.monotonic()
+        started: float | int = time.monotonic()
         try:
             turn = Turn(
                 request=request.message,
@@ -37,6 +36,8 @@ class HandleMessage:
                 options=TurnOptions(auto_approve=request.auto_approve),
             )
             async for event in self._workflow.run(request.request_id, turn):
+                if event.kind is TurnEventKind.FINISHED:
+                    event = self._with_duration(event, started)
                 await events.publish(event)
                 if event.kind is TurnEventKind.FINISHED:
                     self._logger.info(
@@ -54,6 +55,13 @@ class HandleMessage:
             await events.publish(TurnEvent.failed(trace))
         finally:
             await events.complete()
+
+    def _with_duration(self, event: TurnEvent, started: float | int) -> TurnEvent:
+        try:
+            return replace(event, duration_ms=int((time.monotonic() - started) * 1000))
+        except Exception as exception:
+            self._logger.warning(f"duration stamping failed: {exception}")
+            return event
 
 
 def _outcome(event: TurnEvent) -> str:

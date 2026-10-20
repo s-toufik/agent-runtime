@@ -2,12 +2,14 @@ import asyncio
 import base64
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Any
 
 import httpx2
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.authentication import AuthTyping
 from pycraftcore.authentication.model.basic_auth import BasicAuth
 from pycraftcore.authentication.model.token_auth import TokenAuth
@@ -25,12 +27,14 @@ class StreamableHttpSessionFactory:
         max_attempts: int = 3,
         initial_delay: float = 0.5,
         max_delay: float = 5.0,
+        operation: McpOperation | None = None,
     ) -> None:
         self._connector = connector
         self._logger = logger
         self._max_attempts = max_attempts
         self._initial_delay = initial_delay
         self._max_delay = max_delay
+        self._operation = operation
 
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[ClientSession]:
@@ -96,7 +100,7 @@ class StreamableHttpSessionFactory:
         )
 
     def _headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = self._operation_header()
 
         request_id: str | None = request_id_context.get()
         if request_id:
@@ -106,6 +110,13 @@ class StreamableHttpSessionFactory:
         if isinstance(auth, TokenAuth):
             headers[auth.key_name] = auth.key_value
         elif isinstance(auth, BasicAuth):
-            token = base64.b64encode(f"{auth.username}:{auth.password}".encode()).decode()
+            credentials: bytes = f"{auth.username}:{auth.password}".encode()
+            token: str = base64.b64encode(credentials).decode()
             headers["Authorization"] = f"Basic {token}"
         return headers
+
+    def _operation_header(self) -> dict[str, str]:
+        if self._operation is None:
+            return {}
+        headers: dict[str, Any] = self._operation.parameters.get("headers") or {}
+        return {key: str(value) for key, value in headers.items() if value}

@@ -17,7 +17,7 @@ class Understanding:
         return cls(intent=Intent.TASK, query=message)
 
     def normalized(self, has_pending_plan: bool) -> Understanding:
-        if self.intent is Intent.PLAN_APPROVAL and not has_pending_plan:
+        if self.intent in (Intent.PLAN_APPROVAL, Intent.PLAN_REJECTION) and not has_pending_plan:
             return replace(self, intent=Intent.DIRECT)
         if self.intent is Intent.AMBIGUOUS and not self.clarification_question:
             return replace(self, intent=Intent.TASK)

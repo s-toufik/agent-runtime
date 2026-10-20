@@ -27,7 +27,7 @@ Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/), an OpenAI-compat
 
 ```bash
 uv sync --group dev
-cp .env.example .env      # fill in the model server, MCP server and storage
+cp .env.example .env      # fill in the llm_model server, MCP server and storage
 make run
 ```
 
@@ -49,7 +49,7 @@ With Docker: `make docker_build` builds the image; it reads its configuration fr
 ```json
 {
   "models": [{ "name": "qwen3-8b", "context_tokens": 16384, "max_output_tokens": 4096, "thinking": false }],
-  "pinned_steps": { "act": "<model>", "understand": "<model>" }
+  "pinned_steps": { "act": "<llm_model>", "understand": "<llm_model>" }
 }
 ```
 
@@ -76,7 +76,7 @@ A server-sent event stream; each frame is `event: <type>` + `data: <json>`. New 
 
 | Event | What to do with it |
 |---|---|
-| `status` | Progress ("Understanding your request", "Preparing a plan", "Running file_reader", "Checking the answer"): show it as an indicator |
+| `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader", "Reviewing the answer"): show it as an indicator |
 | `token` | A piece of the answer as it is written, sent for answers that need no review when `AGENT_ANSWER_DELIVERY=stream`: append the pieces, then let `final` replace them |
 | `final` | The complete answer: show it (it replaces any `token` pieces) |
 | `error` | The request failed; the content says why |
@@ -300,7 +300,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 make check        # ruff + ty + pytest
 make test         # unit, scenario and architecture tests: never runs the evaluation
 make lint / make format / make typecheck
-make evaluation   # only tests/evaluation: live evaluation, needs a real model server and toolbox
+make evaluation   # only tests/evaluation: live evaluation, needs a real llm_model server and toolbox
 ```
 
 `tests/agent_orchestrator/scenarios/` runs whole turns on two runners — LangGraph and a plain in-memory loop over the same steps and policy — and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the ones a real model rarely takes (a review rejection, a plan request from act, running out of steps).

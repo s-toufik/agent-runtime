@@ -5,7 +5,7 @@ from agent_orchestrator.application.step.finish_step import FinishStep
 from agent_orchestrator.application.step.plan_step import PlanStep
 from agent_orchestrator.application.step.review_step import ReviewStep
 from agent_orchestrator.application.step.run_tools_step import RunToolsStep
-from agent_orchestrator.application.step.summarize_step import SummarizeStep
+from agent_orchestrator.application.step.summarize_step import KEEP_LAST_MESSAGES, SummarizeStep
 from agent_orchestrator.application.step.understand_step import UnderstandStep
 from agent_orchestrator.domain.conversation.conversation import Conversation
 from agent_orchestrator.domain.conversation.message import Message, Speaker
@@ -147,32 +147,36 @@ def _long(count: int = 6) -> Conversation:
 
 
 async def test_a_long_history_is_summarized_keeping_the_last_messages(logger) -> None:
-    conversation, summarizer = _long(), FakeSummarizer("the summary")
+    conversation, summarizer = _long(KEEP_LAST_MESSAGES + 2), FakeSummarizer("the summary")
     step = SummarizeStep(summarizer, FakeTokens(10_000), logger)
 
     await step.run(conversation, turn())
 
     assert summarizer.calls[0][1] == [Message(Speaker.USER, "0"), Message(Speaker.USER, "1")]
     assert conversation.summary == "the summary"
-    assert len(conversation.messages) == 4
+    assert len(conversation.messages) == KEEP_LAST_MESSAGES
 
 
 async def test_a_short_or_small_history_is_left_alone(logger) -> None:
     summarizer = FakeSummarizer()
 
-    await SummarizeStep(summarizer, FakeTokens(10_000), logger).run(_long(4), turn())
-    await SummarizeStep(summarizer, FakeTokens(1), logger).run(_long(6), turn())
+    await SummarizeStep(summarizer, FakeTokens(10_000), logger).run(
+        _long(KEEP_LAST_MESSAGES), turn()
+    )
+    await SummarizeStep(summarizer, FakeTokens(1), logger).run(
+        _long(KEEP_LAST_MESSAGES + 2), turn()
+    )
 
     assert summarizer.calls == []
 
 
 async def test_a_failed_summary_keeps_the_history(logger) -> None:
-    conversation = _long()
+    conversation = _long(KEEP_LAST_MESSAGES + 2)
     step = SummarizeStep(FakeSummarizer(RuntimeError("down")), FakeTokens(10_000), logger)
 
     await step.run(conversation, turn())
 
-    assert len(conversation.messages) == 6
+    assert len(conversation.messages) == KEEP_LAST_MESSAGES + 2
     assert logger.messages("warning")
 
 

@@ -1,3 +1,4 @@
+import os
 from typing import cast
 
 from pycraftcore.application_configuration.model.connector import ApiConnector
@@ -32,8 +33,13 @@ class ModelSettingsMapper:
                 max_iterations=cast(int, parameters.get("max_iterations", 10)),
                 max_reflection_retries=cast(int, parameters.get("max_reflection_retries", 2)),
                 reasoning_effort=_reasoning_effort(parameters.get("reasoning_effort")),
+                stream_usage=_stream_usage(),
             ),
         )
+
+
+def _stream_usage() -> bool:
+    return os.getenv("LLM_STREAM_USAGE", "true").strip().lower() == "true"
 
 
 def _reasoning_effort(value: object) -> ReasoningEffort | None:

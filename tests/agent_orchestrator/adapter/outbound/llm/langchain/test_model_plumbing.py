@@ -18,7 +18,7 @@ from agent_orchestrator.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
 from agent_orchestrator.domain.exception.unknown_model_exception import UnknownModelException
-from agent_orchestrator.domain.model.model_listing import ModelListing, SelectableModel
+from agent_orchestrator.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_orchestrator.domain.turn.turn_settings import TurnSettings
 from agent_orchestrator.domain.workflow.step import Step
 from tests.agent_orchestrator.adapter.outbound.llm.langchain.fakes import FakeLLM

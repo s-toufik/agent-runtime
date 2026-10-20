@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from agent_orchestrator.domain.turn.intent import Intent
 from agent_orchestrator.domain.turn.plan import Plan, PlannedStep
+from agent_orchestrator.domain.turn.screening import GuardDecision, Screening
 from agent_orchestrator.domain.turn.understanding import Understanding
 from agent_orchestrator.domain.turn.verdict import Verdict, VerdictAction
 
@@ -31,6 +32,14 @@ class VerdictDto(BaseModel):
 
     def to_domain(self) -> Verdict:
         return Verdict(self.action, self.critique)
+
+
+class ScreeningDto(BaseModel):
+    decision: GuardDecision
+    reason: str = ""
+
+    def to_domain(self) -> Screening:
+        return Screening(self.decision, self.reason)
 
 
 class PlanStepDto(BaseModel):

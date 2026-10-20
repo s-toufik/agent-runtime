@@ -44,7 +44,7 @@ class EvaluationReport:
 
     def summary(self) -> list[str]:
         return [
-            f"model {self.model}, threshold {self.threshold:.2f}",
+            f"llm_model {self.model}, threshold {self.threshold:.2f}",
             f"mean score {self.mean:.2f}, {self.passed}/{len(self.scores)} at or above the threshold",
             *([f"{len(self.unscored)} not scored: they failed to run"] if self.unscored else []),
         ]
@@ -86,7 +86,7 @@ class EvaluationReport:
 
     def as_dict(self, now: datetime) -> dict[str, Any]:
         return {
-            "model": self.model,
+            "llm_model": self.model,
             "run_at": now.isoformat(timespec="seconds"),
             "threshold": self.threshold,
             "mean_score": round(self.mean, 4),

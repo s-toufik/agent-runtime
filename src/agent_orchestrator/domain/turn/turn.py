@@ -11,6 +11,7 @@ from agent_orchestrator.domain.turn.feedback import Feedback
 from agent_orchestrator.domain.turn.intent import Intent
 from agent_orchestrator.domain.turn.plan import Plan
 from agent_orchestrator.domain.turn.plan_progress import PlanProgress
+from agent_orchestrator.domain.turn.screening import Screening
 from agent_orchestrator.domain.turn.turn_options import TurnOptions
 from agent_orchestrator.domain.turn.turn_settings import TurnSettings
 from agent_orchestrator.domain.turn.understanding import Understanding
@@ -29,6 +30,7 @@ class Turn:
     plan: Plan | None = None
     work: list[WorkItem] = field(default_factory=list)
     verdicts: list[Verdict] = field(default_factory=list)
+    screening: Screening | None = None
     answer: Answer | None = None
 
     def understood(self, understanding: Understanding) -> None:
@@ -47,6 +49,13 @@ class Turn:
 
     def reviewed(self, verdict: Verdict) -> None:
         self.verdicts.append(verdict)
+
+    def screened(self, screening: Screening) -> None:
+        self.screening = screening
+
+    def refuse(self, reason: str) -> None:
+        self.plan = None
+        self.finish(Answer.refused(reason))
 
     def give_feedback(self, critique: str) -> None:
         self.work.append(Feedback(critique))

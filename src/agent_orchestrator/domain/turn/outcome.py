@@ -7,3 +7,4 @@ class Outcome(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     AWAITING_APPROVAL = "awaiting_approval"
     CLARIFICATION = "clarification"
+    REFUSED = "refused"

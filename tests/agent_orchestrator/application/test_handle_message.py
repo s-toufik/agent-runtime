@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from agent_orchestrator.application.port.inbound.agent_request import AgentRequest
 from agent_orchestrator.application.use_case.handle_message import (
     AGENT_UNAVAILABLE_MESSAGE,
     HandleMessage,
@@ -12,6 +11,7 @@ from agent_orchestrator.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_orchestrator.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_orchestrator.domain.request.agent_request import AgentRequest
 from agent_orchestrator.domain.turn.turn import Turn
 from agent_orchestrator.domain.turn.turn_settings import TurnSettings
 from tests.agent_orchestrator.application.fakes import FakeModels, ListEventStream

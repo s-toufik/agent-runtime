@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from agent_orchestrator.domain.model.model_listing import ModelListing
+from agent_orchestrator.domain.llm_model.model_listing import ModelListing
 
 
 class ModelSchema(BaseModel):

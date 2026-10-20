@@ -177,14 +177,14 @@ def test_the_threshold_comes_from_the_environment(monkeypatch) -> None:
 def test_the_report_is_written_as_markdown_and_json(tmp_path) -> None:
     coverage = RouteCoverage()
     coverage.record(DIRECT)
-    report = EvaluationReport("nvidia/model-x", 0.8, coverage)
+    report = EvaluationReport("nvidia/llm_model-x", 0.8, coverage)
     report.add(Score("good case", ScoreKind.ROUTE, 1.0, 0.8))
     report.add(Score("weak case", ScoreKind.QUALITY, 0.5, 0.8, ("Bias: one-sided",)))
     report.add_unscored("crashed case", "AgentUnavailableException: 429 Too Many Requests")
 
     markdown, data = report.write(tmp_path / "reports", datetime(2026, 10, 6, 14, 30))
 
-    assert markdown.name == "20261006-143000_nvidia-model-x.md"
+    assert markdown.name == "20261006-143000_nvidia-llm_model-x.md"
     text = markdown.read_text()
     assert "mean score **0.75** · **1/2** at or above the threshold · **1** not scored" in text
     assert "- **crashed case**: AgentUnavailableException: 429 Too Many Requests" in text
@@ -192,8 +192,8 @@ def test_the_report_is_written_as_markdown_and_json(tmp_path) -> None:
     assert "### weak case (0.50)\n\n- Bias: one-sided" in text
     assert "4/17 transitions taken" in text
     saved = json.loads(data.read_text())
-    assert (saved["model"], saved["mean_score"], saved["passed"], saved["total"]) == (
-        "nvidia/model-x",
+    assert (saved["llm_model"], saved["mean_score"], saved["passed"], saved["total"]) == (
+        "nvidia/llm_model-x",
         0.75,
         1,
         2,

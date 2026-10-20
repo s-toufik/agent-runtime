@@ -17,6 +17,8 @@ PLAN_UNFINISHED: str = (
 )
 NO_PLAN: str = "I could not write a plan for this request. Try rephrasing it."
 
+REFUSED: str = "[SCREEN]: {reason}"
+
 
 @dataclass(frozen=True, slots=True)
 class Answer:
@@ -54,3 +56,7 @@ class Answer:
     @classmethod
     def clarification(cls, question: str) -> Answer:
         return cls(question, Outcome.CLARIFICATION)
+
+    @classmethod
+    def refused(cls, reason: str) -> Answer:
+        return cls(REFUSED.format(reason=reason), Outcome.REFUSED)

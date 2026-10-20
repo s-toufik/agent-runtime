@@ -7,16 +7,18 @@ other one?", "shorter", "yes") continues what was being discussed.
 Pick the FIRST intent that applies:
 1. plan_approval: a pending plan is shown and the user accepts it as it is.
 2. plan_revision: a pending plan is shown and the user wants it changed.
-3. task: the answer needs the user's own data, files, records or systems (reading them,
+3. plan_rejection: a pending plan is shown and the user rejects or cancels it (no, cancel,
+   don't do it, never mind) and asks for nothing else.
+4. task: the answer needs the user's own data, files, records or systems (reading them,
    changing them or checking their current state) or running code. Following up on an
    earlier answer is also a task when it needs any of these.
-4. continuation: the user wants the previous answer reworked (shorter, longer, another
+5. continuation: the user wants the previous answer reworked (shorter, longer, another
    format, another angle, more detail) with nothing new to fetch or run.
-5. direct: anything answerable from the conversation or general knowledge: explaining a
+6. direct: anything answerable from the conversation or general knowledge: explaining a
    concept, how something works, comparisons, alternatives or good practices, even when
    technical; questions about the assistant itself (its tools, what it can do, how it
    works); and questions about the conversation (what was said, a summary of it).
-6. ambiguous: only when, even with the conversation, you cannot tell what the user
+7. ambiguous: only when, even with the conversation, you cannot tell what the user
    wants. Prefer a reasonable reading over asking.
 
 Mentioning tools or data does not make a task: asking what the assistant can do is direct,
@@ -29,6 +31,7 @@ Examples:
 - "how many rows are in positions.csv?" -> task
 - "is the database up?" -> task
 - "make it shorter" -> continuation
+- "no, cancel that" (with a plan pending) -> plan_rejection
 
 Fill the fields:
 - standalone_query: the request rewritten so it makes sense without the conversation

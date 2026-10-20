@@ -26,5 +26,6 @@ class LLMChat:
             temperature=self._model_parameters.temperature,
             reasoning_effort=self._model_parameters.reasoning_effort,
             extra_body=thinking_switch(self._model_parameters.reasoning_effort),
+            stream_usage=self._model_parameters.stream_usage,
             max_retries=0,
         )

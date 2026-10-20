@@ -26,9 +26,9 @@ def _frames(chunks: list[bytes]) -> list[tuple[str, dict]]:
 @pytest.mark.parametrize(
     ("step", "status"),
     [
-        (Step.UNDERSTAND, "Understanding your request"),
-        (Step.PLAN, "Preparing a plan"),
-        (Step.REVIEW, "Checking the answer"),
+        (Step.UNDERSTAND, "Comprehending the request"),
+        (Step.PLAN, "Formulating a plan"),
+        (Step.REVIEW, "Reviewing the answer"),
     ],
 )
 def test_visible_steps_become_a_status(step: Step, status: str) -> None:
@@ -64,7 +64,12 @@ def test_the_answer_is_sent_as_the_final_event_with_its_metadata() -> None:
     assert [name for name, _ in frames] == ["final"]
     final = frames[0][1]
     assert (final["session_id"], final["content"]) == ("c1", "hello")
-    assert final["metadata"] == {"iteration": "1", "max_iteration": "6", "outcome": "answered"}
+    assert final["metadata"] == {
+        "iteration": "1",
+        "max_iteration": "6",
+        "outcome": "answered",
+        "model": "m",
+    }
 
 
 def test_a_plan_awaiting_approval_tells_the_user_how_to_approve_it() -> None:
@@ -73,7 +78,7 @@ def test_a_plan_awaiting_approval_tells_the_user_how_to_approve_it() -> None:
 
     final = _frames(PRESENTER.present(TurnEvent.finished(turn), "c1"))[0][1]
 
-    assert final["content"] == f"## Plan\n1. echo (tool: echo)\n\n---\n{APPROVAL_PROMPT}"
+    assert final["content"] == f"### Plan\n1. echo (tool: echo)\n\n---\n{APPROVAL_PROMPT}"
 
 
 def test_each_piece_of_a_streamed_answer_is_a_token_event() -> None:

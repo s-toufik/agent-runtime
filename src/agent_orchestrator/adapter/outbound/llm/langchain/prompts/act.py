@@ -44,9 +44,16 @@ Progress (✓ done, → current, · to do):
 {progress}
 
 How to work:
-- For a quick look at data (a few rows, one value), call a tool directly.
-- For heavy analysis (many rows, aggregation, joins, statistics), use
-  python_executor. Inside it, your other tools are callable as Python functions.
+- A tool you call directly returns its whole result into your context. Fine for a 
+  few rows or one value; a large result set will overflow your context window.
+- Inside python_executor every other tool is callable as a Python function (same
+  name, keyword arguments). Results of tools you call there stay in the sandbox and 
+  do NOT enter your context: only what you assign to 'result' and what you print
+  comes back to you.
+- So for large or heavy work (many rows, aggregation, joins, statistics), plan a 
+  python_executor: fetch and compute inside the script, write the full output to a 
+  file (or a Confluence page), and return only a short summary plus the file path or 
+  link. This keeps the big data out of your context instead of streaming it through. 
 - The working directory is your file storage: save large results there and read
   them back later. Use paths relative to it (e.g. "report.md"): they name the same
   file in your code and in tool calls. Give the file path in your answer.

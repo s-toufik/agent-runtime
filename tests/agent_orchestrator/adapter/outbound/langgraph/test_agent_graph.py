@@ -38,10 +38,6 @@ class RecordingHandler:
         turn.drafted(Draft("done"))
 
 
-def _handlers() -> list[RecordingHandler]:
-    return [RecordingHandler(step) for step in Step if step is not Step.END]
-
-
 def test_there_is_one_node_class_per_step() -> None:
     assert [node_type.step for node_type in NODE_TYPES] == [s for s in Step if s is not Step.END]
 
@@ -73,26 +69,31 @@ async def test_a_node_announces_its_step_before_running_it() -> None:
     ]
 
 
-def _edges() -> dict[str, set[str]]:
-    nodes = agent_nodes(_handlers(), CODEC, RecordingEvents())  # ty: ignore[invalid-argument-type]
-    graph = AgentGraphBuilder(nodes, POLICY, PolicyRouter(POLICY, CODEC)).build().get_graph()
+def _policy_steps(policy: TurnPolicy) -> set[Step]:
+    return {step for t in policy.TRANSITIONS for step in (t.source, t.target)} - {Step.END}
+
+
+def _edges(policy: TurnPolicy = POLICY) -> dict[str, set[str]]:
+    handlers = [RecordingHandler(step) for step in _policy_steps(policy)]
+    nodes = agent_nodes(handlers, CODEC, RecordingEvents())  # ty: ignore[invalid-argument-type]
+    graph = AgentGraphBuilder(nodes, policy, PolicyRouter(policy, CODEC)).build().get_graph()
     edges: dict[str, set[str]] = {}
     for edge in graph.edges:
         edges.setdefault(edge.source, set()).add(edge.target)
     return edges
 
 
-def test_the_graph_edges_are_exactly_the_policy_transitions() -> None:
-    edges = _edges()
+@pytest.mark.parametrize("policy", [POLICY, TurnPolicy(screen=True)], ids=["no_screen", "screen"])
+def test_the_graph_edges_are_exactly_the_policy_transitions(policy: TurnPolicy) -> None:
+    edges = _edges(policy)
 
     assert edges.pop(START) == {"understand"}
     assert edges == {
-        step.value: {node_name(target) for target in POLICY.targets(step)}
-        for step in Step
-        if step is not Step.END
+        step.value: {node_name(target) for target in policy.targets(step)}
+        for step in _policy_steps(policy)
     }
     assert sum(len(targets) for targets in edges.values()) == len(
-        {(t.source, t.target) for t in POLICY.TRANSITIONS}
+        {(t.source, t.target) for t in policy.TRANSITIONS}
     )
 
 

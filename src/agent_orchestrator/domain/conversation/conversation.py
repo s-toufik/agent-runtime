@@ -33,7 +33,7 @@ class Conversation:
         turn.understood(understanding)
 
     def submit(self, turn: Turn, plan: Plan) -> None:
-        if turn.options.auto_approve:
+        if turn.options.auto_approve or not plan.uses_tools:
             turn.execute(plan)
             return
         self.propose(plan)
@@ -41,6 +41,9 @@ class Conversation:
 
     def propose(self, plan: Plan) -> None:
         self.pending_plan = plan
+
+    def retract(self) -> None:
+        self.pending_plan = None
 
     def close(self, turn: Turn) -> None:
         answer = turn.answer.text if turn.answer else ""

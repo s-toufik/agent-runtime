@@ -21,7 +21,7 @@ def make_operation(parameters: dict, auth: NoAuth | TokenAuth | None = None) -> 
         retry=1,
     )
     return ApiOperation(
-        name="gpt-model",
+        name="gpt-llm_model",
         type=OperationType.api,
         connector=connector,
         endpoint="/chat",
@@ -48,7 +48,7 @@ def test_a_token_connector_passes_its_key_to_the_model_client() -> None:
 def test_defaults_every_parameter_when_absent() -> None:
     _, parameters = ModelSettingsMapper(make_operation({}))()
 
-    assert parameters.model_name == "gpt-model"
+    assert parameters.model_name == "gpt-llm_model"
     assert parameters.max_output_tokens == 8000
     assert parameters.max_context_tokens == 8000
     assert parameters.temperature == 0.0

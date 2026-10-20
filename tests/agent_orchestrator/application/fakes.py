@@ -7,7 +7,7 @@ from agent_orchestrator.domain.conversation.conversation import Conversation
 from agent_orchestrator.domain.conversation.message import Message
 from agent_orchestrator.domain.event.turn_event import TurnEvent
 from agent_orchestrator.domain.exception.unknown_model_exception import UnknownModelException
-from agent_orchestrator.domain.model.model_listing import ModelListing, SelectableModel
+from agent_orchestrator.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_orchestrator.domain.tool.tool_call import ToolCall
 from agent_orchestrator.domain.tool.tool_result import ToolResult
 from agent_orchestrator.domain.tool.tool_specification import ToolSpecification

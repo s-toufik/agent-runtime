@@ -42,13 +42,16 @@ def _base_env(monkeypatch, tmp_path):
 
 
 def make_settings(
-    tmp_path: Path | None = None, answer_delivery: AnswerDelivery = AnswerDelivery.STREAM
+    tmp_path: Path | None = None,
+    answer_delivery: AnswerDelivery = AnswerDelivery.STREAM,
+    guardrail_enabled: bool = False,
 ) -> ProcessSettings:
     return ProcessSettings(
         role="agent-orchestrator",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
         answer_delivery=answer_delivery,
+        guardrail_enabled=guardrail_enabled,
     )
 
 
@@ -224,13 +227,15 @@ def test_only_the_roles_naming_a_model_in_agent_yml_are_frozen() -> None:
         assert (frozen[1].model_name if frozen else None) == configured, role
 
 
-async def test_the_workflow_graph_has_one_node_per_step() -> None:
-    di = AgentDI(make_settings())
+@pytest.mark.parametrize("guardrail_enabled", [False, True], ids=["no_screen", "screen"])
+async def test_the_workflow_graph_has_one_node_per_step(guardrail_enabled: bool) -> None:
+    di = AgentDI(make_settings(guardrail_enabled=guardrail_enabled))
     runner = await di._workflow_runner(Toolbox(ToolRegistry([]), di._logging), checkpointer=None)
 
     nodes = set(runner.graph.get_graph().nodes) - {"__start__", "__end__"}
 
-    assert nodes == {step.value for step in Step if step is not Step.END}
+    expected = {step.value for step in Step if step is not Step.END}
+    assert nodes == (expected if guardrail_enabled else expected - {Step.SCREEN.value})
 
 
 @pytest.mark.parametrize(

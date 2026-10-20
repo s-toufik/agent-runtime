@@ -13,7 +13,7 @@ from pycraftcore.application_configuration.model.connector import (
     DatabaseConnector,
     McpConnector,
 )
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model.operation import ApiOperation, McpOperation
 from pycraftcore.circuit_breaker.configuration import CircuitBreakerSettings
 from pycraftcore.http.configuration import HttpClientSettings, LimitsSettings
 from pycraftcore.http.policy.http_error_policy import is_business_error, is_retryable
@@ -39,12 +39,14 @@ from agent_orchestrator.adapter.outbound.langgraph.langgraph_event_publisher imp
 from agent_orchestrator.adapter.outbound.langgraph.langgraph_workflow_runner import (
     LangGraphWorkflowRunner,
 )
+from agent_orchestrator.adapter.outbound.langgraph.node.agent_node import AgentNode
 from agent_orchestrator.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
 from agent_orchestrator.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
 from agent_orchestrator.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 from agent_orchestrator.adapter.outbound.llm.langchain.actor import LangChainActor
 from agent_orchestrator.adapter.outbound.llm.langchain.chat_models import ChatModels
 from agent_orchestrator.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_orchestrator.adapter.outbound.llm.langchain.guard import LangChainGuard
 from agent_orchestrator.adapter.outbound.llm.langchain.intent_classifier import (
     LangChainIntentClassifier,
 )
@@ -57,6 +59,7 @@ from agent_orchestrator.adapter.outbound.llm.langchain.summarizer import LangCha
 from agent_orchestrator.adapter.outbound.llm.langchain.token_counter import (
     EstimatedTokenCounter,
 )
+from agent_orchestrator.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
 from agent_orchestrator.adapter.outbound.llm.mapper import ModelSettingsMapper
 from agent_orchestrator.adapter.outbound.llm.model_catalog import (
     AgentRole,
@@ -70,6 +73,8 @@ from agent_orchestrator.adapter.outbound.tool.mcp.streamable_http_session_factor
 from agent_orchestrator.adapter.outbound.tool.tool_port import ToolPort
 from agent_orchestrator.adapter.outbound.tool.tool_registry import ToolRegistry
 from agent_orchestrator.adapter.outbound.tool.toolbox import Toolbox
+from agent_orchestrator.application.port.outbound.turn_event_publisher import TurnEventPublisher
+from agent_orchestrator.application.port.outbound.workflow_runner import WorkflowRunner
 from agent_orchestrator.application.step.act_step import ActStep
 from agent_orchestrator.application.step.clarify_step import ClarifyStep
 from agent_orchestrator.application.step.feedback_step import FeedbackStep
@@ -77,6 +82,7 @@ from agent_orchestrator.application.step.finish_step import FinishStep
 from agent_orchestrator.application.step.plan_step import PlanStep
 from agent_orchestrator.application.step.review_step import ReviewStep
 from agent_orchestrator.application.step.run_tools_step import RunToolsStep
+from agent_orchestrator.application.step.screen_step import ScreenStep
 from agent_orchestrator.application.step.step_handler import StepHandler
 from agent_orchestrator.application.step.summarize_step import SummarizeStep
 from agent_orchestrator.application.step.understand_step import UnderstandStep
@@ -102,9 +108,22 @@ class AgentDI(BaseDI):
         return {name: connectors[name] for name in names}
 
     @cached_property
-    def _mcp_session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
+    def _mcp_operation(self) -> dict[str, McpOperation]:
         return {
-            name: StreamableHttpSessionFactory(connector=connector, logger=self._logging)
+            operation.connector.name: operation
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, McpOperation)
+        }
+
+    @cached_property
+    def _mcp_session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
+        operations: dict[str, McpOperation] = self._mcp_operation
+        return {
+            name: StreamableHttpSessionFactory(
+                connector=connector,
+                logger=self._logging,
+                operation=operations.get(connector.name),
+            )
             for name, connector in self._mcp_connectors.items()
         }
 
@@ -245,19 +264,21 @@ class AgentDI(BaseDI):
             return None
 
     async def _handle_message(self) -> HandleMessage:
-        runner = await self._workflow_runner(await self._toolbox(), await self._checkpointer())
+        runner: WorkflowRunner = await self._workflow_runner(
+            await self._toolbox(), await self._checkpointer()
+        )
         return HandleMessage(runner, self._model_catalog, self._logging)
 
     def _list_models(self) -> ListModels:
         return ListModels(self._model_catalog)
 
-    async def _workflow_runner(
-        self, toolbox: Toolbox, checkpointer: Any
-    ) -> LangGraphWorkflowRunner:
-        return LangGraphWorkflowRunner(self._agent_graph(toolbox, checkpointer), self._logging)
+    async def _workflow_runner(self, toolbox: Toolbox, checkpointer: Any) -> WorkflowRunner:
+        return LangGraphWorkflowRunner(
+            self._agent_graph(toolbox, checkpointer), self._logging, LangChainUsageMeter()
+        )
 
     @cached_property
-    def _turn_events(self) -> LangGraphEventPublisher:
+    def _turn_events(self) -> TurnEventPublisher:
         return LangGraphEventPublisher()
 
     def _final_reply(self) -> ReplyReader:
@@ -268,13 +289,15 @@ class AgentDI(BaseDI):
                 return WholeReply()
 
     def _agent_graph(self, toolbox: Toolbox, checkpointer: Any) -> Any:
-        codec, policy = TurnStateCodec(), TurnPolicy()
-        nodes = agent_nodes(self._steps(toolbox), codec, self._turn_events)
+        codec: TurnStateCodec = TurnStateCodec()
+        screen: bool = self._settings.guardrail_enabled
+        policy: TurnPolicy = TurnPolicy(screen=screen)
+        nodes: list[AgentNode] = agent_nodes(self._steps(toolbox, screen), codec, self._turn_events)
         return AgentGraphBuilder(nodes, policy, PolicyRouter(policy, codec)).build(checkpointer)
 
-    def _steps(self, toolbox: Toolbox) -> list[StepHandler]:
+    def _steps(self, toolbox: Toolbox, screen: bool) -> list[StepHandler]:
         models, window, logger = self._chat_models, ContextWindow(), self._logging
-        return [
+        steps: list[StepHandler] = [
             UnderstandStep(LangChainIntentClassifier(models, window, logger), logger),
             PlanStep(LangChainPlanner(models, window, logger), toolbox),
             ClarifyStep(),
@@ -287,3 +310,6 @@ class AgentDI(BaseDI):
             FinishStep(),
             SummarizeStep(LangChainSummarizer(models, logger), EstimatedTokenCounter(), logger),
         ]
+        if screen:
+            steps.append(ScreenStep(LangChainGuard(models, logger), logger))
+        return steps

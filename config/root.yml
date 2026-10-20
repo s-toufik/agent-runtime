@@ -32,4 +32,5 @@ application_configuration:
     agent_context: ${operation.agent_context}
     agent_plan: ${operation.agent_plan}
     agent_reflection: ${operation.agent_reflection}
+    agent_guard: ${operation.agent_guard}
     agent_summary: ${operation.agent_summary}

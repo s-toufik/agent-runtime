@@ -18,8 +18,12 @@ class Plan:
     steps: tuple[PlannedStep, ...]
     expected_result: str = ""
 
+    @property
+    def uses_tools(self) -> bool:
+        return any(step.tool for step in self.steps)
+
     def render(self) -> str:
-        lines = ["## Plan", *(f"{n}. {step.render()}" for n, step in enumerate(self.steps, 1))]
+        lines = ["### Plan", *(f"{n}. {step.render()}" for n, step in enumerate(self.steps, 1))]
         if self.expected_result:
-            lines += ["## Expected result", self.expected_result]
+            lines += ["### Expected result", self.expected_result]
         return "\n".join(lines)

@@ -8,6 +8,7 @@ from agent_orchestrator.adapter.outbound.langgraph.node.finish_node import Finis
 from agent_orchestrator.adapter.outbound.langgraph.node.plan_node import PlanNode
 from agent_orchestrator.adapter.outbound.langgraph.node.review_node import ReviewNode
 from agent_orchestrator.adapter.outbound.langgraph.node.run_tools_node import RunToolsNode
+from agent_orchestrator.adapter.outbound.langgraph.node.screen_node import ScreenNode
 from agent_orchestrator.adapter.outbound.langgraph.node.summarize_node import SummarizeNode
 from agent_orchestrator.adapter.outbound.langgraph.node.understand_node import UnderstandNode
 from agent_orchestrator.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
@@ -18,6 +19,7 @@ from agent_orchestrator.domain.workflow.step import Step
 NODE_TYPES: tuple[type[AgentNode], ...] = (
     UnderstandNode,
     PlanNode,
+    ScreenNode,
     ClarifyNode,
     ActNode,
     RunToolsNode,
@@ -32,4 +34,8 @@ def agent_nodes(
     handlers: Sequence[StepHandler], codec: TurnStateCodec, events: TurnEventPublisher
 ) -> list[AgentNode]:
     by_step: dict[Step, StepHandler] = {handler.step: handler for handler in handlers}
-    return [node_type(by_step[node_type.step], codec, events) for node_type in NODE_TYPES]
+    return [
+        node_type(by_step[node_type.step], codec, events)
+        for node_type in NODE_TYPES
+        if node_type.step in by_step
+    ]

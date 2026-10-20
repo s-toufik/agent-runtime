@@ -7,6 +7,7 @@ class Intent(StrEnum):
     DIRECT = "direct"
     PLAN_APPROVAL = "plan_approval"
     PLAN_REVISION = "plan_revision"
+    PLAN_REJECTION = "plan_rejection"
     AMBIGUOUS = "ambiguous"
 
     @property

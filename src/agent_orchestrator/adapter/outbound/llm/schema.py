@@ -16,3 +16,4 @@ class ModelParameters(BaseModel):
     max_iterations: int
     max_reflection_retries: int = 2
     reasoning_effort: ReasoningEffort | None = None
+    stream_usage: bool = True

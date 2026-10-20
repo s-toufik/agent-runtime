@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from agent_orchestrator.adapter.outbound.llm.schema import ModelConnector, ModelParameters
 from agent_orchestrator.domain.exception.unknown_model_exception import UnknownModelException
-from agent_orchestrator.domain.model.model_listing import ModelListing, SelectableModel
+from agent_orchestrator.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_orchestrator.domain.turn.turn_settings import TurnSettings
 from agent_orchestrator.domain.workflow.step import Step
 
@@ -15,6 +15,7 @@ class AgentRole(StrEnum):
     CONTEXT = "agent_context"
     PLAN = "agent_plan"
     REFLECTION = "agent_reflection"
+    GUARD = "agent_guard"
     SUMMARY = "agent_summary"
 
 
@@ -23,6 +24,7 @@ ROLE_STEPS: dict[AgentRole, Step] = {
     AgentRole.PLAN: Step.PLAN,
     AgentRole.ACT: Step.ACT,
     AgentRole.REFLECTION: Step.REVIEW,
+    AgentRole.GUARD: Step.SCREEN,
     AgentRole.SUMMARY: Step.SUMMARIZE,
 }
 

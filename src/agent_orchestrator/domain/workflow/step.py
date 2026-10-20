@@ -4,6 +4,7 @@ from enum import StrEnum
 class Step(StrEnum):
     UNDERSTAND = "understand"
     PLAN = "plan"
+    SCREEN = "screen"
     CLARIFY = "clarify"
     ACT = "act"
     RUN_TOOLS = "run_tools"

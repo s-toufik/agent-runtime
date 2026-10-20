@@ -8,6 +8,11 @@ from agent_orchestrator.domain.workflow.turn_policy import TurnPolicy
 from tests.agent_orchestrator.domain.builders import PLAN, answer, calling, retry, turn
 
 POLICY = TurnPolicy()
+SCREENING_POLICY = TurnPolicy(screen=True)
+
+
+def _steps(policy: TurnPolicy) -> set[Step]:
+    return {step for t in policy.TRANSITIONS for step in (t.source, t.target)} - {Step.END}
 
 
 @pytest.mark.parametrize(
@@ -28,8 +33,23 @@ def test_each_step_declares_where_it_can_lead(source: Step, targets: list[Step])
     assert POLICY.targets(source) == targets
 
 
-def test_every_step_but_the_end_has_a_way_out() -> None:
-    assert all(POLICY.targets(step) for step in Step if step is not Step.END)
+@pytest.mark.parametrize("policy", [POLICY, SCREENING_POLICY], ids=["no_screen", "screen"])
+def test_every_step_but_the_end_has_a_way_out(policy: TurnPolicy) -> None:
+    assert all(policy.targets(step) for step in _steps(policy))
+
+
+def test_the_screen_step_only_exists_when_screening_is_on() -> None:
+    assert Step.SCREEN not in _steps(POLICY)
+    assert _steps(SCREENING_POLICY) == {step for step in Step if step is not Step.END}
+
+
+def test_with_screening_a_plan_is_screened_before_it_is_carried_out() -> None:
+    proposed = turn(Intent.TASK)
+    approved = turn(Intent.TASK, plan=PLAN)
+
+    assert SCREENING_POLICY.targets(Step.PLAN) == [Step.SCREEN]
+    assert SCREENING_POLICY.next(Step.SCREEN, proposed) == Step.FINISH
+    assert SCREENING_POLICY.next(Step.SCREEN, approved) == Step.ACT
 
 
 def test_nothing_leaves_the_end() -> None:

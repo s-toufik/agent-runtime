@@ -53,6 +53,19 @@ operation:
       max_context_tokens: 16384
       reasoning_effort: null
 
+  agent_guard:
+    name: agent_guard
+    connector: ${connector.llm_provider}
+    type: api
+    endpoint: /chat/completions
+    method: POST
+    parameters:
+      model: nvidia/nemotron-3-super-120b-a12b
+      temperature: 0.0
+      max_output_tokens: 1024
+      max_context_tokens: 32768
+      reasoning_effort: null
+
   agent_summary:
     name: agent_summary
     connector: ${connector.llm_provider}

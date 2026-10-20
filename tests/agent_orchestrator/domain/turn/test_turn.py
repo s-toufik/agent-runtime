@@ -122,7 +122,7 @@ def test_the_approval_request_is_the_plan_awaiting_approval() -> None:
     approval = Answer.approval_request(PLAN)
 
     assert (approval.text, approval.outcome) == (PLAN.render(), Outcome.AWAITING_APPROVAL)
-    assert approval.text == "## Plan\n1. count (tool: echo)\n## Expected result\nA count."
+    assert approval.text == "### Plan\n1. count (tool: echo)\n### Expected result\nA count."
 
 
 def test_a_plan_request_is_neither_an_answer_nor_tool_calls() -> None:
