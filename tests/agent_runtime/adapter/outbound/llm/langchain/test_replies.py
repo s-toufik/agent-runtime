@@ -1,5 +1,6 @@
 import pytest
 from langchain_core.exceptions import ModelError
+from langchain_openai.chat_models._client_utils import StreamChunkTimeoutError
 
 from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
 from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
@@ -54,3 +55,11 @@ async def test_a_streamed_tool_call_is_returned_but_never_published() -> None:
 async def test_a_retryable_model_error_means_the_agent_is_unavailable(reader) -> None:
     with pytest.raises(AgentUnavailableException):
         await reader.read(FakeLLM(replies=[_Unavailable("503")]), [])
+
+
+@pytest.mark.parametrize("reader", [WholeReply(), StreamedReply(RecordingEvents())])
+async def test_a_model_that_goes_silent_means_the_agent_is_unavailable(reader) -> None:
+    silent = StreamChunkTimeoutError(120.0, model_name="m", chunks_received=0)
+
+    with pytest.raises(AgentUnavailableException, match="did not answer in time"):
+        await reader.read(FakeLLM(replies=[silent]), [])

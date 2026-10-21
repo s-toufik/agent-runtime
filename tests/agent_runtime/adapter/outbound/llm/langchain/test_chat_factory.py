@@ -62,3 +62,4 @@ def test_every_request_waits_at_most_the_connector_timeout() -> None:
 
     assert client.request_timeout == 90
     assert client.root_async_client.timeout == 90
+    assert client.stream_chunk_timeout == 90

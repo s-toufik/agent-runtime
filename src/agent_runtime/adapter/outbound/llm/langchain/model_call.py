@@ -21,6 +21,10 @@ def model_errors() -> Generator[None]:
         if exception.is_retryable:
             raise AgentUnavailableException(str(exception)) from exception
         raise
+    except TimeoutError as exception:
+        raise AgentUnavailableException(
+            f"the model did not answer in time: {exception}"
+        ) from exception
 
 
 async def invoke(model: Runnable, messages: Sequence[BaseMessage]) -> Any:

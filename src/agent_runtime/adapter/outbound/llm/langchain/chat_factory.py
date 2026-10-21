@@ -28,5 +28,6 @@ class LLMChat:
             extra_body=thinking_switch(self._model_parameters.reasoning_effort),
             stream_usage=self._model_parameters.stream_usage,
             timeout=self._model_connector.timeout_seconds,
+            stream_chunk_timeout=self._model_connector.timeout_seconds,
             max_retries=0,
         )
