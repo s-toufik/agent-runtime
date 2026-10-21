@@ -82,15 +82,16 @@ A server-sent event stream; each frame is `event: <type>` + `data: <json>`. New 
 | `error` | The request failed; the content says why |
 | `complete` | Always last |
 
-`final.metadata` holds `iteration` (steps used), `max_iteration` and `outcome`:
+`final.metadata` describes the answer. Today it holds `outcome`, `iteration` (steps used), `max_iteration`, `model`, and when known `elapsed_time`, `input_tokens`, `output_tokens` and `tools` (the tools used, comma-separated). More fields may be added: show or ignore the ones you don't know.
 
-| `outcome` | Meaning |
-|---|---|
-| `answered` | A normal answer |
-| `awaiting_approval` | The reply is a plan: answer **yes** to run it, or say what to change |
-| `clarification` | The reply is a question: the agent needs more detail |
-| `best_effort` | The answer did not pass the agent's own check within the retry limit |
-| `budget_exhausted` | The agent reached its step limit before finishing; for a plan, the reply lists which steps ran and which did not |
+| `outcome` | When | What the user can do |
+|---|---|---|
+| `answered` | A normal answer: it passed the agent's own review, or needed none | Read it |
+| `awaiting_approval` | The reply is a plan that needs tools, waiting for approval. A plan that needs no tool runs straight away, and so does any plan when `auto_approve` is on | Reply **yes** to run it, **Drop plan** to cancel it, or say what to change |
+| `clarification` | The reply is a question: the request was too vague to act on | Answer the question |
+| `best_effort` | The agent could not give an answer it was satisfied with. Either the review rejected every attempt and the rewrites allowed (`max_reflection_retries`) ran out, so the reply is the last attempt; or no answer was produced ("No answer was produced."); or no plan could be written ("I could not write a plan…") | Check the answer, or rephrase the request |
+| `budget_exhausted` | The agent used all its steps (`max_iterations`) before finishing; for a plan, the reply lists which steps ran and which did not | Ask it to continue, or narrow the request |
+| `refused` | The guardrail (`GUARDRAIL_ENABLED=true`) blocked the plan before anything ran; the reply is `[SCREEN]: <reason>` and the plan is dropped | Change the request |
 
 ### How a message is handled
 
