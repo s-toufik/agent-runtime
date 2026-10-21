@@ -111,14 +111,14 @@ operation:
       max_iterations: 20
       reasoning_effort: null
   # ------------------------------------------- NVIDIA Models
-  nemotron-3-super-120b-a12b:
-    name: nemotron-3-super-120b-a12b
+  nemotron-3_5-super-vl-120b-a12b:
+    name: nemotron-3_5-super-vl-120b-a12b
     connector: ${connector.llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
     parameters:
-      model: nvidia/nemotron-3-super-120b-a12b
+      model: nvidia/nemotron-3.5-super-vl-120b-a12b
       temperature: 0.0
       max_output_tokens: 4096
       max_context_tokens: 16384

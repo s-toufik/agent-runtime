@@ -38,6 +38,12 @@ def test_maps_the_connector_base_url_and_a_placeholder_api_key() -> None:
     assert connector.api_key.get_secret_value() == "No_Key"
 
 
+def test_the_connector_timeout_bounds_every_model_request() -> None:
+    connector, _ = ModelSettingsMapper(make_operation({}))()
+
+    assert connector.timeout_seconds == 10
+
+
 def test_a_token_connector_passes_its_key_to_the_model_client() -> None:
     auth = TokenAuth(type=AuthType.token, key_name="apikey", key_value="sk-test")
     connector, _ = ModelSettingsMapper(make_operation({}, auth))()

@@ -38,8 +38,10 @@ def test_the_judge_is_built_with_the_agents_llm_chat() -> None:
         temperature=0.0,
         max_output_tokens=512,
         max_context_tokens=8000,
+        timeout_seconds=45,
         reasoning_effort="low",
     )
 
     model = judge._model
     assert model.model_name == "judge-model" and model.max_retries == 0  # ty: ignore[unresolved-attribute]
+    assert model.request_timeout == 45  # ty: ignore[unresolved-attribute]

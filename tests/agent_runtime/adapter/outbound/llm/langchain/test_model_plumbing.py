@@ -1,8 +1,10 @@
+import httpx
 import pytest
 from langchain_core.exceptions import ModelError
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import SecretStr
 
+from agent_runtime.adapter.outbound.llm.langchain.chat_factory import LLMChat
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
 from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
 from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke
@@ -23,7 +25,9 @@ from agent_runtime.domain.turn.turn_settings import TurnSettings
 from agent_runtime.domain.workflow.step import Step
 from tests.agent_runtime.adapter.outbound.llm.langchain.fakes import FakeLLM
 
-CONNECTOR = ModelConnector(base_url="http://llm:8080/v1", api_key=SecretStr("k"))
+CONNECTOR = ModelConnector(
+    base_url="http://llm:8080/v1", api_key=SecretStr("k"), timeout_seconds=60
+)
 
 
 def _parameters(name: str, **fields) -> ModelParameters:
@@ -92,6 +96,17 @@ async def test_a_retryable_model_error_means_the_agent_is_unavailable() -> None:
 async def test_a_non_retryable_model_error_propagates() -> None:
     with pytest.raises(ModelError):
         await invoke(FakeLLM(replies=[ModelError("bad request")]), [])  # ty: ignore[invalid-argument-type]
+
+
+async def test_a_model_server_that_never_answers_makes_the_agent_unavailable() -> None:
+    def silent(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("no answer", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(silent)) as client:
+        model = LLMChat(CONNECTOR, _parameters("m"), client).create_chat_client()
+
+        with pytest.raises(AgentUnavailableException):
+            await invoke(model, [HumanMessage(content="hi")])
 
 
 def _history(count: int) -> Conversation:

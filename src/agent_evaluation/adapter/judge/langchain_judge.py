@@ -35,10 +35,13 @@ class LangChainJudge:
         temperature: float,
         max_output_tokens: int,
         max_context_tokens: int,
+        timeout_seconds: float,
         reasoning_effort: str | None,
     ) -> LangChainJudge:
         chat = LLMChat(
-            ModelConnector(base_url=base_url, api_key=SecretStr(api_key)),
+            ModelConnector(
+                base_url=base_url, api_key=SecretStr(api_key), timeout_seconds=timeout_seconds
+            ),
             ModelParameters(
                 model_name=model_name,
                 temperature=temperature,

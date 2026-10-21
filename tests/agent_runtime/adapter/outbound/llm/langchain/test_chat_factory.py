@@ -6,7 +6,9 @@ from agent_runtime.adapter.outbound.llm.schema import ModelConnector, ModelParam
 
 
 def test_create_chat_client_applies_every_configured_field() -> None:
-    connector = ModelConnector(base_url="http://example.com", api_key=SecretStr("key"))
+    connector = ModelConnector(
+        base_url="http://example.com", api_key=SecretStr("key"), timeout_seconds=90
+    )
     parameters = ModelParameters(
         model_name="qwen3-14b",
         temperature=0.3,
@@ -27,7 +29,9 @@ def test_create_chat_client_applies_every_configured_field() -> None:
 
 
 def test_the_langchain_openai_sdk_retries_are_disabled() -> None:
-    connector = ModelConnector(base_url="http://example.com", api_key=SecretStr("key"))
+    connector = ModelConnector(
+        base_url="http://example.com", api_key=SecretStr("key"), timeout_seconds=90
+    )
     parameters = ModelParameters(
         model_name="m",
         temperature=0.0,
@@ -40,3 +44,21 @@ def test_the_langchain_openai_sdk_retries_are_disabled() -> None:
 
     assert client.client._client.max_retries == 0
     assert client.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_every_request_waits_at_most_the_connector_timeout() -> None:
+    connector = ModelConnector(
+        base_url="http://example.com", api_key=SecretStr("key"), timeout_seconds=90
+    )
+    parameters = ModelParameters(
+        model_name="m",
+        temperature=0.0,
+        max_output_tokens=100,
+        max_context_tokens=100,
+        max_iterations=1,
+    )
+
+    client = LLMChat(connector, parameters).create_chat_client()
+
+    assert client.request_timeout == 90
+    assert client.root_async_client.timeout == 90

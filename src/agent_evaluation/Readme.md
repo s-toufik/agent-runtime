@@ -79,7 +79,7 @@ Without `make`: `uv run python -m agent_evaluation --help`.
 | Section | What it sets |
 |---|---|
 | `agent` | `base_url`, `endpoint` (the streaming endpoint), `models_endpoint` (used for the preflight check; `null` skips it), `model_name`, `timeout_seconds`, extra `headers` |
-| `judge` | The model that grades the `Judged` checks: `base_url`, `model_name`, `api_key_env` (the name of the variable holding the key, looked up in the environment, then in `env_file`), `temperature`, token limits, `reasoning_effort`, `pass_score` (0 to 1), `pause_between_calls_seconds` |
+| `judge` | The model that grades the `Judged` checks: `base_url`, `model_name`, `api_key_env` (the name of the variable holding the key, looked up in the environment, then in `env_file`), `temperature`, token limits, `timeout_seconds` (the longest the judge waits for one grade), `reasoning_effort`, `pass_score` (0 to 1), `pause_between_calls_seconds` |
 | `run` | Defaults for every kind: `runs`, `pause_between_runs_seconds`, `pause_between_messages_seconds`, `pause_between_cases_seconds`, `case_pass_rate`, `retry_on_error`, `retry_pause_seconds`, `output_dir`, `console_log_level` |
 | `kinds` | Per kind: `enabled`, and overrides of `runs`, `pause_between_runs_seconds`, `pause_between_cases_seconds`; `skip_cases` lists case ids to leave out |
 | `capabilities` | What the agent can reach: see below |

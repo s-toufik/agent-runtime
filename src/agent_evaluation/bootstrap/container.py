@@ -159,6 +159,7 @@ class EvaluationContainer:
             temperature=judge.temperature,
             max_output_tokens=judge.max_output_tokens,
             max_context_tokens=judge.max_context_tokens,
+            timeout_seconds=judge.timeout_seconds,
             reasoning_effort=judge.reasoning_effort,
         )
 

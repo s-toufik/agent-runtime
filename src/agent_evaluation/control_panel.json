@@ -6,7 +6,7 @@
     "base_url": "http://localhost:8001",
     "endpoint": "/v1/stream",
     "models_endpoint": "/v1/models",
-    "model_name": "nvidia/nemotron-3-super-120b-a12b",
+    "model_name": "nvidia/nemotron-3.5-super-vl-120b-a12b",
     "timeout_seconds": 900,
     "headers": {}
   },
@@ -14,12 +14,13 @@
   "judge": {
     "_help": "Model that grades the Judged checks, called through the agent's own LLMChat. The key is read from api_key_env, in the environment first, then in env_file.",
     "base_url": "https://integrate.api.nvidia.com/v1",
-    "model_name": "nvidia/nemotron-3-super-120b-a12b",
+    "model_name": "nvidia/nemotron-3.5-super-vl-120b-a12b",
     "api_key_env": "LLM_API_KEY",
     "env_file": ".env",
     "temperature": 0.0,
     "max_output_tokens": 2048,
     "max_context_tokens": 32768,
+    "timeout_seconds": 120,
     "reasoning_effort": null,
     "pass_score": 0.7,
     "pause_between_calls_seconds": 2

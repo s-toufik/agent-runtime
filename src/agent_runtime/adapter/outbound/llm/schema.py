@@ -6,6 +6,7 @@ from agent_runtime.adapter.outbound.llm.enum.reasoning_effort import ReasoningEf
 class ModelConnector(BaseModel):
     base_url: str
     api_key: SecretStr | None
+    timeout_seconds: float
 
 
 class ModelParameters(BaseModel):

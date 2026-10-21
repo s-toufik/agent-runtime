@@ -154,7 +154,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 | File | What you set there |
 |---|---|
-| `connector/api.yml` | The model server, timeout, retries |
+| `connector/api.yml` | The model server; `timeout`: the longest one model call may wait for an answer, in seconds; `retry`: how many times a failed or timed-out call is retried |
 | `connector/mcp.yml` | The MCP servers |
 | `connector/database.yml` | MongoDB and SQLite, conversation TTL |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
@@ -175,7 +175,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 To add a model: add its entry, list it under `operation:` in `config/root.yml`, and restart; it then appears in `GET /v1/models`. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
 
-**Model per step** (`operation/agent.yml`): every step that calls a model has an entry named after its role — today `agent_context` (understand), `agent_plan`, `agent_act` (answer and tools), `agent_reflection` (review) and `agent_summary`. A step added later that calls a model gets its own entry the same way.
+**Model per step** (`operation/agent.yml`): every step that calls a model has an entry named after its role — today `agent_context` (understand), `agent_plan`, `agent_act` (answer and tools), `agent_reflection` (review), `agent_guard` (screen, when the guardrail is on) and `agent_summary`. A step added later that calls a model gets its own entry the same way.
 
 - `parameters.model: null` — the step uses the model named in the request.
 - `parameters.model: <name>` — the step always uses that model, with the parameters written in the same entry. When `agent_act` is fixed, its entry also sets the turn's budget (`max_iterations`, `max_reflection_retries`, `max_context_tokens`).

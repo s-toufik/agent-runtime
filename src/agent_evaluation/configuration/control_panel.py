@@ -29,6 +29,7 @@ class JudgeSection(_Section):
     temperature: float = 0.0
     max_output_tokens: int = Field(default=2048, gt=0)
     max_context_tokens: int = Field(default=32768, gt=0)
+    timeout_seconds: float = Field(default=120.0, gt=0)
     reasoning_effort: Literal["low", "medium", "high"] | None = None
     pass_score: float = Field(default=0.7, ge=0.0, le=1.0)
     pause_between_calls_seconds: float = Field(default=0.0, ge=0)
