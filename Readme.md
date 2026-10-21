@@ -246,7 +246,8 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_orchestrator/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
 | `src/bootstrap/` | Settings, `AgentDI` (wiring only), FastAPI application, routers |
 | `config/` | YAML configuration |
-| `tests/` | Unit, scenario, architecture and evaluation tests |
+| `src/agent_evaluation/` | The evaluation: a separate program that tests a running agent over HTTP (see [its Readme](src/agent_evaluation/Readme.md)) |
+| `tests/` | Unit, scenario and architecture tests, including the evaluation's own tests |
 
 ### A turn, end to end
 
@@ -298,108 +299,24 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 ```bash
 make check        # ruff + ty + pytest
-make test         # unit, scenario and architecture tests: never runs the evaluation
+make test         # unit, scenario and architecture tests: never calls a model
 make lint / make format / make typecheck
-make evaluation   # only tests/evaluation: live evaluation, needs a real llm_model server and toolbox
+make evaluate     # evaluates a running agent over HTTP: see "Evaluating the agent" below
 ```
 
 `tests/agent_orchestrator/scenarios/` runs whole turns on two runners — LangGraph and a plain in-memory loop over the same steps and policy — and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the ones a real model rarely takes (a review rejection, a plan request from act, running out of steps).
 
-### Evaluating the agent with a real model
+### Evaluating the agent
 
-How to run it:
+The evaluation is a separate program in `src/agent_evaluation/`. It tests a **running** agent from the outside, over the same HTTP endpoint a client uses. It never builds the agent or reads its configuration. You start the toolbox and the agent, point the evaluation's control panel at them, and run:
 
-- **Start the toolbox** in its own terminal and leave it running.
-  ```bash
-  cd ../agent-toolbox
-  make run
-  ```
-- **Check `.env`** in this project: the toolbox URL uses `localhost` (the toolbox refuses `127.0.0.1`), and the model provider has its URL and key.
-  ```bash
-  TOOLBOX_URL=http://localhost:8000/mcp
-  LLM_BASE_URL=https://integrate.api.nvidia.com/v1
-  LLM_API_KEY=nvapi-...
-  ```
-- **Pick a model** your provider serves, by the name `GET /v1/models` lists (not the short key in `llm.yml`). A wrong name stops the run and lists the valid ones.
-  ```bash
-  curl -s http://localhost:8001/v1/models | grep '"name"'   # with the agent running
-  # "name": "nvidia/nemotron-3-super-120b-a12b"
-  ```
-- **Check the harness first**: no model, no cost.
-  ```bash
-  uv run pytest -m evaluation tests/evaluation/test_harness.py
-  # 13 passed
-  ```
-- **Run the evaluation.**
-  ```bash
-  EVAL_MODEL=nvidia/nemotron-3-super-120b-a12b make evaluation
-  ```
-- **Change the pass mark** if you want: a number from 0 to 1, `0.8` by default.
-  ```bash
-  EVAL_MODEL=nvidia/nemotron-3-super-120b-a12b EVAL_THRESHOLD=0.9 make evaluation
-  ```
-- **Run a single case** while working on it: `-k` takes words from the case's name joined by `and`, not a phrase.
-  ```bash
-  EVAL_MODEL=nvidia/nemotron-3-super-120b-a12b \
-    uv run pytest -m evaluation tests/evaluation/test_routes.py -k "ambiguous and clarifying"
-  ```
-- **Read the report**: the newest `.md` in `tests/evaluation/reports/` to read, the `.json` beside it to compare runs. The run also prints its path.
-  ```bash
-  open "$(ls -t tests/evaluation/reports/*.md | head -1)"
-  # tests/evaluation/reports/20261006-134050_nvidia-nemotron-3-super-120b-a12b.md
-  ```
-- **Leave a few minutes between full runs** on a rate-limited API: a run makes many calls, and a case that hits the limit is listed under "Not scored" instead of getting a score.
-  ```text
-  ## Not scored
-  - **test_the_agent_takes_the_expected_route[moving on ...]**: AgentUnavailableException: Error code: 429 - Too Many Requests
-  ```
-
-The agent itself does not need to be running: the evaluation builds its own, in the test process.
-
-Every test produces a **score from 0 to 1**, higher is better, and passes when its score is at or above `EVAL_THRESHOLD`:
-
-| File | Score |
-|---|---|
-| `test_routes.py` | The share of checks passed over a whole conversation from `harness/cases.py`: for each message, the route, intent, outcome, tools run, plan and answer its `Expect` sets, plus the contract rules below |
-| `test_answer_relevancy.py`, `test_faithfulness.py`, `test_tool_correctness.py`, `test_bias.py`, `test_toxicity.py`, `test_hallucination.py` | DeepEval's score, with the same model as judge: the share of the judge's verdicts that are good (for bias, the share of opinions judged unbiased) |
-
-The contract (`harness/contract.py`) holds for every message: it gets an answer, runs understand first and finish, summarize last, runs tools only under an approved plan, and stays within its step budget; a reply awaiting approval has a pending plan, and an answered plan has every step done and was reviewed.
-
-Each run writes a report to `tests/evaluation/reports/` (kept out of git), named after the time and the model: a `.md` to read and a `.json` to compare runs or models. The Markdown lists every score from the lowest up, what lowered each one, and the transitions of the routing table the model never took:
-
-```text
-# Agent evaluation: nvidia/nemotron-3-super-120b-a12b
-
-2026-10-06 14:30 · threshold 0.80 · mean score 0.94 · 14/15 at or above the threshold
-
-| Score | Result | Kind    | Test                                            |
-|------:|--------|---------|-------------------------------------------------|
-|  0.70 | FAIL   | route   | an ambiguous message gets a clarifying question |
-|  1.00 | pass   | quality | answer relevancy: a one-sentence question       |
-…
+```bash
+make evaluate                                  # every enabled kind
+make evaluate KINDS=SECURITY,MEMORY RUNS=1     # a few kinds, one run per case
+make evaluate DRY_RUN=1                        # what would run, without calling the agent
 ```
 
-The terminal ends with the same summary and the report's path.
-
-To cover a new behavior, add a `Case` to `harness/cases.py`: the messages to send and an `Expect` for each one. Only the fields you set are checked:
-
-```python
-Case(
-    "a task waits for approval, then runs to the end of its plan",
-    (
-        Say(
-            "Use the python tool to compute 12 * 7.",
-            Expect(outcome=Outcome.AWAITING_APPROVAL, plan_tools=frozenset({"python_executor"})),
-        ),
-        Say(
-            "yes",
-            Expect(outcome=Outcome.ANSWERED, tools=("python_executor",), answer_contains=("84",)),
-        ),
-    ),
-)
-```
-
-Everything under `tests/evaluation/` is marked `evaluation` by its `conftest.py`, and `pyproject.toml` deselects that marker by default: `make test` and CI never run it, and `make evaluation` runs nothing else. A new file there needs no marker of its own. `test_harness.py` checks the harness itself and needs no model, so `uv run pytest -m evaluation tests/evaluation/test_harness.py` tells a broken check apart from a misbehaving model.
+It checks several kinds of behaviour (today: tool selection, security, guardrail, task completion, memory, relevance, planning, routing and quality), runs each case several times with pauses so the model provider is not overloaded, and writes a JSON, a Markdown and a log file per kind plus an overall report. How to configure it, read its reports and add cases: [src/agent_evaluation/Readme.md](src/agent_evaluation/Readme.md).
 
 Pre-commit hooks:
 

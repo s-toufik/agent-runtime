@@ -61,11 +61,9 @@ def _fake_mongo_client(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _null_telemetry(request, monkeypatch):
-    # .env reaches the test process (deepeval's plugin, ProcessSettings.for_role), so the real
-    # provider would export to the configured collector from background threads.
-    if request.node.get_closest_marker("evaluation"):
-        return
+def _null_telemetry(monkeypatch):
+    # .env reaches the test process (ProcessSettings.for_role), so the real provider would
+    # export to the configured collector from background threads.
     from bootstrap.di import base_di
     from tests.support.null_telemetry import NullTelemetryProvider
 

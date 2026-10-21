@@ -2,7 +2,7 @@ import re
 
 from agent_orchestrator.domain.turn.plan import Plan
 
-_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
+_QUOTED: re.Pattern[str] = re.compile(r"(?<!\w)'[^'\n]*'(?!\w)|\"[^\"\n]*\"")
 
 _RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
