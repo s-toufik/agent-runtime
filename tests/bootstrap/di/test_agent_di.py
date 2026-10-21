@@ -18,6 +18,7 @@ from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelive
 from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
 from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
 from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
 from agent_runtime.domain.workflow.step import Step
@@ -123,6 +124,14 @@ async def test_close_llm_http_client_is_a_no_op_when_never_built() -> None:
     di = AgentDI(make_settings())
 
     await di._close_llm_http_client()
+
+
+def test_model_calls_use_the_retry_rule_that_skips_silent_models() -> None:
+    di = AgentDI(make_settings())
+
+    retry = di._llm_transport_factory._settings.retry
+
+    assert retry.should_retry is should_retry_model_call
 
 
 class _FakeMcpSession:

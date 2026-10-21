@@ -16,7 +16,7 @@ from pycraftcore.application_configuration.model.connector import (
 from pycraftcore.application_configuration.model.operation import ApiOperation, McpOperation
 from pycraftcore.circuit_breaker.configuration import CircuitBreakerSettings
 from pycraftcore.http.configuration import HttpClientSettings, LimitsSettings
-from pycraftcore.http.policy.http_error_policy import is_business_error, is_retryable
+from pycraftcore.http.policy.http_error_policy import is_business_error
 from pycraftcore.repository.adapter import (
     MongoRepositoryFactory,
     MongoSettingsMapper,
@@ -66,6 +66,7 @@ from agent_runtime.adapter.outbound.llm.model_catalog import (
     ModelCatalog,
     ModelSettings,
 )
+from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
 from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
@@ -173,7 +174,7 @@ class AgentDI(BaseDI):
                 retry_delay=1,
                 max_retry_delay=20,
                 jitter=1,
-                should_retry=is_retryable,
+                should_retry=should_retry_model_call,
             ),
             circuit_breaker=CircuitBreakerSettings(
                 failure_threshold=3,

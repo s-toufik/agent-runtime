@@ -154,7 +154,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 | File | What you set there |
 |---|---|
-| `connector/api.yml` | The model server; `timeout`: the longest one model call may wait for an answer, in seconds; `retry`: how many times a failed or timed-out call is retried |
+| `connector/api.yml` | The model server; `timeout`: the longest one model call may wait for an answer, in seconds; `retry`: how many times a call is retried after a server error (5xx, 429) or a connection failure; a model that stays silent for `timeout` is not retried, so the user waits at most one `timeout` |
 | `connector/mcp.yml` | The MCP servers |
 | `connector/database.yml` | MongoDB and SQLite, conversation TTL |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
