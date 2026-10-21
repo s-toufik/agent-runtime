@@ -22,11 +22,13 @@ class ScreenStep:
         plan: Plan | None = turn.plan or conversation.pending_plan
         if plan is None:
             return
+        self._logger.debug("Calling the guard rules")
         reason: str | None = hard_block_reason(plan)
         if reason is not None:
             turn.screened(Screening.block(reason))
             conversation.retract()
             turn.refuse(reason)
+            self._logger.debug(f"Blocked by the guard rules: {reason}")
             return
         screening: Screening | None = await self._guard.screen(conversation, turn, plan)
         if screening is None:
@@ -36,3 +38,4 @@ class ScreenStep:
         if screening.blocks:
             conversation.retract()
             turn.refuse(screening.reason)
+            self._logger.debug(f"Blocked by the guard model: {screening.reason}")
