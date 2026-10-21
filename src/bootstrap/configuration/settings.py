@@ -4,7 +4,7 @@ from pathlib import Path
 
 import dotenv
 
-from agent_orchestrator.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 
 
 @dataclass(frozen=True, slots=True)

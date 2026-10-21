@@ -14,13 +14,13 @@ from pycraftcore.application_configuration.model.connector import (
 from pycraftcore.application_configuration.model.operation import OperationRegistry
 from pycraftcore.authentication.model.no_auth import NoAuth
 
-from agent_orchestrator.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
-from agent_orchestrator.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
-from agent_orchestrator.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
-from agent_orchestrator.adapter.outbound.llm.model_catalog import AgentRole
-from agent_orchestrator.adapter.outbound.tool.tool_registry import ToolRegistry
-from agent_orchestrator.adapter.outbound.tool.toolbox import Toolbox
-from agent_orchestrator.domain.workflow.step import Step
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
+from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
+from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
+from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.domain.workflow.step import Step
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.agent_di import EXTERNAL_MCP_PREFIX, MCP_CONNECTOR_NAME, AgentDI
 
@@ -47,7 +47,7 @@ def make_settings(
     guardrail_enabled: bool = False,
 ) -> ProcessSettings:
     return ProcessSettings(
-        role="agent-orchestrator",
+        role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
         answer_delivery=answer_delivery,

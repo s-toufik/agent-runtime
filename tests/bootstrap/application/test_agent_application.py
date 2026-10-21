@@ -26,7 +26,7 @@ def _base_env(monkeypatch, tmp_path):
 
 def make_settings() -> ProcessSettings:
     return ProcessSettings(
-        role="agent-orchestrator",
+        role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
     )

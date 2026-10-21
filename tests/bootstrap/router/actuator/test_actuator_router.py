@@ -7,7 +7,7 @@ from bootstrap.router.actuator.actuator_router import ActuatorRouter
 def make_app(ready: bool | None = None) -> FastAPI:
     app = FastAPI()
     router = ActuatorRouter(
-        app_name="agent-orchestrator",
+        app_name="agent-runtime",
         app_version="1.2.3",
         app_deployment_environment="debug",
         app_authors="dev@example.com",
@@ -60,7 +60,7 @@ def test_info_reports_the_constructor_fields() -> None:
     response = client.get("/actuator/info")
 
     assert response.json() == {
-        "name": "agent-orchestrator",
+        "name": "agent-runtime",
         "version": "1.2.3",
         "environment": "debug",
         "authors": "dev@example.com",

@@ -4,7 +4,7 @@ from agent_evaluation.adapter.judge.langchain_judge import GradeDto, LangChainJu
 from agent_evaluation.domain.exception import JudgeUnavailable
 from agent_evaluation.domain.exchange import Exchange
 from tests.agent_evaluation.fakes import reply
-from tests.agent_orchestrator.adapter.outbound.llm.langchain.fakes import FakeLLM
+from tests.agent_runtime.adapter.outbound.llm.langchain.fakes import FakeLLM
 
 TRANSCRIPT = (Exchange("main", "Capital of France?", False, reply("Paris", tools=("echo",))),)
 

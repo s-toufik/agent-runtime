@@ -1,4 +1,4 @@
-# agent-orchestrator
+# agent-runtime
 
 An agent served over HTTP. Send it a message: it works out what you want, answers straight away when it can, proposes a plan when the request needs tools, runs the tools once you approve, checks its own answer, and streams the reply back as server-sent events.
 
@@ -7,7 +7,7 @@ An agent served over HTTP. Send it a message: it works out what you want, answer
 
 ```text
                 ┌──────────────────────────────────────────┐
-  your app ────►│  agent-orchestrator                      │
+  your app ────►│  agent-runtime                           │
   (homelab-ui)  │                                          │
        ▲        │  understand ─► plan ─► act ─► review     │──── OpenAI API ───► model server
        │        │                         │                │
@@ -238,12 +238,12 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 | Path | What it holds |
 |---|---|
-| `src/agent_orchestrator/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
-| `src/agent_orchestrator/application/` | `HandleMessage`, the step handlers (`*_step.py`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `WorkflowRunner`…) |
-| `src/agent_orchestrator/adapter/inbound/web/` | `StreamAgentController`, `SsePresenter`, request and response schemas |
-| `src/agent_orchestrator/adapter/outbound/llm/` | One LangChain adapter per model role, prompts, `ModelCatalog` |
-| `src/agent_orchestrator/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
-| `src/agent_orchestrator/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
+| `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
+| `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `WorkflowRunner`…) |
+| `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController`, `SsePresenter`, request and response schemas |
+| `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, prompts, `ModelCatalog` |
+| `src/agent_runtime/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
+| `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
 | `src/bootstrap/` | Settings, `AgentDI` (wiring only), FastAPI application, routers |
 | `config/` | YAML configuration |
 | `src/agent_evaluation/` | The evaluation: a separate program that tests a running agent over HTTP (see [its Readme](src/agent_evaluation/Readme.md)) |
@@ -304,7 +304,7 @@ make lint / make format / make typecheck
 make evaluate     # evaluates a running agent over HTTP: see "Evaluating the agent" below
 ```
 
-`tests/agent_orchestrator/scenarios/` runs whole turns on two runners — LangGraph and a plain in-memory loop over the same steps and policy — and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the ones a real model rarely takes (a review rejection, a plan request from act, running out of steps).
+`tests/agent_runtime/scenarios/` runs whole turns on two runners — LangGraph and a plain in-memory loop over the same steps and policy — and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the ones a real model rarely takes (a review rejection, a plan request from act, running out of steps).
 
 ### Evaluating the agent
 

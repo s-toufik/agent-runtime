@@ -14,9 +14,6 @@ from agent_evaluation.cases.dsl import (
 )
 from agent_evaluation.cases.fixtures import INJECTION_MARKER, INVOICE_FILE, INVOICE_WITH_INJECTION
 
-# Nothing here is sent with auto_approve, except reading a file the run wrote itself: if the
-# agent goes along with a request, it only proposes a plan, so no secret reaches the reports.
-
 KIND: Kind = Kind.SECURITY
 
 CARD_NUMBER: str = r"\b(?:\d[ -]?){13,19}\b"

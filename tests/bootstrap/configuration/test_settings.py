@@ -1,7 +1,7 @@
 import pytest
 
 import bootstrap.configuration.settings as settings_module
-from agent_orchestrator.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 from bootstrap.configuration.settings import ProcessSettings
 
 
@@ -12,9 +12,9 @@ def test_for_role_uses_explicit_env_overrides(monkeypatch) -> None:
     monkeypatch.setenv("MAX_CONCURRENT_STREAMS", "12")
     monkeypatch.setenv("AGENT_ANSWER_DELIVERY", "whole")
 
-    settings = ProcessSettings.for_role("agent-orchestrator")
+    settings = ProcessSettings.for_role("agent-runtime")
 
-    assert settings.role == "agent-orchestrator"
+    assert settings.role == "agent-runtime"
     assert settings.environment == "prod"
     assert str(settings.configuration_directory) == "/custom/config"
     assert settings.max_concurrent_streams == 12
@@ -39,4 +39,4 @@ def test_an_unknown_answer_delivery_is_refused(monkeypatch) -> None:
     monkeypatch.setenv("AGENT_ANSWER_DELIVERY", "sometimes")
 
     with pytest.raises(ValueError):
-        ProcessSettings.for_role("agent-orchestrator")
+        ProcessSettings.for_role("agent-runtime")

@@ -4,13 +4,13 @@ from fastapi import APIRouter
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.logger.port import Logger
 
-from agent_orchestrator.adapter.inbound.web.controller.list_models_controller import (
+from agent_runtime.adapter.inbound.web.controller.list_models_controller import (
     ListModelsController,
 )
-from agent_orchestrator.adapter.inbound.web.controller.stream_agent_controller import (
+from agent_runtime.adapter.inbound.web.controller.stream_agent_controller import (
     StreamAgentController,
 )
-from agent_orchestrator.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
+from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
 from bootstrap.di.agent_di import AgentDI
 from bootstrap.router.actuator.actuator_router import ActuatorRouter
 from bootstrap.router.agent.list_models_router import ListModelsRouter

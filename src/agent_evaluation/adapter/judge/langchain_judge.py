@@ -9,10 +9,10 @@ from agent_evaluation.adapter.judge.prompts import judge_request, judge_system_p
 from agent_evaluation.domain.check.judge import Grade
 from agent_evaluation.domain.exception import JudgeUnavailable
 from agent_evaluation.domain.exchange import Exchange
-from agent_orchestrator.adapter.outbound.llm.enum.reasoning_effort import ReasoningEffort
-from agent_orchestrator.adapter.outbound.llm.langchain.chat_factory import LLMChat
-from agent_orchestrator.adapter.outbound.llm.langchain.model_call import invoke_structured
-from agent_orchestrator.adapter.outbound.llm.schema import ModelConnector, ModelParameters
+from agent_runtime.adapter.outbound.llm.enum.reasoning_effort import ReasoningEffort
+from agent_runtime.adapter.outbound.llm.langchain.chat_factory import LLMChat
+from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke_structured
+from agent_runtime.adapter.outbound.llm.schema import ModelConnector, ModelParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 

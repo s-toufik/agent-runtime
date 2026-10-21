@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from agent_orchestrator.adapter.inbound.web.controller.list_models_controller import (
+from agent_runtime.adapter.inbound.web.controller.list_models_controller import (
     ListModelsController,
 )
-from agent_orchestrator.adapter.inbound.web.schema.model_list_schema import ModelListSchema
+from agent_runtime.adapter.inbound.web.schema.model_list_schema import ModelListSchema
 
 
 class ListModelsRouter:

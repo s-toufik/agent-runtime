@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[2] / "src"
-PACKAGE = SOURCE / "agent_orchestrator"
+PACKAGE = SOURCE / "agent_runtime"
 
 FRAMEWORKS = {
     "fastapi",
@@ -44,15 +44,15 @@ def _violations(directory: Path, forbidden: set[str]) -> list[str]:
 
 def test_the_domain_is_free_of_frameworks_and_outer_layers() -> None:
     forbidden = FRAMEWORKS | {
-        "agent_orchestrator.application",
-        "agent_orchestrator.adapter",
+        "agent_runtime.application",
+        "agent_runtime.adapter",
         "bootstrap",
     }
     assert _violations(PACKAGE / "domain", forbidden) == []
 
 
 def test_the_application_depends_only_on_the_domain() -> None:
-    forbidden = FRAMEWORKS | {"agent_orchestrator.adapter", "bootstrap"}
+    forbidden = FRAMEWORKS | {"agent_runtime.adapter", "bootstrap"}
     assert _violations(PACKAGE / "application", forbidden) == []
 
 
@@ -61,7 +61,7 @@ def test_the_hexagon_never_imports_the_composition_root() -> None:
 
 
 def test_outbound_adapters_never_import_inbound_adapters() -> None:
-    forbidden = {"agent_orchestrator.adapter.inbound"}
+    forbidden = {"agent_runtime.adapter.inbound"}
     assert _violations(PACKAGE / "adapter" / "outbound", forbidden) == []
 
 
@@ -71,8 +71,8 @@ def test_the_agent_never_imports_a_toolbox_package_directly() -> None:
 
 def test_langgraph_nodes_only_delegate_to_the_application() -> None:
     forbidden = {
-        "agent_orchestrator.adapter.outbound.llm",
-        "agent_orchestrator.adapter.outbound.tool",
+        "agent_runtime.adapter.outbound.llm",
+        "agent_runtime.adapter.outbound.tool",
         "langchain",
         "langchain_core",
         "langchain_openai",

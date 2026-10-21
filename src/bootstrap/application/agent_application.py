@@ -34,11 +34,11 @@ async def _lifespan(application: FastAPI, container: AgentContainer) -> AsyncGen
 
 
 def create_agent_application(settings: ProcessSettings | None = None) -> FastAPI:
-    process_settings = settings or ProcessSettings.for_role("agent-orchestrator")
+    process_settings = settings or ProcessSettings.for_role("agent-runtime")
     container = AgentContainer(process_settings)
 
     application = FastAPI(
-        title="agent-orchestrator",
+        title="agent-runtime",
         lifespan=lambda app: _lifespan(app, container),
     )
 

@@ -1,0 +1,41 @@
+from collections.abc import Sequence
+
+from agent_runtime.adapter.outbound.langgraph.node.act_node import ActNode
+from agent_runtime.adapter.outbound.langgraph.node.agent_node import AgentNode
+from agent_runtime.adapter.outbound.langgraph.node.clarify_node import ClarifyNode
+from agent_runtime.adapter.outbound.langgraph.node.feedback_node import FeedbackNode
+from agent_runtime.adapter.outbound.langgraph.node.finish_node import FinishNode
+from agent_runtime.adapter.outbound.langgraph.node.plan_node import PlanNode
+from agent_runtime.adapter.outbound.langgraph.node.review_node import ReviewNode
+from agent_runtime.adapter.outbound.langgraph.node.run_tools_node import RunToolsNode
+from agent_runtime.adapter.outbound.langgraph.node.screen_node import ScreenNode
+from agent_runtime.adapter.outbound.langgraph.node.summarize_node import SummarizeNode
+from agent_runtime.adapter.outbound.langgraph.node.understand_node import UnderstandNode
+from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
+from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
+from agent_runtime.application.step.step_handler import StepHandler
+from agent_runtime.domain.workflow.step import Step
+
+NODE_TYPES: tuple[type[AgentNode], ...] = (
+    UnderstandNode,
+    PlanNode,
+    ScreenNode,
+    ClarifyNode,
+    ActNode,
+    RunToolsNode,
+    ReviewNode,
+    FeedbackNode,
+    FinishNode,
+    SummarizeNode,
+)
+
+
+def agent_nodes(
+    handlers: Sequence[StepHandler], codec: TurnStateCodec, events: TurnEventPublisher
+) -> list[AgentNode]:
+    by_step: dict[Step, StepHandler] = {handler.step: handler for handler in handlers}
+    return [
+        node_type(by_step[node_type.step], codec, events)
+        for node_type in NODE_TYPES
+        if node_type.step in by_step
+    ]

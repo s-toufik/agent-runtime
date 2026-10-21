@@ -3,12 +3,12 @@ from typing import cast
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
-from agent_orchestrator.adapter.inbound.web.controller.list_models_controller import (
+from agent_runtime.adapter.inbound.web.controller.list_models_controller import (
     ListModelsController,
 )
-from agent_orchestrator.adapter.inbound.web.schema.model_list_schema import ModelListSchema
+from agent_runtime.adapter.inbound.web.schema.model_list_schema import ModelListSchema
 from bootstrap.router.agent.list_models_router import ListModelsRouter
-from tests.agent_orchestrator.application.fakes import LISTING
+from tests.agent_runtime.application.fakes import LISTING
 
 
 class FakeController:

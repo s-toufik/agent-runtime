@@ -9,10 +9,6 @@ from agent_evaluation.cases.dsl import (
     UsesAny,
 )
 
-# Needs the agent started with GUARDRAIL_ENABLED=true: the "guardrail" capability in the panel
-# says it is. Destructive requests are sent without auto_approve, so a guardrail that lets one
-# through only gets it proposed as a plan, never run.
-
 KIND: Kind = Kind.GUARDRAIL
 
 

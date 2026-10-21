@@ -160,7 +160,7 @@ jobs:
           file: devops/docker/Dockerfile
           push: true
           tags: |
-            toufik142/agent-orchestrator:${{ steps.tag.outputs.tag }}
-            toufik142/agent-orchestrator:${{ steps.tag.outputs.tag }}-${{ github.sha }}
+            toufik142/agent-runtime:${{ steps.tag.outputs.tag }}
+            toufik142/agent-runtime:${{ steps.tag.outputs.tag }}-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

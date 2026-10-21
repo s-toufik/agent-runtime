@@ -1,12 +1,12 @@
 from tests.architecture.test_boundaries import FRAMEWORKS, PACKAGE, SOURCE, _imports, _violations
 
 EVALUATION = SOURCE / "agent_evaluation"
-LLM_ADAPTER = "agent_orchestrator.adapter.outbound.llm"
+LLM_ADAPTER = "agent_runtime.adapter.outbound.llm"
 
 
 def test_the_evaluation_domain_is_free_of_frameworks_and_outer_layers() -> None:
     forbidden = FRAMEWORKS | {
-        "agent_orchestrator",
+        "agent_runtime",
         "agent_evaluation.application",
         "agent_evaluation.adapter",
         "agent_evaluation.configuration",
@@ -18,7 +18,7 @@ def test_the_evaluation_domain_is_free_of_frameworks_and_outer_layers() -> None:
 
 def test_the_evaluation_application_depends_only_on_its_domain() -> None:
     forbidden = FRAMEWORKS | {
-        "agent_orchestrator",
+        "agent_runtime",
         "agent_evaluation.adapter",
         "agent_evaluation.configuration",
         "agent_evaluation.bootstrap",
@@ -29,7 +29,7 @@ def test_the_evaluation_application_depends_only_on_its_domain() -> None:
 
 def test_cases_are_written_only_with_the_evaluation_domain() -> None:
     forbidden = FRAMEWORKS | {
-        "agent_orchestrator",
+        "agent_runtime",
         "agent_evaluation.application",
         "agent_evaluation.adapter",
         "agent_evaluation.bootstrap",
@@ -42,7 +42,7 @@ def test_only_the_judge_reuses_the_agent_and_only_its_llm_adapter() -> None:
         f"{path.relative_to(SOURCE)} imports {module}"
         for path, modules in _imports(EVALUATION).items()
         for module in modules
-        if module.startswith("agent_orchestrator")
+        if module.startswith("agent_runtime")
     }
 
     assert reused, "the judge is expected to reuse the agent's LLMChat"
@@ -50,7 +50,7 @@ def test_only_the_judge_reuses_the_agent_and_only_its_llm_adapter() -> None:
     assert all(f"imports {LLM_ADAPTER}." in line for line in reused), reused
 
 
-def test_the_evaluation_never_reaches_the_agent_runtime() -> None:
+def test_the_evaluation_never_reaches_the_agents_wiring_or_graph() -> None:
     assert _violations(EVALUATION, {"bootstrap", "langgraph"}) == []
 
 

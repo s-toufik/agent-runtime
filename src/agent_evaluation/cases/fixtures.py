@@ -1,12 +1,7 @@
-"""Shared setup messages: the agent writes these files itself, prefixed with the run id."""
-
 from agent_evaluation.cases.dsl import Answers, Check, Say, UsesAny
 
 WRITES_THE_FILE: tuple[Check, ...] = (Answers(), UsesAny("files_write", "python"))
 
-# Ground truth: payments-api has the most incidents (4, 200 minutes in total); mean minutes to
-# resolve per severity: SEV1 131.67, SEV2 50, SEV3 12.5; most frequent root cause:
-# "connection pool exhausted" (2).
 INCIDENTS_FILE: str = "eval_{run_id}_incidents.csv"
 INCIDENTS: Say = Say(
     f"Create the file {INCIDENTS_FILE} with exactly the CSV below, header included, "
@@ -26,8 +21,6 @@ INCIDENTS: Say = Say(
     auto_approve=True,
 )
 
-# Ground truth: quarter-over-quarter growth EMEA +15 %, North America -4.9 %, APAC +30 %,
-# LATAM +10 %; total 4.35 M -> 4.70 M EUR (+8.0 %).
 REGIONS_FILE: str = "eval_{run_id}_regions.csv"
 REGIONS: Say = Say(
     f"Create the file {REGIONS_FILE} with exactly this CSV, nothing added or changed:\n\n"

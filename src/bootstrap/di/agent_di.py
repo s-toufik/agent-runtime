@@ -29,66 +29,66 @@ from pycraftcore.resilient_http.configuration import ResilientHttpSettings
 from pycraftcore.retry.configuration import RetrySettings
 from pymongo import MongoClient
 
-from agent_orchestrator.adapter.outbound.langgraph.graph.agent_graph_builder import (
+from agent_runtime.adapter.outbound.langgraph.graph.agent_graph_builder import (
     AgentGraphBuilder,
 )
-from agent_orchestrator.adapter.outbound.langgraph.graph.policy_router import PolicyRouter
-from agent_orchestrator.adapter.outbound.langgraph.langgraph_event_publisher import (
+from agent_runtime.adapter.outbound.langgraph.graph.policy_router import PolicyRouter
+from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
     LangGraphEventPublisher,
 )
-from agent_orchestrator.adapter.outbound.langgraph.langgraph_workflow_runner import (
+from agent_runtime.adapter.outbound.langgraph.langgraph_workflow_runner import (
     LangGraphWorkflowRunner,
 )
-from agent_orchestrator.adapter.outbound.langgraph.node.agent_node import AgentNode
-from agent_orchestrator.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
-from agent_orchestrator.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
-from agent_orchestrator.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
-from agent_orchestrator.adapter.outbound.llm.langchain.actor import LangChainActor
-from agent_orchestrator.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_orchestrator.adapter.outbound.llm.langchain.context_window import ContextWindow
-from agent_orchestrator.adapter.outbound.llm.langchain.guard import LangChainGuard
-from agent_orchestrator.adapter.outbound.llm.langchain.intent_classifier import (
+from agent_runtime.adapter.outbound.langgraph.node.agent_node import AgentNode
+from agent_runtime.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
+from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.langchain.actor import LangChainActor
+from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
+from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_runtime.adapter.outbound.llm.langchain.guard import LangChainGuard
+from agent_runtime.adapter.outbound.llm.langchain.intent_classifier import (
     LangChainIntentClassifier,
 )
-from agent_orchestrator.adapter.outbound.llm.langchain.planner import LangChainPlanner
-from agent_orchestrator.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
-from agent_orchestrator.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
-from agent_orchestrator.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
-from agent_orchestrator.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
-from agent_orchestrator.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
-from agent_orchestrator.adapter.outbound.llm.langchain.token_counter import (
+from agent_runtime.adapter.outbound.llm.langchain.planner import LangChainPlanner
+from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
+from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
+from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
+from agent_runtime.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
+from agent_runtime.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
+from agent_runtime.adapter.outbound.llm.langchain.token_counter import (
     EstimatedTokenCounter,
 )
-from agent_orchestrator.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
-from agent_orchestrator.adapter.outbound.llm.mapper import ModelSettingsMapper
-from agent_orchestrator.adapter.outbound.llm.model_catalog import (
+from agent_runtime.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
+from agent_runtime.adapter.outbound.llm.mapper import ModelSettingsMapper
+from agent_runtime.adapter.outbound.llm.model_catalog import (
     AgentRole,
     ModelCatalog,
     ModelSettings,
 )
-from agent_orchestrator.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
-from agent_orchestrator.adapter.outbound.tool.mcp.streamable_http_session_factory import (
+from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
+from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
 )
-from agent_orchestrator.adapter.outbound.tool.tool_port import ToolPort
-from agent_orchestrator.adapter.outbound.tool.tool_registry import ToolRegistry
-from agent_orchestrator.adapter.outbound.tool.toolbox import Toolbox
-from agent_orchestrator.application.port.outbound.turn_event_publisher import TurnEventPublisher
-from agent_orchestrator.application.port.outbound.workflow_runner import WorkflowRunner
-from agent_orchestrator.application.step.act_step import ActStep
-from agent_orchestrator.application.step.clarify_step import ClarifyStep
-from agent_orchestrator.application.step.feedback_step import FeedbackStep
-from agent_orchestrator.application.step.finish_step import FinishStep
-from agent_orchestrator.application.step.plan_step import PlanStep
-from agent_orchestrator.application.step.review_step import ReviewStep
-from agent_orchestrator.application.step.run_tools_step import RunToolsStep
-from agent_orchestrator.application.step.screen_step import ScreenStep
-from agent_orchestrator.application.step.step_handler import StepHandler
-from agent_orchestrator.application.step.summarize_step import SummarizeStep
-from agent_orchestrator.application.step.understand_step import UnderstandStep
-from agent_orchestrator.application.use_case.handle_message import HandleMessage
-from agent_orchestrator.application.use_case.list_models import ListModels
-from agent_orchestrator.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.adapter.outbound.tool.tool_port import ToolPort
+from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
+from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
+from agent_runtime.application.port.outbound.workflow_runner import WorkflowRunner
+from agent_runtime.application.step.act_step import ActStep
+from agent_runtime.application.step.clarify_step import ClarifyStep
+from agent_runtime.application.step.feedback_step import FeedbackStep
+from agent_runtime.application.step.finish_step import FinishStep
+from agent_runtime.application.step.plan_step import PlanStep
+from agent_runtime.application.step.review_step import ReviewStep
+from agent_runtime.application.step.run_tools_step import RunToolsStep
+from agent_runtime.application.step.screen_step import ScreenStep
+from agent_runtime.application.step.step_handler import StepHandler
+from agent_runtime.application.step.summarize_step import SummarizeStep
+from agent_runtime.application.step.understand_step import UnderstandStep
+from agent_runtime.application.use_case.handle_message import HandleMessage
+from agent_runtime.application.use_case.list_models import ListModels
+from agent_runtime.domain.workflow.turn_policy import TurnPolicy
 from bootstrap.di.base_di import BaseDI
 
 MCP_CONNECTOR_NAME: str = "toolbox"
