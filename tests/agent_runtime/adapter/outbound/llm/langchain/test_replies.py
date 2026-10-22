@@ -8,6 +8,7 @@ from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_runtime.domain.exception.model_rejected_exception import ModelRejectedException
 from tests.agent_runtime.adapter.outbound.llm.langchain.fakes import (
     FakeLLM,
     text,
@@ -63,3 +64,9 @@ async def test_a_model_that_goes_silent_means_the_agent_is_unavailable(reader) -
 
     with pytest.raises(AgentUnavailableException, match="did not answer in time"):
         await reader.read(FakeLLM(replies=[silent]), [])
+
+
+@pytest.mark.parametrize("reader", [WholeReply(), StreamedReply(RecordingEvents())])
+async def test_a_rejected_request_is_reported_as_such(reader) -> None:
+    with pytest.raises(ModelRejectedException, match="401"):
+        await reader.read(FakeLLM(replies=[ModelError("401 invalid key")]), [])

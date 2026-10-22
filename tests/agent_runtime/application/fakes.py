@@ -114,7 +114,7 @@ class FakeModels:
 
     def turn_settings(self, model: str) -> TurnSettings:
         if model == "unknown":
-            raise UnknownModelException(model)
+            raise UnknownModelException(f"Unknown model '{model}'")
         return self._settings
 
     def listing(self) -> ModelListing:

@@ -3,10 +3,10 @@
 
   "agent": {
     "_help": "The running agent under test. model_name must be one of the names GET <models_endpoint> lists.",
-    "base_url": "http://localhost:8001",
+    "base_url": "http://sirius:8000",
     "endpoint": "/v1/stream",
     "models_endpoint": "/v1/models",
-    "model_name": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    "model_name": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "timeout_seconds": 900,
     "headers": {}
   },
@@ -14,7 +14,7 @@
   "judge": {
     "_help": "Model that grades the Judged checks, called through the agent's own LLMChat. The key is read from api_key_env, in the environment first, then in env_file.",
     "base_url": "https://integrate.api.nvidia.com/v1",
-    "model_name": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    "model_name": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "api_key_env": "LLM_API_KEY",
     "env_file": ".env",
     "temperature": 0.0,
@@ -64,7 +64,7 @@
     "bitbucket": { "available": false, "tools": ["*bitbucket*"] },
     "oracle": { "available": false, "tools": ["*oracle*"] },
     "sql": { "available": false, "tools": ["*sql*"] },
-    "guardrail": { "_help": "true when the agent runs with GUARDRAIL_ENABLED=true", "available": false, "tools": [] }
+    "guardrail": { "_help": "true when the agent runs with GUARDRAIL_ENABLED=true", "available": true, "tools": [] }
   },
 
   "markers": {

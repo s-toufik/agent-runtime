@@ -79,7 +79,7 @@ A server-sent event stream; each frame is `event: <type>` + `data: <json>`. New 
 | `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader", "Reviewing the answer"): show it as an indicator |
 | `token` | A piece of the answer as it is written, sent for answers that need no review when `AGENT_ANSWER_DELIVERY=stream`: append the pieces, then let `final` replace them |
 | `final` | The complete answer: show it (it replaces any `token` pieces) |
-| `error` | The request failed; the content says why |
+| `error` | The request failed. Expected failures come as one short sentence: the model server is temporarily unavailable or did not answer in time ("try again in a moment"); the model server rejected the request, e.g. a wrong address or key ("check the model configuration"); or the requested model is unknown ("pick one of the available models"). Anything unexpected comes with its full trace |
 | `complete` | Always last |
 
 `final.metadata` describes the answer. Today it holds `outcome`, `iteration` (steps used), `max_iteration`, `model`, and when known `elapsed_time`, `input_tokens`, `output_tokens` and `tools` (the tools used, comma-separated). More fields may be added: show or ignore the ones you don't know.

@@ -3,14 +3,17 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from agent_runtime.application.use_case.handle_message import (
+from agent_runtime.application.port.inbound.handle_message_port import (
     AGENT_UNAVAILABLE_MESSAGE,
-    HandleMessage,
+    MODEL_REJECTED_MESSAGE,
+    UNKNOWN_MODEL_MESSAGE,
 )
+from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_runtime.domain.exception.model_rejected_exception import ModelRejectedException
 from agent_runtime.domain.request.agent_request import AgentRequest
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.turn_settings import TurnSettings
@@ -73,7 +76,25 @@ async def test_an_unknown_model_is_reported_without_running_a_turn(logger) -> No
     await HandleMessage(runner, FakeModels(), logger).handle(request, events)
 
     assert runner.turns == []
-    assert events.events[0].kind is TurnEventKind.FAILED
+    assert events.events == [
+        TurnEvent.failed(UNKNOWN_MODEL_MESSAGE.format(reason="Unknown model 'unknown'"))
+    ]
+    assert events.events[0].error == "Unknown model 'unknown': pick one of the available models."
+    assert logger.messages("warning") and not logger.messages("error")
+    assert events.completed
+
+
+async def test_a_rejected_model_request_reports_a_short_error_and_logs_the_trace(logger) -> None:
+    events = ListEventStream()
+    runner = RecordingRunner(ModelRejectedException("404 page not found"))
+
+    await HandleMessage(runner, FakeModels(), logger).handle(REQUEST, events)
+
+    assert events.events == [
+        TurnEvent.failed(MODEL_REJECTED_MESSAGE.format(reason="404 page not found"))
+    ]
+    assert "Traceback" not in events.events[0].error
+    assert any("Traceback" in message for message in logger.messages("error"))
     assert events.completed
 
 

@@ -84,8 +84,13 @@ def test_a_case_using_an_unknown_capability_is_reported() -> None:
         container.validate()
 
 
-def test_a_dry_run_lists_the_plan_without_calling_the_agent(capsys) -> None:
-    assert main(["--dry-run", "--kinds", "guardrail,routing", "--runs", "2"]) == 0
+def test_a_dry_run_lists_the_plan_without_calling_the_agent(tmp_path, capsys) -> None:
+    panel = _write(tmp_path, _panel(capabilities={"guardrail": {"available": False}}))
+
+    assert (
+        main(["--panel", str(panel), "--dry-run", "--kinds", "guardrail,routing", "--runs", "2"])
+        == 0
+    )
 
     out = capsys.readouterr().out
     assert "GUARDRAIL:" in out and "ROUTING:" in out and "MEMORY:" not in out

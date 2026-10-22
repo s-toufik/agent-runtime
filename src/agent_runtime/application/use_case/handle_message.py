@@ -7,6 +7,8 @@ from pycraftcore.logger.port import Logger
 
 from agent_runtime.application.port.inbound.handle_message_port import (
     AGENT_UNAVAILABLE_MESSAGE,
+    MODEL_REJECTED_MESSAGE,
+    UNKNOWN_MODEL_MESSAGE,
 )
 from agent_runtime.application.port.outbound.model_registry import ModelRegistry
 from agent_runtime.application.port.outbound.turn_event_stream import TurnEventStream
@@ -15,6 +17,8 @@ from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_runtime.domain.exception.model_rejected_exception import ModelRejectedException
+from agent_runtime.domain.exception.unknown_model_exception import UnknownModelException
 from agent_runtime.domain.request.agent_request import AgentRequest
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.turn_options import TurnOptions
@@ -49,6 +53,13 @@ class HandleMessage:
         except AgentUnavailableException as exception:
             self._logger.warning(f"agent unavailable: {exception}")
             await events.publish(TurnEvent.failed(AGENT_UNAVAILABLE_MESSAGE))
+        except UnknownModelException as exception:
+            self._logger.warning(f"unknown model: {exception}")
+            await events.publish(TurnEvent.failed(UNKNOWN_MODEL_MESSAGE.format(reason=exception)))
+        except ModelRejectedException as exception:
+            trace: str = "".join(traceback.format_exception(exception))
+            self._logger.error(f"model server rejected the request:\n{trace}")
+            await events.publish(TurnEvent.failed(MODEL_REJECTED_MESSAGE.format(reason=exception)))
         except Exception as exception:
             trace: str = "".join(traceback.format_exception(exception))
             self._logger.error(f"unhandled agent error:\n{trace}")

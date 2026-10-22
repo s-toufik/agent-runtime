@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from agent_runtime.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_runtime.domain.exception.model_rejected_exception import ModelRejectedException
 
 
 @contextmanager
@@ -20,7 +21,7 @@ def model_errors() -> Generator[None]:
     except ModelError as exception:
         if exception.is_retryable:
             raise AgentUnavailableException(str(exception)) from exception
-        raise
+        raise ModelRejectedException(str(exception)) from exception
     except TimeoutError as exception:
         raise AgentUnavailableException(
             f"the model did not answer in time: {exception}"

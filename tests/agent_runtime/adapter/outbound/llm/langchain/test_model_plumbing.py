@@ -19,6 +19,7 @@ from agent_runtime.domain.conversation.message import Message, Speaker
 from agent_runtime.domain.exception.agent_unavailable_exception import (
     AgentUnavailableException,
 )
+from agent_runtime.domain.exception.model_rejected_exception import ModelRejectedException
 from agent_runtime.domain.exception.unknown_model_exception import UnknownModelException
 from agent_runtime.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_runtime.domain.turn.turn_settings import TurnSettings
@@ -93,9 +94,9 @@ async def test_a_retryable_model_error_means_the_agent_is_unavailable() -> None:
         await invoke(FakeLLM(replies=[_Unavailable("503")]), [])  # ty: ignore[invalid-argument-type]
 
 
-async def test_a_non_retryable_model_error_propagates() -> None:
-    with pytest.raises(ModelError):
-        await invoke(FakeLLM(replies=[ModelError("bad request")]), [])  # ty: ignore[invalid-argument-type]
+async def test_a_non_retryable_model_error_means_the_model_server_rejected_the_request() -> None:
+    with pytest.raises(ModelRejectedException, match="404 page not found"):
+        await invoke(FakeLLM(replies=[ModelError("404 page not found")]), [])  # ty: ignore[invalid-argument-type]
 
 
 async def test_a_model_server_that_never_answers_makes_the_agent_unavailable() -> None:
