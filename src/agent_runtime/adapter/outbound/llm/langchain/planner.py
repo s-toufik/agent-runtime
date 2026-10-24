@@ -31,7 +31,7 @@ class LangChainPlanner:
         )
         self._logger.debug("Calling the plan model")
         model = self._models.for_role(AgentRole.PLAN, turn.model)
-        planned = await invoke_structured(model, PlanDto, messages)
+        planned: PlanDto | None = await invoke_structured(model, PlanDto, messages)
         if planned is None:
             self._logger.warning("The plan could not be read")
             return None

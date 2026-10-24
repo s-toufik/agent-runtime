@@ -18,8 +18,6 @@ endif
 test:
 	uv run pytest --disable-warnings
 
-# --- evaluation: a running agent, driven by src/agent_evaluation/control_panel.json -----
-#   make evaluate KINDS=SECURITY,MEMORY CASES='memory-*' RUNS=1 PAUSE=0 DRY_RUN=1
 EVAL_PANEL ?= src/agent_evaluation/control_panel.json
 
 evaluate:

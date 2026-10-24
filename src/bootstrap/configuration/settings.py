@@ -29,6 +29,5 @@ class ProcessSettings:
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
             max_concurrent_streams=int(os.getenv("MAX_CONCURRENT_STREAMS", "200")),
             answer_delivery=AnswerDelivery(os.getenv("AGENT_ANSWER_DELIVERY", "stream")),
-            guardrail_enabled=os.getenv("GUARDRAIL_ENABLED", "false").strip().lower()
-            in ("true", "1", "on", "yes"),
+            guardrail_enabled=os.getenv("GUARDRAIL_ENABLED", "").strip() in ("true", "1", "on", "yes"),
         )
