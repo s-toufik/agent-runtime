@@ -37,6 +37,7 @@ make run
 | Models | `GET http://<host>:<port>/v1/models` |
 | Health | `GET http://<host>:<port>/actuator/health` (also `/health/liveness`, `/health/readiness`) |
 | Version | `GET http://<host>:<port>/actuator/info` |
+| API documentation (with `WEB_DOCS=true`) | `http://<host>:<port>/docs` in a browser (Swagger UI); the OpenAPI schema at `/docs/openapi.json` |
 
 `/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
 
@@ -146,6 +147,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
 | `WEB_FRAMEWORK` | `fastapi` | The web framework that serves the API: `fastapi` or `litestar`. The API is the same with both; only that framework's extra needs to be installed (`uv sync --extra litestar`) |
 | `WEB_BASE_PATH` | empty | A prefix for every route, the actuator included, e.g. `/agent-runtime`: the stream is then at `/agent-runtime/v1/stream` and the probes at `/agent-runtime/actuator/health/...`. Use it when the gateway forwards the prefix without removing it. Starts with `/`, no trailing `/` |
+| `WEB_DOCS` | `false` | `true` serves the API documentation: Swagger UI at `<base path>/docs`, the OpenAPI schema at `<base path>/docs/openapi.json`. The same with both frameworks, except the validation error each one documents (FastAPI 422, Litestar 400) |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review are sent piece by piece as `token` events, then `final`. `whole`: only `final` |
 | `LLM_BASE_URL`, `LLM_API_KEY` | required | The OpenAI-compatible model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
@@ -155,7 +157,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. Keep `WEB_FRAMEWORK` as a variable in Docker: the image sets it to the framework it was built with.
+`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. Keep `WEB_FRAMEWORK` as a variable in Docker: the image sets it to the framework it was built with.
 
 **Configuration files** live in `config/`: `root.yml` sets the log level and lists what exists, `config/<APP_ENV>/connector/*.yml`, `operation/*.yml` and `server/*.yml` define it.
 
@@ -167,7 +169,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
-| `server/asgi.yml` | How the API is served: `framework`, `base_path`, `cors_origins`, and the agent's `parameters` (`max_concurrent_streams`, `answer_delivery`). The entry's key is the process role, `agent-runtime` |
+| `server/asgi.yml` | How the API is served: `framework`, `base_path`, `docs`, `cors_origins`, and the agent's `parameters` (`max_concurrent_streams`, `answer_delivery`). The entry's key is the process role, `agent-runtime` |
 
 **Models** (`operation/llm.yml`), one entry per model:
 

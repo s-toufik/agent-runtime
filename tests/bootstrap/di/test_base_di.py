@@ -150,13 +150,14 @@ def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatc
 
 def test_the_server_defaults_to_fastapi_at_the_root_with_info_logs(monkeypatch) -> None:
     _set_required_env(monkeypatch)
-    for key in ("LOG_LEVEL", "WEB_FRAMEWORK", "WEB_BASE_PATH"):
+    for key in ("LOG_LEVEL", "WEB_FRAMEWORK", "WEB_BASE_PATH", "WEB_DOCS"):
         monkeypatch.delenv(key, raising=False)
     di = BaseDI(make_settings())
 
     assert di._configuration.log is LogLevel.INFO
     assert di._server.framework is WebFramework.FASTAPI
     assert di._server.base_path == ""
+    assert di._server.docs is False
     assert di._server.cors_origins == ["*"]
 
 

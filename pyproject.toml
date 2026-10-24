@@ -32,7 +32,7 @@ dependencies = [
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web]>=4.0.0",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web]",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -45,15 +45,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fastapi = ["pycraftcore[web_fastapi]>=4.0.0"]
-litestar = ["pycraftcore[web_litestar]>=4.0.0"]
+fastapi = ["pycraftcore[web_fastapi]"]
+litestar = ["pycraftcore[web_litestar]"]
 
 [project.scripts]
 agent-runtime = "bootstrap.application.agent_application:main"
 
 [dependency-groups]
 dev = [
-    "pycraftcore[web_fastapi,web_litestar]>=4.0.0",
+    "pycraftcore[web_fastapi,web_litestar]",
     "starlette",
     "uvicorn",
     "asgi-lifespan",

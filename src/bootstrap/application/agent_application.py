@@ -12,6 +12,7 @@ from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception im
 )
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
+from src import APPLICATION_VERSION
 
 
 @asynccontextmanager
@@ -42,9 +43,11 @@ def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp
 
     application = WebApplication(
         title=server.name,
+        version=APPLICATION_VERSION,
         lifespan=lambda: _lifespan(container),
         routes=lambda: container.routes,
         base_path=server.base_path,
+        docs=server.docs,
         errors={ServerAtCapacityException: 503},
         middleware=(RequestIDMiddleware,),
         cors_origins=server.cors_origins,

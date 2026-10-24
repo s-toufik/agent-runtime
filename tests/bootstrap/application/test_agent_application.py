@@ -27,9 +27,12 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_API_KEY", "test")
 
 
-def create_app(monkeypatch, framework: WebFramework, base_path: str = "") -> ASGIApp:
+def create_app(
+    monkeypatch, framework: WebFramework, base_path: str = "", docs: bool = False
+) -> ASGIApp:
     monkeypatch.setenv("WEB_FRAMEWORK", framework)
     monkeypatch.setenv("WEB_BASE_PATH", base_path)
+    monkeypatch.setenv("WEB_DOCS", str(docs).lower())
     settings = ProcessSettings(
         role="agent-runtime", environment="debug", configuration_directory=REAL_CONFIG_DIR
     )
@@ -91,6 +94,33 @@ async def test_the_api_is_served_under_the_base_path(monkeypatch, framework) -> 
 
     assert prefixed.status_code == 200
     assert bare.status_code == 404
+
+
+@EVERY_FRAMEWORK
+async def test_the_api_documentation_is_off_unless_web_docs_is_true(monkeypatch, framework) -> None:
+    fake_container(monkeypatch)
+
+    async with http_client(create_app(monkeypatch, framework)) as client:
+        hidden = await client.get("/docs")
+    async with http_client(create_app(monkeypatch, framework, docs=True)) as client:
+        ui = await client.get("/docs")
+        schema = await client.get("/docs/openapi.json")
+
+    assert hidden.status_code == 404
+    assert ui.status_code == 200
+    assert schema.json()["info"]["title"] == "agent-runtime"
+    assert "/actuator/health" in schema.json()["paths"]
+
+
+@EVERY_FRAMEWORK
+async def test_the_api_documentation_follows_the_base_path(monkeypatch, framework) -> None:
+    fake_container(monkeypatch)
+    app = create_app(monkeypatch, framework, base_path="/agent-runtime", docs=True)
+
+    async with http_client(app) as client:
+        schema = await client.get("/agent-runtime/docs/openapi.json")
+
+    assert "/agent-runtime/actuator/health" in schema.json()["paths"]
 
 
 @EVERY_FRAMEWORK
