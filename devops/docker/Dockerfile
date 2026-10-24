@@ -1,7 +1,5 @@
 FROM python:3.14-slim AS builder
 
-ARG WEB_FRAMEWORK=fastapi
-
 RUN pip install --no-cache-dir uv
 
 WORKDIR /app
@@ -9,11 +7,9 @@ COPY pyproject.toml uv.lock* ./
 COPY src ./src
 COPY Readme.md ./
 
-RUN uv sync --no-dev --no-editable --frozen --extra ${WEB_FRAMEWORK}
+RUN uv sync --no-dev --no-editable --frozen --extra fastapi --extra litestar
 
 FROM python:3.14-slim
-
-ARG WEB_FRAMEWORK=fastapi
 
 RUN useradd --create-home --uid 1000 app
 WORKDIR /app
@@ -26,7 +22,6 @@ RUN cp -r config/debug config/deploy
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     CONFIGURATION_DIR="/app/config" \
-    WEB_FRAMEWORK=${WEB_FRAMEWORK} \
     GRANIAN_INTERFACE=asgi \
     GRANIAN_FACTORY=true \
     GRANIAN_HOST=0.0.0.0 \

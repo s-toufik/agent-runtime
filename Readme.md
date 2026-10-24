@@ -41,7 +41,7 @@ make run
 
 `/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
 
-With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The image contains one web framework, FastAPI by default; build it with `--build-arg WEB_FRAMEWORK=litestar` for Litestar, and it runs with that framework.
+With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The image contains both web frameworks: `WEB_FRAMEWORK` picks one when the container starts, without rebuilding.
 
 ### List the models
 
@@ -145,7 +145,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
-| `WEB_FRAMEWORK` | `fastapi` | The web framework that serves the API: `fastapi` or `litestar`. The API is the same with both; only that framework's extra needs to be installed (`uv sync --extra litestar`) |
+| `WEB_FRAMEWORK` | `fastapi` | The web framework that serves the API: `fastapi` or `litestar`. The API is the same with both; locally, only that framework's extra needs to be installed (`uv sync --extra litestar`); the Docker image has both |
 | `WEB_BASE_PATH` | empty | A prefix for every route, the actuator included, e.g. `/agent-runtime`: the stream is then at `/agent-runtime/v1/stream` and the probes at `/agent-runtime/actuator/health/...`. Use it when the gateway forwards the prefix without removing it. Starts with `/`, no trailing `/` |
 | `WEB_DOCS` | `false` | `true` serves the API documentation: Swagger UI at `<base path>/docs`, the OpenAPI schema at `<base path>/docs/openapi.json`. The same with both frameworks, except the validation error each one documents (FastAPI 422, Litestar 400) |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review are sent piece by piece as `token` events, then `final`. `whole`: only `final` |
@@ -157,7 +157,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. Keep `WEB_FRAMEWORK` as a variable in Docker: the image sets it to the framework it was built with.
+`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. With Docker Compose, pass each one with a default, such as `${WEB_FRAMEWORK:-fastapi}`: a variable passed empty is not replaced by the YAML default, and the agent refuses to start.
 
 **Configuration files** live in `config/`: `root.yml` sets the log level and lists what exists, `config/<APP_ENV>/connector/*.yml`, `operation/*.yml` and `server/*.yml` define it.
 
@@ -336,6 +336,6 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 ### Deploying
 
-`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above. The build argument `WEB_FRAMEWORK` (`fastapi` by default) picks the framework installed in the image.
+`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above. The image contains both web frameworks; `WEB_FRAMEWORK` chooses one at startup.
 
 The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own app and container), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; everything logged by the worker uses the service's format.
