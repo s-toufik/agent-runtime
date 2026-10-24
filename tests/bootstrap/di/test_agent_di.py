@@ -12,7 +12,9 @@ from pycraftcore.application_configuration.model.connector import (
     McpConnector,
 )
 from pycraftcore.application_configuration.model.operation import OperationRegistry
+from pycraftcore.application_configuration.model.server import ServerRegistry
 from pycraftcore.authentication.model.no_auth import NoAuth
+from pycraftcore.logger.enum import LogLevel
 
 from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
@@ -44,14 +46,12 @@ def _base_env(monkeypatch, tmp_path):
 
 def make_settings(
     tmp_path: Path | None = None,
-    answer_delivery: AnswerDelivery = AnswerDelivery.STREAM,
     guardrail_enabled: bool = False,
 ) -> ProcessSettings:
     return ProcessSettings(
         role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
-        answer_delivery=answer_delivery,
         guardrail_enabled=guardrail_enabled,
     )
 
@@ -72,6 +72,8 @@ def _fake_config(mcp_connectors: dict[str, McpConnector]) -> ApplicationConfigur
     return ApplicationConfiguration(
         env=RunTypeEnvironment.debug,
         run=RunTypeApplication.asynchronous,
+        log=LogLevel.INFO,
+        server=ServerRegistry(),
         connector=ConnectorRegistry({ConnectorType.mcp: by_type}),
         operation=OperationRegistry({}),
     )
@@ -251,7 +253,8 @@ async def test_the_workflow_graph_has_one_node_per_step(guardrail_enabled: bool)
     ("delivery", "reader"),
     [(AnswerDelivery.STREAM, StreamedReply), (AnswerDelivery.WHOLE, WholeReply)],
 )
-def test_the_final_reply_follows_the_answer_delivery(delivery, reader) -> None:
-    di = AgentDI(make_settings(answer_delivery=delivery))
+def test_the_final_reply_follows_the_answer_delivery(monkeypatch, delivery, reader) -> None:
+    monkeypatch.setenv("AGENT_ANSWER_DELIVERY", delivery)
+    di = AgentDI(make_settings())
 
     assert isinstance(di._final_reply(), reader)

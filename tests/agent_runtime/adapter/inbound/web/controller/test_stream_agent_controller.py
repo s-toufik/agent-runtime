@@ -1,14 +1,15 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import cast
 
 import pytest
-from starlette.exceptions import HTTPException
-from starlette.requests import Request
+from pycraftcore.web.sse import SSE_HEARTBEAT
 
 from agent_runtime.adapter.inbound.web.controller.stream_agent_controller import (
     StreamAgentController,
+)
+from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
+    ServerAtCapacityException,
 )
 from agent_runtime.adapter.inbound.web.schema.agent_request_schema import AgentRequestSchema
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
@@ -31,14 +32,28 @@ class ScriptedUseCase:
         await events.complete()
 
 
+class HangingUseCase:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+
+    async def handle(self, request, events) -> None:
+        self.started.set()
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            self.cancelled.set()
+            raise
+
+
 def _finished(text: str) -> TurnEvent:
     turn = Turn(request="hi", model="m", settings=TurnSettings(max_steps=6))
     turn.finish(Answer.answered(text))
     return TurnEvent.finished(turn)
 
 
-async def _drain(response) -> list[str]:
-    return [chunk.decode("utf-8") async for chunk in response.body_iterator]
+async def _drain(stream: AsyncIterator[bytes]) -> list[str]:
+    return [chunk.decode("utf-8") async for chunk in stream]
 
 
 async def test_a_turn_streams_its_status_then_the_answer_then_complete(logger) -> None:
@@ -50,8 +65,7 @@ async def test_a_turn_streams_its_status_then_the_answer_then_complete(logger) -
     ]
     controller = StreamAgentController(ScriptedUseCase(events), QueueTurnEventStream, logger)
 
-    response = await controller.execute(REQUEST)
-    chunks = await _drain(response)
+    chunks = await _drain(await controller.execute(REQUEST))
 
     assert "event: status" in chunks[0] and "Comprehending the request" in chunks[0]
     assert "event: token" in chunks[1] and "Hel" in chunks[1]
@@ -69,16 +83,12 @@ async def test_a_turn_streams_its_status_then_the_answer_then_complete(logger) -
 
 
 async def test_admission_is_released_after_a_stream_completes(logger) -> None:
-    events: list[TurnEvent] = []
     controller = StreamAgentController(
-        ScriptedUseCase(events), QueueTurnEventStream, logger, max_concurrent_streams=1
+        ScriptedUseCase([]), QueueTurnEventStream, logger, max_concurrent_streams=1
     )
 
-    response = await controller.execute(REQUEST)
-    await _drain(response)
-
-    response2 = await controller.execute(REQUEST)
-    await _drain(response2)
+    await _drain(await controller.execute(REQUEST))
+    await _drain(await controller.execute(REQUEST))
 
 
 async def test_admission_is_released_when_setup_itself_raises(logger) -> None:
@@ -95,51 +105,59 @@ async def test_admission_is_released_when_setup_itself_raises(logger) -> None:
     await asyncio.wait_for(controller._admission.acquire(), timeout=1)
 
 
-async def test_rejects_with_503_when_at_capacity(logger) -> None:
+async def test_rejects_when_at_capacity(logger) -> None:
     controller = StreamAgentController(
         ScriptedUseCase([]), QueueTurnEventStream, logger, max_concurrent_streams=1
     )
     await controller._admission.acquire()
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(ServerAtCapacityException, match="capacity"):
         await controller.execute(REQUEST)
 
-    assert excinfo.value.status_code == 503
     assert logger.messages("warning")
 
 
-async def test_client_disconnect_stops_the_stream_and_cancels_the_use_case(logger) -> None:
-    started = asyncio.Event()
-    cancelled = asyncio.Event()
-
-    class HangingUseCase:
-        async def handle(self, request, events) -> None:
-            started.set()
-            try:
-                await asyncio.sleep(10)
-            except asyncio.CancelledError:
-                cancelled.set()
-                raise
-
-    class DisconnectedRequest:
-        async def is_disconnected(self) -> bool:
-            return True
-
-    controller = StreamAgentController(HangingUseCase(), QueueTurnEventStream, logger)
-
-    events = QueueTurnEventStream()
-    generator = controller._event_generator(
-        request=REQUEST,
-        events=events,
-        use_case_task=asyncio.create_task(HangingUseCase().handle(REQUEST, events)),
-        starlette_request=cast(Request, DisconnectedRequest()),
+async def test_a_heartbeat_is_sent_while_the_turn_is_silent(logger) -> None:
+    use_case = HangingUseCase()
+    controller = StreamAgentController(
+        use_case, QueueTurnEventStream, logger, heartbeat_seconds=0.01
     )
+    stream = await controller.execute(REQUEST)
+
+    first = await anext(stream)
+    await stream.aclose()
+
+    assert first == SSE_HEARTBEAT
+
+
+async def test_closing_the_stream_cancels_the_use_case_and_releases_admission(logger) -> None:
+    use_case = HangingUseCase()
+    controller = StreamAgentController(
+        use_case, QueueTurnEventStream, logger, max_concurrent_streams=1, heartbeat_seconds=0.01
+    )
+    stream = await controller.execute(REQUEST)
+    await anext(stream)
+    await use_case.started.wait()
+
+    await stream.aclose()  # what the web framework does when the client goes away
+
+    assert use_case.cancelled.is_set()
+    assert logger.messages("warning")
+    await asyncio.wait_for(controller._admission.acquire(), timeout=1)
+
+
+async def test_cancelling_the_stream_cancels_the_use_case(logger) -> None:
+    use_case = HangingUseCase()
+    controller = StreamAgentController(use_case, QueueTurnEventStream, logger)
+    stream = await controller.execute(REQUEST)
+
+    consumer = asyncio.create_task(_drain(stream))
+    await use_case.started.wait()
+    consumer.cancel()
 
     with pytest.raises(asyncio.CancelledError):
-        async for _ in generator:
-            pass
-
-    assert logger.messages("warning")
+        await consumer
+    assert use_case.cancelled.is_set()
 
 
 async def test_an_unexpected_error_yields_an_error_frame_then_reraises(logger) -> None:
@@ -151,20 +169,11 @@ async def test_an_unexpected_error_yields_an_error_frame_then_reraises(logger) -
             raise RuntimeError("queue broke")
             yield  # pragma: no cover
 
-    controller = StreamAgentController(ScriptedUseCase([]), QueueTurnEventStream, logger)
-    done_task = asyncio.create_task(asyncio.sleep(0))
-    await done_task
-
-    generator = controller._event_generator(
-        request=REQUEST,
-        events=BrokenEvents(),
-        use_case_task=done_task,
-        starlette_request=None,
-    )
+    controller = StreamAgentController(ScriptedUseCase([]), BrokenEvents, logger)
 
     chunks = []
     with pytest.raises(RuntimeError, match="queue broke"):
-        async for chunk in generator:
+        async for chunk in await controller.execute(REQUEST):
             chunks.append(chunk.decode("utf-8"))
 
     assert len(chunks) == 1

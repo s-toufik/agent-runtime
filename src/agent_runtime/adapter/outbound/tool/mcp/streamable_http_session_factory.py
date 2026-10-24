@@ -13,7 +13,7 @@ from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.authentication import AuthTyping
 from pycraftcore.authentication.model.basic_auth import BasicAuth
 from pycraftcore.authentication.model.token_auth import TokenAuth
-from pycraftcore.http.context.request_context import request_id_context
+from pycraftcore.context.request_id_context import request_id_context
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.domain.exception.tool_unavailable_exception import ToolUnavailableException

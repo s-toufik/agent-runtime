@@ -51,7 +51,7 @@ check:
 
 # --- run -------------------------------------------------------------------
 run:
-	uv run uvicorn bootstrap.application.agent_application:app --host 0.0.0.0 --port 8000
+	uv run granian --interface asgi --factory --host 0.0.0.0 --port 8001 --access-log --access-log-fmt '%(addr)s %(method)s %(path)s %(status)d %(dt_ms).1fms' bootstrap.application.agent_application:create_agent_application
 
 clean:
 	rm -rf dist src/*.egg-info

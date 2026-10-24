@@ -90,6 +90,7 @@ from agent_runtime.application.step.understand_step import UnderstandStep
 from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.application.use_case.list_models import ListModels
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from bootstrap.configuration.server_parameters import ServerParameters
 from bootstrap.di.base_di import BaseDI
 
 MCP_CONNECTOR_NAME: str = "toolbox"
@@ -100,6 +101,10 @@ SQLITE_CHECKPOINTER: str = "sqlite_checkpointer"
 
 
 class AgentDI(BaseDI):
+    @cached_property
+    def _server_parameters(self) -> ServerParameters:
+        return ServerParameters.of(self._server)
+
     @cached_property
     def _mcp_connectors(self) -> dict[str, McpConnector]:
         connectors: Mapping[str, McpConnector] = self._configuration.connector[ConnectorType.mcp]
@@ -283,7 +288,7 @@ class AgentDI(BaseDI):
         return LangGraphEventPublisher()
 
     def _final_reply(self) -> ReplyReader:
-        match self._settings.answer_delivery:
+        match self._server_parameters.answer_delivery:
             case AnswerDelivery.STREAM:
                 return StreamedReply(self._turn_events)
             case AnswerDelivery.WHOLE:

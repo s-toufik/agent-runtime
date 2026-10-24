@@ -40,7 +40,7 @@ make run
 
 `/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
 
-With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below.
+With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The image contains one web framework, FastAPI by default; build it with `--build-arg WEB_FRAMEWORK=litestar` for Litestar, and it runs with that framework.
 
 ### List the models
 
@@ -81,6 +81,8 @@ A server-sent event stream; each frame is `event: <type>` + `data: <json>`. New 
 | `final` | The complete answer: show it (it replaces any `token` pieces) |
 | `error` | The request failed. Expected failures come as one short sentence: the model server is temporarily unavailable or did not answer in time ("try again in a moment"); the model server rejected the request, e.g. a wrong address or key ("check the model configuration"); or the requested model is unknown ("pick one of the available models"). Anything unexpected comes with its full trace |
 | `complete` | Always last |
+
+While the agent works without sending anything (a long model call), the stream carries a `: heartbeat` comment line every 15 seconds, so proxies don't close it. SSE clients ignore comment lines.
 
 `final.metadata` describes the answer. Today it holds `outcome`, `iteration` (steps used), `max_iteration`, `model`, and when known `elapsed_time`, `input_tokens`, `output_tokens` and `tools` (the tools used, comma-separated). More fields may be added: show or ignore the ones you don't know.
 
@@ -138,10 +140,12 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | Variable | Default | Meaning |
 |---|---|---|
 | `APP_ENV` | `debug` | Which `config/<APP_ENV>/` folder is read |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, in upper case |
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
+| `WEB_FRAMEWORK` | `fastapi` | The web framework that serves the API: `fastapi` or `litestar`. The API is the same with both; only that framework's extra needs to be installed (`uv sync --extra litestar`) |
+| `WEB_BASE_PATH` | empty | A prefix for every route, the actuator included, e.g. `/agent-runtime`: the stream is then at `/agent-runtime/v1/stream` and the probes at `/agent-runtime/actuator/health/...`. Use it when the gateway forwards the prefix without removing it. Starts with `/`, no trailing `/` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review are sent piece by piece as `token` events, then `final`. `whole`: only `final` |
 | `LLM_BASE_URL`, `LLM_API_KEY` | required | The OpenAI-compatible model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
@@ -151,7 +155,9 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-**Configuration files** live in `config/`: `root.yml` lists what exists, `config/<APP_ENV>/connector/*.yml` and `operation/*.yml` define it.
+`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. Keep `WEB_FRAMEWORK` as a variable in Docker: the image sets it to the framework it was built with.
+
+**Configuration files** live in `config/`: `root.yml` sets the log level and lists what exists, `config/<APP_ENV>/connector/*.yml`, `operation/*.yml` and `server/*.yml` define it.
 
 | File | What you set there |
 |---|---|
@@ -161,6 +167,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
+| `server/asgi.yml` | How the API is served: `framework`, `base_path`, `cors_origins`, and the agent's `parameters` (`max_concurrent_streams`, `answer_delivery`). The entry's key is the process role, `agent-runtime` |
 
 **Models** (`operation/llm.yml`), one entry per model:
 
@@ -220,7 +227,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 ```text
   ┌─ bootstrap ──────────────────────────────────────────────────────────────┐
-  │  configuration, dependency wiring (AgentDI), FastAPI app, routers        │
+  │  configuration, dependency wiring (AgentDI), web app, routers            │
   │  ┌─ adapter ──────────────────────────────────────────────────────────┐  │
   │  │  inbound:  HTTP controller, SSE presenter                          │  │
   │  │  outbound: LangChain models, MCP tools, LangGraph runtime, events  │  │
@@ -245,7 +252,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, prompts, `ModelCatalog` |
 | `src/agent_runtime/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, `AgentDI` (wiring only), FastAPI application, routers |
+| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the web application (built by `pycraftcore.web` from the server in `config/<APP_ENV>/server/asgi.yml`, served by Granian, which calls `create_agent_application`), routers |
 | `config/` | YAML configuration |
 | `src/agent_evaluation/` | The evaluation: a separate program that tests a running agent over HTTP (see [its Readme](src/agent_evaluation/Readme.md)) |
 | `tests/` | Unit, scenario and architecture tests, including the evaluation's own tests |
@@ -327,4 +334,6 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 ### Deploying
 
-`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above.
+`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above. The build argument `WEB_FRAMEWORK` (`fastapi` by default) picks the framework installed in the image.
+
+The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own app and container), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; everything logged by the worker uses the service's format.

@@ -90,17 +90,25 @@ def test_logging_and_application_configuration_expose_the_di_internals() -> None
     assert container.application_configuration is container._configuration
 
 
-async def test_boot_wires_both_routers_and_becomes_ready(running_toolbox, monkeypatch) -> None:
+async def test_boot_wires_every_route_and_becomes_ready(running_toolbox, monkeypatch) -> None:
     monkeypatch.setenv("TOOLBOX_URL", running_toolbox)
     container = AgentContainer(make_settings())
 
     await container.boot()
 
     assert container.is_ready is True
-    prefixes = {router.prefix for router in container.routers}
-    assert prefixes == {"/v1", "/actuator"}
+    assert {(route.method, route.path) for route in container.routes} == {
+        ("POST", "/v1/stream"),
+        ("GET", "/v1/models"),
+        ("GET", "/actuator/health"),
+        ("GET", "/actuator/health/liveness"),
+        ("GET", "/actuator/health/readiness"),
+        ("GET", "/actuator/info"),
+    }
 
     await container.stop()
+
+    assert container.is_ready is False
 
 
 async def test_stop_after_boot_does_not_raise(running_toolbox, monkeypatch) -> None:

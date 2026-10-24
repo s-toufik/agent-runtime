@@ -1,14 +1,12 @@
 from typing import cast
 
-from fastapi import FastAPI
-from starlette.testclient import TestClient
-
 from agent_runtime.adapter.inbound.web.controller.list_models_controller import (
     ListModelsController,
 )
 from agent_runtime.adapter.inbound.web.schema.model_list_schema import ModelListSchema
 from bootstrap.router.agent.list_models_router import ListModelsRouter
 from tests.agent_runtime.application.fakes import LISTING
+from tests.support.web import EVERY_FRAMEWORK, build_app, http_client
 
 
 class FakeController:
@@ -16,11 +14,12 @@ class FakeController:
         return ModelListSchema.from_domain(LISTING)
 
 
-def test_getting_the_endpoint_returns_the_controller_listing() -> None:
-    app = FastAPI()
-    app.include_router(ListModelsRouter(cast(ListModelsController, FakeController())).router)
+@EVERY_FRAMEWORK
+async def test_getting_the_endpoint_returns_the_controller_listing(framework) -> None:
+    routes = ListModelsRouter(cast(ListModelsController, FakeController())).routes
 
-    response = TestClient(app).get("/v1/models")
+    async with http_client(build_app(framework, routes)) as client:
+        response = await client.get("/v1/models")
 
     assert response.status_code == 200
     assert response.json() == {

@@ -1,11 +1,14 @@
 import ast
 from pathlib import Path
 
+import pytest
+
 SOURCE = Path(__file__).resolve().parents[2] / "src"
 PACKAGE = SOURCE / "agent_runtime"
 
 FRAMEWORKS = {
     "fastapi",
+    "litestar",
     "starlette",
     "mcp",
     "langchain",
@@ -78,3 +81,11 @@ def test_langgraph_nodes_only_delegate_to_the_application() -> None:
         "langchain_openai",
     }
     assert _violations(PACKAGE / "adapter" / "outbound" / "langgraph", forbidden) == []
+
+
+WEB_FRAMEWORKS = {"fastapi", "litestar", "starlette"}
+
+
+@pytest.mark.parametrize("directory", [PACKAGE, SOURCE / "bootstrap"], ids=lambda d: d.name)
+def test_no_web_framework_is_imported_the_web_layer_comes_from_pycraftcore(directory) -> None:
+    assert _violations(directory, WEB_FRAMEWORKS) == []

@@ -1,11 +1,14 @@
 from pathlib import Path
 
 import pytest
-from starlette.testclient import TestClient
+from pycraftcore.web.asgi import ASGIApp
+from pycraftcore.web.enum import WebFramework
+from pycraftcore.web.schema import HttpRoute
 
 from bootstrap.application.agent_application import create_agent_application
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
+from tests.support.web import EVERY_FRAMEWORK, http_client, starts
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
@@ -24,38 +27,50 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_API_KEY", "test")
 
 
-def make_settings() -> ProcessSettings:
-    return ProcessSettings(
-        role="agent-runtime",
-        environment="debug",
-        configuration_directory=REAL_CONFIG_DIR,
+def create_app(monkeypatch, framework: WebFramework, base_path: str = "") -> ASGIApp:
+    monkeypatch.setenv("WEB_FRAMEWORK", framework)
+    monkeypatch.setenv("WEB_BASE_PATH", base_path)
+    settings = ProcessSettings(
+        role="agent-runtime", environment="debug", configuration_directory=REAL_CONFIG_DIR
     )
+    return create_agent_application(settings=settings)
 
 
-def test_full_lifespan_includes_the_booted_routers_and_reports_healthy(monkeypatch) -> None:
-    from fastapi import APIRouter
+def fake_container(monkeypatch) -> None:
+    async def fake_boot(self) -> None:
+        self._routes.extend(self._actuator_routes())
+        self._ready = True
 
-    fake_router = APIRouter(prefix="/fake")
+    async def fake_stop(self) -> None:
+        self._ready = False
 
-    @fake_router.get("/ping")
+    monkeypatch.setattr(AgentContainer, "boot", fake_boot)
+    monkeypatch.setattr(AgentContainer, "stop", fake_stop)
+
+
+@EVERY_FRAMEWORK
+async def test_full_lifespan_includes_the_booted_routes_and_reports_healthy(
+    monkeypatch, framework
+) -> None:
     async def ping() -> dict:
         return {"pong": True}
 
     async def fake_boot(self) -> None:
-        self._routers.append(fake_router)
-        self._routers.append(self._actuator_router())
+        self._routes.append(HttpRoute("GET", "/fake/ping", ping))
+        self._routes.extend(self._actuator_routes())
+        self._ready = True
 
     async def fake_stop(self) -> None:
-        return None
+        self._ready = False
 
     monkeypatch.setattr(AgentContainer, "boot", fake_boot)
     monkeypatch.setattr(AgentContainer, "stop", fake_stop)
-    app = create_agent_application(settings=make_settings())
+    app = create_app(monkeypatch, framework)
 
-    with TestClient(app) as client:
-        health = client.get("/actuator/health")
-        readiness = client.get("/actuator/health/readiness")
-        fake = client.get("/fake/ping")
+    async with http_client(app) as client:
+        health = await client.get("/actuator/health")
+        readiness = await client.get("/actuator/health/readiness")
+        fake = await client.get("/fake/ping")
 
     assert health.status_code == 200
     assert health.json() == {"status": "UP"}
@@ -65,13 +80,29 @@ def test_full_lifespan_includes_the_booted_routers_and_reports_healthy(monkeypat
     assert fake.json() == {"pong": True}
 
 
-def test_a_boot_failure_is_logged_and_reraised_not_swallowed(monkeypatch) -> None:
+@EVERY_FRAMEWORK
+async def test_the_api_is_served_under_the_base_path(monkeypatch, framework) -> None:
+    fake_container(monkeypatch)
+    app = create_app(monkeypatch, framework, base_path="/agent-runtime")
+
+    async with http_client(app) as client:
+        prefixed = await client.get("/agent-runtime/actuator/health")
+        bare = await client.get("/actuator/health")
+
+    assert prefixed.status_code == 200
+    assert bare.status_code == 404
+
+
+@EVERY_FRAMEWORK
+async def test_a_boot_failure_stops_the_startup_and_is_logged(
+    monkeypatch, framework, caplog
+) -> None:
     async def failing_boot(self) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(AgentContainer, "boot", failing_boot)
-    app = create_agent_application(settings=make_settings())
+    app = create_app(monkeypatch, framework)
 
-    with pytest.raises(RuntimeError, match="boom"):
-        with TestClient(app):
-            pass
+    assert await starts(app) is False
+    assert "Agent container failed to boot" in caplog.text
+    assert "boom" in caplog.text

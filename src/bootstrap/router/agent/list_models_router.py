@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from pycraftcore.web.schema import HttpRoute
 
 from agent_runtime.adapter.inbound.web.controller.list_models_controller import (
     ListModelsController,
@@ -12,17 +12,14 @@ class ListModelsRouter:
 
     def __init__(self, controller: ListModelsController) -> None:
         self._controller = controller
-        self._router: APIRouter = APIRouter(prefix=self.PREFIX)
-        self._router_register()
 
     @property
-    def router(self) -> APIRouter:
-        return self._router
-
-    def _router_register(self) -> None:
-        self._router.add_api_route(
-            self.ENDPOINT, self._list, methods=["GET"], response_model=ModelListSchema
-        )
-
-    async def _list(self) -> ModelListSchema:
-        return await self._controller.execute()
+    def routes(self) -> list[HttpRoute]:
+        return [
+            HttpRoute(
+                method="GET",
+                path=self.PREFIX + self.ENDPOINT,
+                handler=self._controller.execute,
+                response=ModelListSchema,
+            )
+        ]

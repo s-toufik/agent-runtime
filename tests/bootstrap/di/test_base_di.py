@@ -1,5 +1,9 @@
 from pathlib import Path
 
+from pycraftcore.logger.enum import LogLevel
+from pycraftcore.web.enum import WebFramework
+
+import bootstrap.di.base_di as base_di_module
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.base_di import BaseDI
 from tests.support.null_telemetry import NullTelemetryProvider
@@ -117,6 +121,43 @@ def test_configuration_loads_the_real_tree(monkeypatch) -> None:
     di = BaseDI(make_settings())
 
     assert di._configuration.connector.mcp("toolbox").transport == "streamable_http"
+
+
+def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("LOG_LEVEL", "WARNING")
+    applied: list[str] = []
+    monkeypatch.setattr(base_di_module, "configure_logging", applied.append)
+    di = BaseDI(make_settings())
+
+    _ = di._configuration
+
+    assert applied == [LogLevel.WARNING]
+
+
+def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("WEB_FRAMEWORK", "litestar")
+    monkeypatch.setenv("WEB_BASE_PATH", "/agent-runtime")
+    di = BaseDI(make_settings())
+
+    assert di._configuration.log is LogLevel.DEBUG
+    assert di._server.name == "agent-runtime"
+    assert di._server.framework is WebFramework.LITESTAR
+    assert di._server.base_path == "/agent-runtime"
+
+
+def test_the_server_defaults_to_fastapi_at_the_root_with_info_logs(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    for key in ("LOG_LEVEL", "WEB_FRAMEWORK", "WEB_BASE_PATH"):
+        monkeypatch.delenv(key, raising=False)
+    di = BaseDI(make_settings())
+
+    assert di._configuration.log is LogLevel.INFO
+    assert di._server.framework is WebFramework.FASTAPI
+    assert di._server.base_path == ""
+    assert di._server.cors_origins == ["*"]
 
 
 def test_telemetry_provider_service_name_is_derived_from_the_role(monkeypatch) -> None:

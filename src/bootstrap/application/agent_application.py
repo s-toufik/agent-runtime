@@ -2,17 +2,20 @@ import traceback
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from pycraftcore.http.middleware import RequestMiddleware
-from pycraftcore.http.middleware.request_id_middleware import RequestIDMiddleware
-from starlette.middleware.cors import CORSMiddleware
+from pycraftcore.http.middleware import RequestIDMiddleware
+from pycraftcore.web.asgi import ASGIApp
+from pycraftcore.web.frameworks import web_application_factory
+from pycraftcore.web.schema import WebApplication
 
+from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
+    ServerAtCapacityException,
+)
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
 
 
 @asynccontextmanager
-async def _lifespan(application: FastAPI, container: AgentContainer) -> AsyncGenerator[None]:
+async def _lifespan(container: AgentContainer) -> AsyncGenerator[None]:
     try:
         await container.boot()
     except Exception as exception:
@@ -21,37 +24,29 @@ async def _lifespan(application: FastAPI, container: AgentContainer) -> AsyncGen
         )
         raise
 
-    for router in container.routers:
-        application.include_router(router)
-        container.logging.info(f"Router {router.prefix} included")
-    application.state.ready = container.is_ready
+    for route in container.routes:
+        container.logging.info(
+            f"Route {route.method} {container.server.base_path}{route.path} included"
+        )
 
     try:
         yield
     finally:
-        application.state.ready = False
         await container.stop()
 
 
-def create_agent_application(settings: ProcessSettings | None = None) -> FastAPI:
+def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp:
     process_settings = settings or ProcessSettings.for_role("agent-runtime")
     container = AgentContainer(process_settings)
+    server = container.server
 
-    application = FastAPI(
-        title="agent-runtime",
-        lifespan=lambda app: _lifespan(app, container),
+    application = WebApplication(
+        title=server.name,
+        lifespan=lambda: _lifespan(container),
+        routes=lambda: container.routes,
+        base_path=server.base_path,
+        errors={ServerAtCapacityException: 503},
+        middleware=(RequestIDMiddleware,),
+        cors_origins=server.cors_origins,
     )
-
-    application.add_middleware(RequestIDMiddleware)
-    application.add_middleware(RequestMiddleware)
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    return application
-
-
-app: FastAPI = create_agent_application()
+    return web_application_factory(server.framework).create(application)

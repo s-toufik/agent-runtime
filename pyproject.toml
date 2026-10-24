@@ -11,7 +11,7 @@ authors = [
 description = "Analytics agent -- talks to its MCP toolbox as an independently deployed service"
 readme = "Readme.md"
 requires-python = ">=3.14"
-keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "asyncio"]
+keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "litestar", "asyncio"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Framework :: AsyncIO",
@@ -26,15 +26,13 @@ classifiers = [
 ]
 license = "MIT"
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
+    "granian",
     "uvloop",
-    "starlette",
     "httpx",
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry]>=2.1.0",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web]>=4.0.0",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -46,11 +44,19 @@ dependencies = [
     "langgraph-checkpoint-mongodb",
 ]
 
+[project.optional-dependencies]
+fastapi = ["pycraftcore[web_fastapi]>=4.0.0"]
+litestar = ["pycraftcore[web_litestar]>=4.0.0"]
+
 [project.scripts]
 agent-runtime = "bootstrap.application.agent_application:main"
 
 [dependency-groups]
 dev = [
+    "pycraftcore[web_fastapi,web_litestar]>=4.0.0",
+    "starlette",
+    "uvicorn",
+    "asgi-lifespan",
     "pytest",
     "pytest-asyncio",
     "pytest-cov>=7.1.0",
@@ -65,8 +71,8 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-#[tool.uv.sources]
-#pycraftcore = { path = "../pycraftcore", editable = true }
+[tool.uv.sources]
+pycraftcore = { path = "../pycraftcore", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

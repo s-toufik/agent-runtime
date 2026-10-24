@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Body
-from starlette.responses import StreamingResponse
+from pycraftcore.web.schema import HttpRoute, ResponseKind
 
 from agent_runtime.adapter.inbound.web.controller.stream_agent_controller import (
     StreamAgentController,
@@ -13,15 +12,15 @@ class StreamAgentRouter:
 
     def __init__(self, controller: StreamAgentController) -> None:
         self._controller = controller
-        self._router: APIRouter = APIRouter(prefix=self.PREFIX)
-        self._router_register()
 
     @property
-    def router(self) -> APIRouter:
-        return self._router
-
-    def _router_register(self) -> None:
-        self._router.add_api_route(self.ENDPOINT, self._stream, methods=["POST"])
-
-    async def _stream(self, request: AgentRequestSchema = Body(...)) -> StreamingResponse:
-        return await self._controller.execute(request)
+    def routes(self) -> list[HttpRoute]:
+        return [
+            HttpRoute(
+                method="POST",
+                path=self.PREFIX + self.ENDPOINT,
+                handler=self._controller.execute,
+                body=AgentRequestSchema,
+                kind=ResponseKind.EVENT_STREAM,
+            )
+        ]
