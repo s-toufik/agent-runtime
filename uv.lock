@@ -63,9 +63,9 @@ requires-dist = [
     { name = "langgraph-checkpoint-mongodb" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "mcp" },
-    { name = "pycraftcore", extras = ["application-configuration", "authentication", "circuit-breaker", "http", "logger", "repository", "resilient-http", "retry", "telemetry", "web"], editable = "../pycraftcore" },
-    { name = "pycraftcore", extras = ["web-fastapi"], marker = "extra == 'fastapi'", editable = "../pycraftcore" },
-    { name = "pycraftcore", extras = ["web-litestar"], marker = "extra == 'litestar'", editable = "../pycraftcore" },
+    { name = "pycraftcore", extras = ["application-configuration", "authentication", "circuit-breaker", "http", "logger", "repository", "resilient-http", "retry", "telemetry", "web"], specifier = ">=4.0.0" },
+    { name = "pycraftcore", extras = ["web-fastapi"], marker = "extra == 'fastapi'", specifier = ">=4.0.0" },
+    { name = "pycraftcore", extras = ["web-litestar"], marker = "extra == 'litestar'", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pymongo", specifier = ">=4.9,<4.18" },
     { name = "python-dotenv" },
@@ -79,7 +79,7 @@ dev = [
     { name = "faker" },
     { name = "hypothesis", specifier = ">=6.151.9" },
     { name = "pre-commit" },
-    { name = "pycraftcore", extras = ["web-fastapi", "web-litestar"], editable = "../pycraftcore" },
+    { name = "pycraftcore", extras = ["web-fastapi", "web-litestar"], specifier = ">=4.0.0" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
@@ -2104,7 +2104,11 @@ wheels = [
 [[package]]
 name = "pycraftcore"
 version = "4.0.0"
-source = { editable = "../pycraftcore" }
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/df/a47c2d615e472f9b044d70e74a063a1219338de4129f34300a3eb560a8db/pycraftcore-4.0.0.tar.gz", hash = "sha256:ffa57442756607248a8ae9c5c8041ffa6768f513bbc2e1a0fb72151658856985", size = 65627, upload-time = "2026-10-24T20:04:04.801Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/ca/f5286afec1708f325d99e74a7ce5bd295011a7d14c9eca41ee6d62373ac9/pycraftcore-4.0.0-py3-none-any.whl", hash = "sha256:ae027d7b90ae45ed119a95dbaba5ae691e284fe986cb8113bb31588b58896556", size = 112250, upload-time = "2026-10-24T20:04:03.454Z" },
+]
 
 [package.optional-dependencies]
 application-configuration = [
@@ -2175,93 +2179,6 @@ web-litestar = [
     { name = "litestar" },
     { name = "multidict" },
     { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiobreaker", marker = "extra == 'circuit-breaker'" },
-    { name = "aiohttp", marker = "extra == 'http'" },
-    { name = "aiohttp", marker = "extra == 'resilient-http'" },
-    { name = "aiosqlite", marker = "extra == 'repository'" },
-    { name = "fastapi", marker = "extra == 'web-fastapi'" },
-    { name = "httpx", marker = "extra == 'http'" },
-    { name = "httpx", marker = "extra == 'resilient-http'" },
-    { name = "litestar", marker = "extra == 'web-litestar'" },
-    { name = "matplotlib", marker = "extra == 'runtime-sandbox'" },
-    { name = "msgpack", marker = "extra == 'serializer'" },
-    { name = "multidict", marker = "extra == 'web-litestar'", specifier = "<7.2" },
-    { name = "numpy", marker = "extra == 'computation-engine'" },
-    { name = "numpy", marker = "extra == 'runtime-sandbox'" },
-    { name = "omegaconf", marker = "extra == 'application-configuration'" },
-    { name = "opentelemetry-api", marker = "extra == 'telemetry'" },
-    { name = "opentelemetry-exporter-otlp", marker = "extra == 'telemetry'" },
-    { name = "opentelemetry-instrumentation-logging", marker = "extra == 'telemetry'" },
-    { name = "opentelemetry-sdk", marker = "extra == 'telemetry'" },
-    { name = "orjson", marker = "extra == 'file-handler'" },
-    { name = "orjson", marker = "extra == 'http'" },
-    { name = "orjson", marker = "extra == 'repository'" },
-    { name = "orjson", marker = "extra == 'serializer'" },
-    { name = "pandas", marker = "extra == 'runtime-sandbox'" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'repository'" },
-    { name = "psycopg-pool", marker = "extra == 'repository'" },
-    { name = "pycraftcore", extras = ["application-configuration"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["application-configuration", "authentication"], marker = "extra == 'repository'" },
-    { name = "pycraftcore", extras = ["application-configuration", "context"], marker = "extra == 'telemetry'" },
-    { name = "pycraftcore", extras = ["authentication"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["circuit-breaker"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["circuit-breaker", "http", "logger", "retry", "telemetry"], marker = "extra == 'resilient-http'" },
-    { name = "pycraftcore", extras = ["computation-engine"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["context"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["context", "logger"], marker = "extra == 'http'" },
-    { name = "pycraftcore", extras = ["file-handler"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["http"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["logger"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["logger"], marker = "extra == 'circuit-breaker'" },
-    { name = "pycraftcore", extras = ["logger"], marker = "extra == 'retry'" },
-    { name = "pycraftcore", extras = ["logger", "http", "authentication", "web"], marker = "extra == 'application-configuration'" },
-    { name = "pycraftcore", extras = ["profiler"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["query-language"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["repository"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["resilient-http"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["retry"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["runtime"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["runtime"], marker = "extra == 'runtime-sandbox'" },
-    { name = "pycraftcore", extras = ["runtime-sandbox"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["serializer"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["telemetry"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["web"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["web"], marker = "extra == 'web-fastapi'" },
-    { name = "pycraftcore", extras = ["web"], marker = "extra == 'web-litestar'" },
-    { name = "pycraftcore", extras = ["web-fastapi"], marker = "extra == 'all'" },
-    { name = "pycraftcore", extras = ["web-litestar"], marker = "extra == 'all'" },
-    { name = "pydantic", marker = "extra == 'application-configuration'", specifier = ">=2" },
-    { name = "pydantic", marker = "extra == 'repository'", specifier = ">=2" },
-    { name = "pydantic", marker = "extra == 'runtime'", specifier = ">=2" },
-    { name = "pydantic", marker = "extra == 'serializer'", specifier = ">=2" },
-    { name = "pydantic", marker = "extra == 'web'", specifier = ">=2" },
-    { name = "pyinstrument", marker = "extra == 'profiler'" },
-    { name = "pymongo", marker = "extra == 'repository'" },
-    { name = "python-dateutil", marker = "extra == 'runtime-sandbox'" },
-    { name = "python-dotenv", marker = "extra == 'application-configuration'" },
-    { name = "pyyaml", marker = "extra == 'file-handler'" },
-    { name = "scipy", marker = "extra == 'computation-engine'" },
-    { name = "sqlglot", marker = "extra == 'query-language'" },
-    { name = "tenacity", marker = "extra == 'retry'" },
-]
-provides-extras = ["authentication", "context", "logger", "profiler", "query-language", "computation-engine", "serializer", "file-handler", "runtime", "web", "circuit-breaker", "retry", "http", "web-fastapi", "web-litestar", "resilient-http", "application-configuration", "telemetry", "repository", "runtime-sandbox", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "asgi-lifespan" },
-    { name = "hypothesis" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "scipy-stubs" },
-    { name = "ty" },
-    { name = "uvicorn" },
 ]
 
 [[package]]

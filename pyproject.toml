@@ -71,8 +71,8 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.uv.sources]
-pycraftcore = { path = "../pycraftcore", editable = true }
+#[tool.uv.sources]
+#pycraftcore = { path = "../pycraftcore", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
