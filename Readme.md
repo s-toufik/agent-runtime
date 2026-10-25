@@ -41,7 +41,7 @@ make run
 
 `/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
 
-With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The image contains both web frameworks: `WEB_FRAMEWORK` picks one when the container starts, without rebuilding.
+With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The API is served by Litestar.
 
 ### List the models
 
@@ -145,9 +145,8 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
-| `WEB_FRAMEWORK` | `fastapi` | The web framework that serves the API: `fastapi` or `litestar`. The API is the same with both; locally, only that framework's extra needs to be installed (`uv sync --extra litestar`); the Docker image has both |
 | `WEB_BASE_PATH` | empty | A prefix for every route, the actuator included, e.g. `/agent-runtime`: the stream is then at `/agent-runtime/v1/stream` and the probes at `/agent-runtime/actuator/health/...`. Use it when the gateway forwards the prefix without removing it. Starts with `/`, no trailing `/` |
-| `WEB_DOCS` | `false` | `true` serves the API documentation: Swagger UI at `<base path>/docs`, the OpenAPI schema at `<base path>/docs/openapi.json`. The same with both frameworks, except the validation error each one documents (FastAPI 422, Litestar 400) |
+| `WEB_DOCS` | `false` | `true` serves the API documentation: Swagger UI at `<base path>/docs`, the OpenAPI schema at `<base path>/docs/openapi.json` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review are sent piece by piece as `token` events, then `final`. `whole`: only `final` |
 | `LLM_BASE_URL`, `LLM_API_KEY` | required | The OpenAI-compatible model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
@@ -157,7 +156,7 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_FRAMEWORK`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. With Docker Compose, pass each one with a default, such as `${WEB_FRAMEWORK:-fastapi}`: a variable passed empty is not replaced by the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. With Docker Compose, pass each one with a default, such as `${WEB_DOCS:-false}`: a variable passed empty is not replaced by the YAML default, and the agent refuses to start.
 
 **Configuration files** live in `config/`: `root.yml` sets the log level and lists what exists, `config/<APP_ENV>/connector/*.yml`, `operation/*.yml` and `server/*.yml` define it.
 
@@ -229,9 +228,9 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 ```text
   ┌─ bootstrap ──────────────────────────────────────────────────────────────┐
-  │  configuration, dependency wiring (AgentDI), web app, routers            │
+  │  configuration, dependency wiring (AgentDI), the Litestar API            │
   │  ┌─ adapter ──────────────────────────────────────────────────────────┐  │
-  │  │  inbound:  HTTP controller, SSE presenter                          │  │
+  │  │  inbound:  SSE stream controller and presenter                     │  │
   │  │  outbound: LangChain models, MCP tools, LangGraph runtime, events  │  │
   │  │  ┌─ application ────────────────────────────────────────────────┐  │  │
   │  │  │  HandleMessage use case, one handler per step, ports         │  │  │
@@ -250,11 +249,11 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 |---|---|
 | `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
 | `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `WorkflowRunner`…) |
-| `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController`, `SsePresenter`, request and response schemas |
+| `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter` (in `stream/`): one stream per request, whatever web framework serves it |
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, prompts, `ModelCatalog` |
 | `src/agent_runtime/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the web application (built by `pycraftcore.web` from the server in `config/<APP_ENV>/server/asgi.yml`, served by Granian, which calls `create_agent_application`), routers |
+| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the container, and `create_agent_application`, which Granian calls: it reads the server in `config/<APP_ENV>/server/asgi.yml` and builds the Litestar API with the container's services. The API is in `application/litestar/`: `router/` (the routes), `schema/` (request and response bodies, msgspec), `litestar_api.py` (the app, built with `pycraftcore.web_litestar`) |
 | `config/` | YAML configuration |
 | `src/agent_evaluation/` | The evaluation: a separate program that tests a running agent over HTTP (see [its Readme](src/agent_evaluation/Readme.md)) |
 | `tests/` | Unit, scenario and architecture tests, including the evaluation's own tests |
@@ -298,9 +297,10 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | When a step follows another | `TurnPolicy.TRANSITIONS` (and a condition in `conditions.py`); the graph follows |
 | What a step does | Its handler in `application/step/` |
 | What a model is told | `adapter/outbound/llm/langchain/prompts/` |
-| What the client sees for a step | `adapter/inbound/web/sse_presenter.py` |
+| What the client sees for a step | `adapter/inbound/web/stream/sse_presenter.py` |
 | A LangGraph-only feature for one step (interrupt, subgraph) | Override `work` in that step's node in `adapter/outbound/langgraph/node/` |
-| A new request option | `AgentRequestSchema` → `AgentRequest` → `TurnOptions`, read in the domain |
+| A new request option | `AgentRequestSchema` (`bootstrap/application/litestar/schema/`) → `AgentRequest` → `TurnOptions`, read in the domain |
+| A new route | A handler in `bootstrap/application/litestar/router/`, listed in `litestar_api.py`. A service it needs is injected by Litestar: add it to `dependencies` in `litestar_api.py`, provided by the container in `create_agent_application` |
 | A new step | A `Step` value, a handler in `application/step/`, a node class in `langgraph/node/` listed in `NODE_TYPES`, the handler in `AgentDI._steps`, and its rows in `TurnPolicy`; the graph's edges follow |
 | A new model role | An `AgentRole` value, its entry in `operation/agent.yml` (and `root.yml`), and a LangChain adapter behind the step's port |
 | A new source of tools | A connector in `connector/mcp.yml` (see [More MCP servers](#configure-it)); a non-MCP source is a new adapter behind the `ToolCatalog` and `ToolExecutor` ports |
@@ -336,6 +336,6 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 ### Deploying
 
-`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above. The image contains both web frameworks; `WEB_FRAMEWORK` chooses one at startup.
+`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above.
 
 The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own app and container), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; everything logged by the worker uses the service's format.

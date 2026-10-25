@@ -7,7 +7,7 @@ COPY pyproject.toml uv.lock* ./
 COPY src ./src
 COPY Readme.md ./
 
-RUN uv sync --no-dev --no-editable --frozen --extra fastapi --extra litestar
+RUN uv sync --no-dev --no-editable --frozen
 
 FROM python:3.14-slim
 

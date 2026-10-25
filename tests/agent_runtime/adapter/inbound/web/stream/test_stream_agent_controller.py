@@ -5,21 +5,21 @@ from collections.abc import AsyncIterator
 import pytest
 from pycraftcore.web.sse import SSE_HEARTBEAT
 
-from agent_runtime.adapter.inbound.web.controller.stream_agent_controller import (
-    StreamAgentController,
-)
 from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
     ServerAtCapacityException,
 )
-from agent_runtime.adapter.inbound.web.schema.agent_request_schema import AgentRequestSchema
+from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
+    StreamAgentController,
+)
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
 from agent_runtime.domain.event.turn_event import TurnEvent
+from agent_runtime.domain.request.agent_request import AgentRequest
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.turn_settings import TurnSettings
 from agent_runtime.domain.workflow.step import Step
 
-REQUEST = AgentRequestSchema(message="hi", model_name="m", request_id="r1")
+REQUEST = AgentRequest(message="hi", model_name="m", request_id="r1")
 
 
 class ScriptedUseCase:

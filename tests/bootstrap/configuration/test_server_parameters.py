@@ -1,7 +1,6 @@
 import pytest
 from pycraftcore.application_configuration.enum import ServerType
 from pycraftcore.application_configuration.model.server import AsgiServer
-from pycraftcore.web.enum import WebFramework
 
 from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 from bootstrap.configuration.server_parameters import ServerParameters
@@ -11,7 +10,6 @@ def server(**parameters: str) -> AsgiServer:
     return AsgiServer(
         name="agent-runtime",
         type=ServerType.asgi,
-        framework=WebFramework.FASTAPI,
         parameters=parameters,
     )
 

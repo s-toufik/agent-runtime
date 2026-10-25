@@ -1,43 +1,17 @@
 import asyncio
 import socket
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
 import httpx
-import pytest
 import uvicorn
 from asgi_lifespan import LifespanManager
-from pycraftcore.web.asgi import ASGIApp, AsgiMiddleware, Receive, Scope, Send
-from pycraftcore.web.enum import WebFramework
-from pycraftcore.web.frameworks import web_application_factory
-from pycraftcore.web.schema import HttpRoute, WebApplication
-
-EVERY_FRAMEWORK = pytest.mark.parametrize("framework", list(WebFramework), ids=str)
+from pycraftcore.web.asgi import ASGIApp, Receive, Scope, Send
 
 
 @asynccontextmanager
-async def _nothing() -> AsyncIterator[None]:
+async def nothing() -> AsyncIterator[None]:
     yield
-
-
-def build_app(
-    framework: WebFramework,
-    routes: Sequence[HttpRoute],
-    *,
-    lifespan: Callable[[], AbstractAsyncContextManager[None]] = _nothing,
-    errors: Mapping[type[Exception], int] | None = None,
-    middleware: Sequence[AsgiMiddleware] = (),
-    cors_origins: Sequence[str] = (),
-) -> ASGIApp:
-    application = WebApplication(
-        title="test",
-        lifespan=lifespan,
-        routes=lambda: routes,
-        errors=errors or {},
-        middleware=middleware,
-        cors_origins=cors_origins,
-    )
-    return web_application_factory(framework).create(application)
 
 
 @asynccontextmanager

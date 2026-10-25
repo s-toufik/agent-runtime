@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from pycraftcore.logger.enum import LogLevel
-from pycraftcore.web.enum import WebFramework
 
 import bootstrap.di.base_di as base_di_module
 from bootstrap.configuration.settings import ProcessSettings
@@ -138,24 +137,23 @@ def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> N
 def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
-    monkeypatch.setenv("WEB_FRAMEWORK", "litestar")
     monkeypatch.setenv("WEB_BASE_PATH", "/agent-runtime")
+    monkeypatch.setenv("WEB_DOCS", "true")
     di = BaseDI(make_settings())
 
     assert di._configuration.log is LogLevel.DEBUG
     assert di._server.name == "agent-runtime"
-    assert di._server.framework is WebFramework.LITESTAR
     assert di._server.base_path == "/agent-runtime"
+    assert di._server.docs is True
 
 
-def test_the_server_defaults_to_fastapi_at_the_root_with_info_logs(monkeypatch) -> None:
+def test_the_server_defaults_to_the_root_without_docs_and_info_logs(monkeypatch) -> None:
     _set_required_env(monkeypatch)
-    for key in ("LOG_LEVEL", "WEB_FRAMEWORK", "WEB_BASE_PATH", "WEB_DOCS"):
+    for key in ("LOG_LEVEL", "WEB_BASE_PATH", "WEB_DOCS"):
         monkeypatch.delenv(key, raising=False)
     di = BaseDI(make_settings())
 
     assert di._configuration.log is LogLevel.INFO
-    assert di._server.framework is WebFramework.FASTAPI
     assert di._server.base_path == ""
     assert di._server.docs is False
     assert di._server.cors_origins == ["*"]

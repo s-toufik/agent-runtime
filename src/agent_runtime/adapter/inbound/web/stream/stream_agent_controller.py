@@ -10,10 +10,10 @@ from pycraftcore.web.sse import with_heartbeat
 from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
     ServerAtCapacityException,
 )
-from agent_runtime.adapter.inbound.web.schema.agent_request_schema import AgentRequestSchema
-from agent_runtime.adapter.inbound.web.sse_presenter import SsePresenter
+from agent_runtime.adapter.inbound.web.stream.sse_presenter import SsePresenter
 from agent_runtime.application.port.inbound.handle_message_port import HandleMessagePort
 from agent_runtime.application.port.outbound.turn_event_stream import TurnEventStream
+from agent_runtime.domain.request.agent_request import AgentRequest
 
 
 class StreamAgentController:
@@ -33,7 +33,7 @@ class StreamAgentController:
         self._presenter = presenter or SsePresenter()
         self._heartbeat_seconds = heartbeat_seconds
 
-    async def execute(self, request: AgentRequestSchema) -> AsyncGenerator[bytes]:
+    async def execute(self, request: AgentRequest) -> AsyncGenerator[bytes]:
         if request.request_id:
             request_id_context.set(request.request_id)
 
@@ -46,9 +46,7 @@ class StreamAgentController:
         try:
             self._logger.info("stream request accepted")
             events: TurnEventStream = self._stream_events()
-            use_case_task: Task[None] = asyncio.create_task(
-                self._use_case.handle(request.to_domain(), events)
-            )
+            use_case_task: Task[None] = asyncio.create_task(self._use_case.handle(request, events))
         except Exception:
             self._admission.release()
             raise
@@ -57,7 +55,7 @@ class StreamAgentController:
 
     async def _frames(
         self,
-        request: AgentRequestSchema,
+        request: AgentRequest,
         events: TurnEventStream,
         use_case_task: Task[None],
     ) -> AsyncGenerator[bytes]:

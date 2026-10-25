@@ -1,5 +1,7 @@
-from agent_runtime.adapter.inbound.web.schema.agent_request_schema import AgentRequestSchema
 from agent_runtime.domain.request.agent_request import AgentRequest
+from bootstrap.application.litestar.schema.agent_request_schema import (
+    AgentRequestSchema,
+)
 
 
 def test_to_domain_maps_every_field() -> None:

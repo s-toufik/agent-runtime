@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from agent_runtime.adapter.inbound.web.sse_presenter import APPROVAL_PROMPT, SsePresenter
+from agent_runtime.adapter.inbound.web.stream.sse_presenter import APPROVAL_PROMPT, SsePresenter
 from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.turn.answer import Answer

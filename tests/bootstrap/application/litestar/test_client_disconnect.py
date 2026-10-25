@@ -2,12 +2,12 @@ import asyncio
 
 import httpx
 
-from agent_runtime.adapter.inbound.web.controller.stream_agent_controller import (
+from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
     StreamAgentController,
 )
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
-from bootstrap.router.agent.stream_agent_router import StreamAgentRouter
-from tests.support.web import EVERY_FRAMEWORK, build_app, running_server
+from tests.bootstrap.application.litestar.support import litestar_api
+from tests.support.web import running_server
 
 BODY = {"message": "hi", "model_name": "m", "request_id": "r1"}
 
@@ -26,13 +26,16 @@ class HangingUseCase:
             raise
 
 
-@EVERY_FRAMEWORK
-async def test_a_client_disconnect_cancels_the_turn_and_frees_its_slot(framework, logger) -> None:
+class NoModels:
+    async def handle(self): ...
+
+
+async def test_a_client_disconnect_cancels_the_turn_and_frees_its_slot(logger) -> None:
     use_case = HangingUseCase()
     controller = StreamAgentController(
         use_case, QueueTurnEventStream, logger, max_concurrent_streams=1, heartbeat_seconds=None
     )
-    app = build_app(framework, StreamAgentRouter(controller).routes)
+    app = litestar_api(logger, lambda: controller, NoModels)
 
     async with running_server(app) as base_url:
         async with httpx.AsyncClient(base_url=base_url) as client:

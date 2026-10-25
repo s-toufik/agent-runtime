@@ -2,7 +2,6 @@ server:
   agent-runtime:
     name: agent-runtime
     type: asgi
-    framework: ${oc.env:WEB_FRAMEWORK,fastapi}
     base_path: ${oc.env:WEB_BASE_PATH,""}
     docs: ${oc.env:WEB_DOCS,false}
     cors_origins: ["*"]

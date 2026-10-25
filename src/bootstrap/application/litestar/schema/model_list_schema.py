@@ -1,21 +1,25 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+import msgspec
 
 from agent_runtime.domain.llm_model.model_listing import ModelListing
 
 
-class ModelSchema(BaseModel):
-    name: str = Field(description="The value to send as model_name.")
+class ModelSchema(msgspec.Struct):
+    name: Annotated[str, msgspec.Meta(description="The value to send as model_name.")]
     context_tokens: int
     max_output_tokens: int
-    thinking: bool = Field(description="Whether the model reasons before answering.")
+    thinking: Annotated[
+        bool, msgspec.Meta(description="Whether the model reasons before answering.")
+    ]
 
 
-class ModelListSchema(BaseModel):
+class ModelListSchema(msgspec.Struct):
     models: list[ModelSchema]
-    pinned_steps: dict[str, str] = Field(
-        default_factory=dict,
-        description="Steps that always use one model, whatever model_name asks for.",
-    )
+    pinned_steps: Annotated[
+        dict[str, str],
+        msgspec.Meta(description="Steps that always use one model, whatever model_name asks for."),
+    ] = msgspec.field(default_factory=dict)
 
     @classmethod
     def from_domain(cls, listing: ModelListing) -> ModelListSchema:

@@ -28,11 +28,13 @@ license = "MIT"
 dependencies = [
     "granian",
     "uvloop",
+    "litestar",
+    "msgspec",
     "httpx",
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web]",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_litestar]",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -44,16 +46,11 @@ dependencies = [
     "langgraph-checkpoint-mongodb",
 ]
 
-[project.optional-dependencies]
-fastapi = ["pycraftcore[web_fastapi]"]
-litestar = ["pycraftcore[web_litestar]"]
-
 [project.scripts]
 agent-runtime = "bootstrap.application.agent_application:main"
 
 [dependency-groups]
 dev = [
-    "pycraftcore[web_fastapi,web_litestar]",
     "starlette",
     "uvicorn",
     "asgi-lifespan",

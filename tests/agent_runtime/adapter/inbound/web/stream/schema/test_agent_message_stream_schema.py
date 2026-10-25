@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from agent_runtime.adapter.inbound.web.schema.agent_message_stream_schema import (
+from agent_runtime.adapter.inbound.web.stream.schema.agent_message_stream_schema import (
     AgentMessageStreamSchema,
 )
-from agent_runtime.adapter.inbound.web.schema.message_stream_type import MessageStreamType
+from agent_runtime.adapter.inbound.web.stream.schema.message_stream_type import MessageStreamType
 
 
 @pytest.mark.parametrize("stream_type", list(MessageStreamType))

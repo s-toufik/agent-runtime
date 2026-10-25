@@ -1,13 +1,15 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+import msgspec
 
 from agent_runtime.domain.request.agent_request import AgentRequest
 
 
-class AgentRequestSchema(BaseModel):
-    message: str = Field(..., min_length=1)
+class AgentRequestSchema(msgspec.Struct):
+    message: Annotated[str, msgspec.Meta(min_length=1)]
     model_name: str
     request_id: str
-    auto_approve: bool = Field(default=False)
+    auto_approve: bool = False
 
     def to_domain(self) -> AgentRequest:
         return AgentRequest(

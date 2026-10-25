@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
-from agent_runtime.adapter.inbound.web.schema.agent_message_type import AgentMessageType
-from agent_runtime.adapter.inbound.web.schema.message_stream_type import MessageStreamType
+from agent_runtime.adapter.inbound.web.stream.schema.agent_message_type import AgentMessageType
+from agent_runtime.adapter.inbound.web.stream.schema.message_stream_type import MessageStreamType
 
 
 class AgentMessageSchema(BaseModel):

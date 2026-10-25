@@ -1,15 +1,15 @@
 import ast
 from pathlib import Path
 
-import pytest
-
 SOURCE = Path(__file__).resolve().parents[2] / "src"
 PACKAGE = SOURCE / "agent_runtime"
 
 FRAMEWORKS = {
     "fastapi",
     "litestar",
+    "blacksheep",
     "starlette",
+    "msgspec",
     "mcp",
     "langchain",
     "langchain_core",
@@ -83,9 +83,23 @@ def test_langgraph_nodes_only_delegate_to_the_application() -> None:
     assert _violations(PACKAGE / "adapter" / "outbound" / "langgraph", forbidden) == []
 
 
-WEB_FRAMEWORKS = {"fastapi", "litestar", "starlette"}
+WEB_FRAMEWORKS = {"fastapi", "litestar", "blacksheep", "starlette", "msgspec"}
+LITESTAR_APPLICATION = SOURCE / "bootstrap" / "application" / "litestar"
 
 
-@pytest.mark.parametrize("directory", [PACKAGE, SOURCE / "bootstrap"], ids=lambda d: d.name)
-def test_no_web_framework_is_imported_the_web_layer_comes_from_pycraftcore(directory) -> None:
-    assert _violations(directory, WEB_FRAMEWORKS) == []
+def test_the_agent_imports_no_web_framework() -> None:
+    assert _violations(PACKAGE, WEB_FRAMEWORKS) == []
+
+
+def test_only_the_litestar_application_imports_a_web_framework_in_bootstrap() -> None:
+    application = f"{LITESTAR_APPLICATION.relative_to(SOURCE)}/"
+    outside = [
+        violation
+        for violation in _violations(SOURCE / "bootstrap", WEB_FRAMEWORKS)
+        if not violation.startswith(application)
+    ]
+    assert outside == []
+
+
+def test_the_litestar_application_imports_no_other_web_framework() -> None:
+    assert _violations(LITESTAR_APPLICATION, WEB_FRAMEWORKS - {"litestar", "msgspec"}) == []
