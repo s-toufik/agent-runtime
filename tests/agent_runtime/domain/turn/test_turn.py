@@ -191,7 +191,7 @@ def test_a_resumed_plan_continues_from_the_earlier_turns() -> None:
     resumed.observed([result("file_writer", "written")])
     assert resumed.progress.is_complete
     assert resumed.actions == [Action("file_writer", "", True, "written")]
-    assert resumed.plan_actions == [earlier, *resumed.actions]
+    assert resumed.prior is not None and resumed.prior.actions == (earlier,)
 
 
 def test_pausing_again_keeps_the_tool_calls_of_every_earlier_turn() -> None:

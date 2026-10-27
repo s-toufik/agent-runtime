@@ -12,6 +12,7 @@ from agent_runtime.domain.turn.understanding import Understanding
 from tests.agent_runtime.domain.builders import (
     PLAN,
     REPORT,
+    answer,
     calling,
     result,
     stopped_after_the_count,
@@ -32,7 +33,7 @@ def test_approving_takes_the_pending_plan_into_the_turn() -> None:
 
     assert current.plan == PLAN
     assert current.query == PLAN.task
-    assert conversation.pending_plan is None
+    assert conversation.pending_plan == PLAN
 
 
 @pytest.mark.parametrize("intent", [Intent.PLAN_REVISION, Intent.AMBIGUOUS])
@@ -121,11 +122,11 @@ def test_with_auto_approve_a_submitted_plan_is_carried_out_at_once() -> None:
 
 def _paused() -> Conversation:
     conversation = Conversation(id="c1")
-    conversation.pause(stopped_after_the_count())
+    conversation.close(stopped_after_the_count())
     return conversation
 
 
-def test_pausing_keeps_the_plan_pending_with_how_far_it_got() -> None:
+def test_closing_a_turn_that_stopped_short_of_its_plan_pauses_it() -> None:
     conversation = _paused()
 
     assert conversation.pending is not None and conversation.pending.is_paused
@@ -140,7 +141,36 @@ def test_approving_a_paused_plan_resumes_it_where_it_stopped() -> None:
 
     assert current.plan == REPORT and current.query == REPORT.task
     assert current.progress is not None and current.progress.current == REPORT.steps[1]
+
+
+def test_an_approved_plan_stays_pending_until_the_turn_running_it_closes() -> None:
+    conversation, current = _paused(), turn(None)
+    paused = conversation.pending
+
+    conversation.interpret(current, Understanding(Intent.PLAN_APPROVAL, "continue"))
+
+    assert conversation.pending == paused
+
+
+def test_closing_the_turn_that_finished_the_plan_settles_it() -> None:
+    conversation, current = _paused(), turn(None)
+    conversation.interpret(current, Understanding(Intent.PLAN_APPROVAL, "continue"))
+    current.drafted(calling("file_writer"))
+    current.observed([result("file_writer", "written")])
+    current.drafted(answer("The report is in report.md."))
+
+    conversation.close(current)
+
     assert conversation.pending is None
+
+
+def test_closing_a_turn_that_only_proposed_a_plan_keeps_it_waiting() -> None:
+    conversation, current = Conversation(id="c1"), turn(Intent.TASK)
+    conversation.submit(current, PLAN)
+
+    conversation.close(current)
+
+    assert conversation.pending == PendingPlan(PLAN)
 
 
 def test_revising_a_paused_plan_keeps_it_paused_for_the_planner() -> None:

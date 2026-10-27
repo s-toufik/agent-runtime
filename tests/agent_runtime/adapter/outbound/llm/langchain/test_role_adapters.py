@@ -240,7 +240,7 @@ async def test_the_reviewer_judges_the_draft_against_the_evidence_and_the_exchan
 
 async def test_the_classifier_and_the_planner_see_a_paused_plan_with_its_progress(logger) -> None:
     conversation = _talked()
-    conversation.pause(stopped_after_the_count())
+    conversation.close(stopped_after_the_count())
     classifier_llm = FakeLLM(
         parsed=[UnderstandingDto(intent=Intent.PLAN_APPROVAL, standalone_query="go")]
     )

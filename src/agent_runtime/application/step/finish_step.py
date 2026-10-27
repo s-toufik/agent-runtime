@@ -9,6 +9,4 @@ class FinishStep:
     async def run(self, conversation: Conversation, turn: Turn) -> None:
         if turn.answer is None:
             turn.finish(turn.conclude())
-        if turn.is_resumable:
-            conversation.pause(turn)
         conversation.close(turn)

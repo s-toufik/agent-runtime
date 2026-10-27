@@ -16,4 +16,4 @@ class Intent(StrEnum):
 
     @property
     def keeps_pending_plan(self) -> bool:
-        return self in (Intent.PLAN_REVISION, Intent.AMBIGUOUS)
+        return self in (Intent.PLAN_APPROVAL, Intent.PLAN_REVISION, Intent.AMBIGUOUS)

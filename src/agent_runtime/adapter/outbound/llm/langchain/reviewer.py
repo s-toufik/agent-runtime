@@ -34,7 +34,7 @@ class LangChainReviewer:
         understanding = turn.understanding
         draft = turn.last_draft
         progress = turn.progress
-        prior_actions = [action.render() for action in turn.prior.actions] if turn.prior else []
+        prior_actions = turn.prior.render_actions() if turn.prior else []
         messages = [
             SystemMessage(
                 content=reflection_system_prompt(

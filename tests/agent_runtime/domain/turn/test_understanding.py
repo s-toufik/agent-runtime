@@ -25,8 +25,9 @@ def test_only_tasks_and_revisions_need_a_plan() -> None:
     assert {intent for intent in Intent if intent.needs_plan} == {Intent.TASK, Intent.PLAN_REVISION}
 
 
-def test_only_a_revision_or_a_question_keeps_the_pending_plan() -> None:
+def test_only_an_approval_a_revision_or_a_question_keeps_the_pending_plan() -> None:
     assert {intent for intent in Intent if intent.keeps_pending_plan} == {
+        Intent.PLAN_APPROVAL,
         Intent.PLAN_REVISION,
         Intent.AMBIGUOUS,
     }

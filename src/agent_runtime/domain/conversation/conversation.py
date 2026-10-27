@@ -24,13 +24,12 @@ class Conversation:
 
     def interpret(self, turn: Turn, understanding: Understanding) -> None:
         understanding = understanding.normalized(has_pending_plan=self.pending is not None)
-        pending, self.pending = self.pending, None
-        if understanding.intent is Intent.PLAN_APPROVAL and pending is not None:
-            turn.understood(understanding.about(pending.plan.task))
-            turn.execute(pending.plan, pending.prior)
+        if not understanding.intent.keeps_pending_plan:
+            self.pending = None
+        if understanding.intent is Intent.PLAN_APPROVAL and self.pending is not None:
+            turn.understood(understanding.about(self.pending.plan.task))
+            turn.execute(self.pending.plan, self.pending.prior)
             return
-        if understanding.intent.keeps_pending_plan:
-            self.pending = pending
         turn.understood(understanding)
 
     def submit(self, turn: Turn, plan: Plan) -> None:
@@ -43,9 +42,6 @@ class Conversation:
     def propose(self, plan: Plan) -> None:
         self.pending = PendingPlan(plan)
 
-    def pause(self, turn: Turn) -> None:
-        self.pending = turn.paused_plan()
-
     def retract(self) -> None:
         self.pending = None
 
@@ -54,6 +50,8 @@ class Conversation:
         return self.pending.plan if self.pending else None
 
     def close(self, turn: Turn) -> None:
+        if turn.plan is not None:
+            self.pending = turn.paused_plan() if turn.is_resumable else None
         answer = turn.answer.text if turn.answer else ""
         self.messages.extend(
             [Message(Speaker.USER, turn.request), Message(Speaker.ASSISTANT, answer)]

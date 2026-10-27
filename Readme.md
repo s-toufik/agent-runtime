@@ -245,7 +245,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 2. `HandleMessage` builds a `Turn` (the message, the model's budget, the user's options) and asks the `WorkflowRunner` to run it on the conversation `request_id`.
 3. `LangGraphWorkflowRunner` loads the stored `Conversation` and runs the graph. Each node decodes the state, runs its step handler and saves the state; the checkpointer keeps the conversation between messages.
 4. After each step, `TurnPolicy.next(step, turn)` picks the next one. Each node emits a `TurnEvent`, which `SsePresenter` turns into SSE frames.
-5. `finish` settles the answer, pauses a plan the turn stopped short of (`Turn.is_resumable`), and appends the exchange to the history; `summarize` compacts it when it grows past half the context.
+5. `finish` settles the answer, then `Conversation.close` settles the plan the turn carried out (paused again when `Turn.is_resumable`, otherwise done) and appends the exchange to the history; a plan stays pending until then, so an interrupted run leaves it as it was; `summarize` compacts it when it grows past half the context.
 
 ### The routing table
 
@@ -369,7 +369,7 @@ Every step, and every way between them:
 | RUN TOOLS | Runs the tool calls and hands the results back to ACT |
 | REVIEW | The model checks the answer against the request |
 | FEEDBACK | Hands the review's critique back to ACT for another attempt |
-| FINISH | Settles the reply and its `outcome`, pauses a plan stopped by the step limit, and saves the exchange |
+| FINISH | Settles the reply and its `outcome`, settles the plan (done, or paused if stopped by the step limit), and saves the exchange |
 | SUMMARIZE | Folds old messages into a summary when the history is long |
 
 ### Every route
@@ -416,13 +416,23 @@ A plan is **pending** while it waits for your "yes", or after it was paused at t
 
 | You send | The pending plan |
 |---|---|
-| "yes", "go on", "continue" | Runs. A paused plan resumes where it stopped, with the tool calls it already made, so it does not redo their work |
+| "yes", "go on", "continue" | Runs, and stays pending until the run ends. A paused plan resumes where it stopped, with the tool calls it already made, so it does not redo their work |
 | A change: "only last month", "skip step 2" | Is rewritten (for a paused plan, only the steps left), then handled like any new plan |
 | Something unclear | Stays pending while the agent asks a question |
 | "Drop plan" | Is dropped |
 | Anything else | Is dropped, and the message is handled on its own |
 
 With no plan pending, "yes" or "continue" is an ordinary message. The pending plan is stored with the conversation, apart from the chat history, so summarizing the history never loses it.
+
+How the end of a run settles the plan:
+
+| The run | The plan |
+|---|---|
+| Finishes the work | Is done: nothing is pending any more |
+| Stops at the step limit | Is paused again, from where this run stopped |
+| Is interrupted: you close the page, the model server fails, the agent restarts | Stays pending as it was before this run. "continue" starts again from there, so what ran during the interrupted run may run again |
+
+A paused plan remembers its last 20 tool calls, and how many ran before them. Resuming a long loop many times therefore never fills the model's context: the agent sees where the work stands (the latest calls) and how much was done before.
 
 ### Typical journeys
 

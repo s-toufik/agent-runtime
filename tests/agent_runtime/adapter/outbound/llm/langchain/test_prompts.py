@@ -165,6 +165,12 @@ def test_the_act_prompt_tells_a_resumed_plan_what_already_ran() -> None:
     assert "paused at the step limit" in act_system_prompt("q", FINISHED, TOOLS, PriorRun(1))
 
 
+def test_a_resumed_plan_mentions_the_earlier_tool_calls_it_no_longer_lists() -> None:
+    resumed = act_system_prompt("q", PlanProgress(PLAN, 1), TOOLS, PriorRun(1, (ECHOED,), 12))
+
+    assert "- (12 earlier tool calls, not shown)\n- echo(text='hi'): ok -> hi" in resumed
+
+
 def test_a_plan_cut_off_after_every_step_ran_is_resumed_to_carry_on_its_work() -> None:
     cut_off = act_system_prompt("q", FINISHED, TOOLS, PriorRun(2, (ECHOED,)))
     finished_in_this_turn = act_system_prompt("q", FINISHED, TOOLS, PriorRun(1, (ECHOED,)))

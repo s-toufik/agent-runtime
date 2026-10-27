@@ -72,7 +72,8 @@ class Turn:
         progress = self.progress
         if progress is None or not self.is_resumable:
             raise ValueError("Only a turn that stopped short of its plan can be paused")
-        return PendingPlan.paused(progress, self.plan_actions)
+        run = self.prior or PriorRun(0)
+        return PendingPlan(progress.plan, run.followed_by(progress.done, self.actions))
 
     def conclude(self) -> Answer:
         draft = self.last_draft
@@ -134,10 +135,6 @@ class Turn:
             elif isinstance(item, ToolResult) and item.call_id in calls:
                 actions.append(Action.of(calls[item.call_id], item))
         return actions
-
-    @property
-    def plan_actions(self) -> list[Action]:
-        return [*(self.prior.actions if self.prior else ()), *self.actions]
 
     @property
     def last_draft(self) -> Draft | None:

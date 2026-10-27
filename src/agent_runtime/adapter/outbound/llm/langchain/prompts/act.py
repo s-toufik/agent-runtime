@@ -149,5 +149,5 @@ def _template(progress: PlanProgress, prior: PriorRun | None) -> str:
 def _prior(prior: PriorRun | None) -> str:
     if prior is None:
         return ""
-    actions = "\n".join(f"- {action.render()}" for action in prior.actions) or "(none)"
+    actions = "\n".join(f"- {line}" for line in prior.render_actions()) or "(none)"
     return _PRIOR.format(actions=actions)

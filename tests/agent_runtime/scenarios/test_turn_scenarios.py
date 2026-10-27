@@ -575,7 +575,49 @@ async def test_continue_resumes_a_paused_plan_where_it_stopped(runner_kind, logg
     assert resumed.query == "report" and resumed.prior is not None
     assert [action.tool for action in resumed.prior.actions] == ["echo"]
     reviewed: Turn = agent.reviewer.calls[0][1]
-    assert [action.tool for action in reviewed.plan_actions] == ["echo", "file_writer"]
+    assert reviewed.prior is not None
+    assert [action.tool for action in (*reviewed.prior.actions, *reviewed.actions)] == [
+        "echo",
+        "file_writer",
+    ]
+    assert (await agent.stored()).pending is None
+
+
+@RUNNERS
+async def test_a_resumed_run_that_is_interrupted_leaves_the_plan_paused(
+    runner_kind, logger
+) -> None:
+    agent = Agent(
+        runner_kind,
+        logger,
+        understandings=[
+            _understood(Intent.TASK, "report"),
+            _understood(Intent.PLAN_APPROVAL),
+            _understood(Intent.PLAN_APPROVAL, "continue"),
+            _understood(Intent.PLAN_APPROVAL, "continue"),
+        ],
+        plans=[REPORT_STEPS],
+        drafts=[
+            _calls("echo"),
+            Draft("I combined it."),
+            RuntimeError("the model server is down"),
+            _calls("file_writer"),
+            Draft("The report is in report.md."),
+        ],
+        verdicts=[accept()],
+    )
+    await _paused_after_the_first_step(agent)
+
+    with pytest.raises(RuntimeError):
+        await agent.say("continue")
+    interrupted = (await agent.stored()).pending
+    assert interrupted is not None and interrupted.prior is not None
+    assert interrupted.prior.done == 1
+
+    answer = await agent.say("continue")
+
+    assert answer.answer is not None
+    assert answer.answer.text == "The report is in report.md."
     assert (await agent.stored()).pending is None
 
 

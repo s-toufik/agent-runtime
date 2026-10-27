@@ -24,7 +24,7 @@ repos:
         stages: [ pre-commit, pre-push ]
       - id: pytest
         name: Run unit tests
-        entry: uv run pytest -n auto --maxfail=1 --disable-warnings
+        entry: uv run pytest --disable-warnings
         language: system
         pass_filenames: false
         always_run: true

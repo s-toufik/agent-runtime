@@ -50,7 +50,7 @@ async def test_understanding_is_recorded_through_the_conversation(logger) -> Non
     await step.run(conversation, current)
 
     assert current.plan == PLAN
-    assert conversation.pending_plan is None
+    assert conversation.pending_plan == PLAN
 
 
 async def test_an_unreadable_message_is_understood_as_a_task(logger) -> None:
