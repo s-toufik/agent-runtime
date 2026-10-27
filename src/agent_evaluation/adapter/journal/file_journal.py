@@ -22,9 +22,12 @@ class FileJournal:
         handler.setLevel(logging.DEBUG)
         handler.setFormatter(logging.Formatter(FORMAT))
         root = logging.getLogger(ROOT_LOGGER)
+        level = root.level
+        root.setLevel(logging.DEBUG)
         root.addHandler(handler)
         try:
             yield path
         finally:
             root.removeHandler(handler)
+            root.setLevel(level)
             handler.close()

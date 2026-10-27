@@ -98,7 +98,7 @@ jobs:
 
       - name: Run tests
         run: |
-          uv run pytest --maxfail=1 --disable-warnings
+          uv run pytest -n auto --junitxml=test-reports/junit.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
