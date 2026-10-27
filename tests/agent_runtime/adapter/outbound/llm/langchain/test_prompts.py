@@ -152,17 +152,26 @@ def test_a_paused_plan_is_revised_into_only_what_is_left() -> None:
     paused = plan_system_prompt("q", TOOLS, "SCHEMA", PAUSED_AFTER_ONE)
     proposed = plan_system_prompt("q", TOOLS, "SCHEMA", PendingPlan(PLAN))
 
-    assert "✓ 1. count rows" in paused and "plan only what is left" in paused
-    assert "plan only what is left" not in proposed
+    assert "✓ 1. count rows" in paused and "plan only the work that is left" in paused
+    assert "plan only the work that is left" not in proposed
 
 
 def test_the_act_prompt_tells_a_resumed_plan_what_already_ran() -> None:
     resumed = act_system_prompt("q", PlanProgress(PLAN, 1), TOOLS, PAUSED_AFTER_ONE.prior)
     fresh = act_system_prompt("q", STARTED, TOOLS)
 
-    assert "do not run them again" in resumed and "- echo(text='hi'): ok -> hi" in resumed
+    assert "do not redo their work" in resumed and "- echo(text='hi'): ok -> hi" in resumed
     assert "paused at the step limit" not in fresh
     assert "paused at the step limit" in act_system_prompt("q", FINISHED, TOOLS, PriorRun(1))
+
+
+def test_a_plan_cut_off_after_every_step_ran_is_resumed_to_carry_on_its_work() -> None:
+    cut_off = act_system_prompt("q", FINISHED, TOOLS, PriorRun(2, (ECHOED,)))
+    finished_in_this_turn = act_system_prompt("q", FINISHED, TOOLS, PriorRun(1, (ECHOED,)))
+
+    assert "work was cut off at the step limit" in cut_off and "Carry on" in cut_off
+    assert "All steps of the approved plan are done" in finished_in_this_turn
+    assert "Carry on" not in finished_in_this_turn
 
 
 def test_the_review_lists_the_plan_s_earlier_tool_calls_only_when_it_was_resumed() -> None:

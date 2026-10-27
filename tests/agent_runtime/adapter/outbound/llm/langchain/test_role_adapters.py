@@ -256,7 +256,7 @@ async def test_the_classifier_and_the_planner_see_a_paused_plan_with_its_progres
     )
 
     assert "✓ 1. count (tool: echo)\n→ 2. write" in classifier_llm.prompt()
-    assert "plan only what is left" in str(planner_llm.calls[0][0].content)
+    assert "plan only the work that is left" in str(planner_llm.calls[0][0].content)
 
 
 async def test_a_resumed_plan_is_reviewed_with_the_tool_calls_of_earlier_turns(logger) -> None:
@@ -280,7 +280,7 @@ async def test_a_resumed_plan_tells_the_actor_what_already_ran(logger) -> None:
     await _actor(llm, logger).act(Conversation("c1"), current, [ECHO])
 
     system = str(llm.calls[0][0].content)
-    assert "do not run them again" in system and "- echo(): ok -> 12 rows" in system
+    assert "do not redo their work" in system and "- echo(): ok -> 12 rows" in system
 
 
 async def test_without_evidence_the_reviewer_accepts_general_knowledge(logger) -> None:

@@ -110,7 +110,7 @@ During a long model call, the stream sends a `: heartbeat` comment every 15 seco
 | `awaiting_approval` | The reply is a plan that needs tools | Reply **yes** to run it, **Drop plan** to cancel it, or say what to change |
 | `clarification` | The reply is a question: the request was too vague | Answer the question |
 | `best_effort` | No answer the agent was satisfied with: the review rejected every rewrite, no answer was produced, or no plan could be written | Check the answer, or rephrase |
-| `budget_exhausted` | The agent used all its steps (`max_iterations`). For a plan, the reply lists which steps ran, and the plan is paused | Say **continue** to resume it, narrow it, or drop it |
+| `budget_exhausted` | The agent used all its steps (`max_iterations`). For a plan, the reply shows which steps ran, and the plan is paused, even when every step ran but its work (a loop, say) was not finished | Say **continue** to resume it, narrow it, or drop it |
 | `refused` | The guardrail blocked the plan before anything ran: `[SCREEN]: <reason>` | Change the request |
 
 New events, fields and outcomes may be added: ignore the ones you don't know, and treat an unknown `outcome` like `answered`. Why a message gets a given outcome: see [Logic](#logic).
@@ -245,7 +245,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 2. `HandleMessage` builds a `Turn` (the message, the model's budget, the user's options) and asks the `WorkflowRunner` to run it on the conversation `request_id`.
 3. `LangGraphWorkflowRunner` loads the stored `Conversation` and runs the graph. Each node decodes the state, runs its step handler and saves the state; the checkpointer keeps the conversation between messages.
 4. After each step, `TurnPolicy.next(step, turn)` picks the next one. Each node emits a `TurnEvent`, which `SsePresenter` turns into SSE frames.
-5. `finish` settles the answer, pauses a plan left unfinished, and appends the exchange to the history; `summarize` compacts it when it grows past half the context.
+5. `finish` settles the answer, pauses a plan the turn stopped short of (`Turn.is_resumable`), and appends the exchange to the history; `summarize` compacts it when it grows past half the context.
 
 ### The routing table
 
@@ -260,7 +260,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | plan | always (the plan waits for approval, or none was written) | finish |
 | clarify | always | finish |
 | act | `asks_for_plan_without_one` | plan |
-| act | `keeps_working_out_of_steps` (tool calls or an open plan step, no steps left) | finish |
+| act | `ran_out_of_steps` (tool calls or an open plan step, no steps left) | finish |
 | act | `asks_for_tools` | run_tools |
 | act | `leaves_plan_unfinished` (an approved plan has a step whose tool has not succeeded) | act |
 | act | `is_plain_direct_answer` | finish |
@@ -369,7 +369,7 @@ Every step, and every way between them:
 | RUN TOOLS | Runs the tool calls and hands the results back to ACT |
 | REVIEW | The model checks the answer against the request |
 | FEEDBACK | Hands the review's critique back to ACT for another attempt |
-| FINISH | Settles the reply and its `outcome`, pauses a plan left unfinished, and saves the exchange |
+| FINISH | Settles the reply and its `outcome`, pauses a plan stopped by the step limit, and saves the exchange |
 | SUMMARIZE | Folds old messages into a summary when the history is long |
 
 ### Every route
@@ -389,7 +389,7 @@ Each fork is read top to bottom: the first branch that holds is taken.
                     └─ otherwise ─────────────────► FINISH: the plan, waiting for "yes"
 
   ACT ─┬─ needs tools, has no plan ───► PLAN
-       ├─ more work, no steps left ───► FINISH: step limit; an unfinished plan is paused
+       ├─ more work, no steps left ───► FINISH: step limit; the plan is paused
        ├─ calls tools ────────────────► RUN TOOLS ──► ACT
        ├─ plan step still open ───────► ACT: "now do step N"
        ├─ plain direct answer ────────► FINISH: no check needed
@@ -409,13 +409,14 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 - a step is done only when its tool succeeds, so the agent cannot answer while a step is still open;
 - a reply that only describes a step sends the agent back to run it;
-- the tools it ran stay in the conversation, so later messages reuse their results instead of running them again.
+- the tools it ran stay in the conversation, so later messages reuse their results instead of running them again;
+- when the step limit stops the work, the plan is paused, whether a step is still open or every step ran but the work they describe is not finished (a step like "repeat steps 1–2 until the counter reaches 30").
 
 A plan is **pending** while it waits for your "yes", or after it was paused at the step limit. Your next message decides what happens to it:
 
 | You send | The pending plan |
 |---|---|
-| "yes", "go on", "continue" | Runs. A paused plan resumes at the step where it stopped, without running its finished steps again |
+| "yes", "go on", "continue" | Runs. A paused plan resumes where it stopped, with the tool calls it already made, so it does not redo their work |
 | A change: "only last month", "skip step 2" | Is rewritten (for a paused plan, only the steps left), then handled like any new plan |
 | Something unclear | Stays pending while the agent asks a question |
 | "Drop plan" | Is dropped |
@@ -438,6 +439,7 @@ With no plan pending, "yes" or "continue" is an ordinary message. The pending pl
 | The same task with `auto_approve: true` | understand → plan → act → run tools → act → review → finish | `answered`, in one go |
 | "yes" to a plan longer than the step limit | understand → act → run tools → act → … → finish | `budget_exhausted`, `resumable`: the plan is paused |
 | "continue" after that | understand → act → run tools → … → finish | The plan resumes where it stopped; no new plan |
+| "yes" to a loop ("increment the counter 30 times") that outlasts the step limit | understand → act → run tools → act → … → finish | `budget_exhausted`, `resumable`: every step ran, the loop is not done, the plan is paused; "continue" carries on the loop |
 | A plan the guardrail blocks | understand → plan → screen → finish | `refused`: `[SCREEN]: <reason>` |
 | A request no plan can be written for | understand → plan → finish | `best_effort`: "I could not write a plan…" |
 | An answer the review rejects | … → act → review → feedback → act → review → finish | `answered`, or `best_effort` when the rewrites run out |

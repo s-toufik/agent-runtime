@@ -69,7 +69,7 @@ def test_conditions_read_the_turn() -> None:
     assert conditions.needs_plan(turn(Intent.TASK)) and conditions.needs_plan(turn(None))
     assert conditions.is_ambiguous(turn(Intent.AMBIGUOUS))
     assert conditions.asks_for_tools(planned)
-    assert not conditions.keeps_working_out_of_steps(planned)
+    assert not conditions.ran_out_of_steps(planned)
     assert conditions.leaves_plan_unfinished(planned)
     assert conditions.asks_for_plan_without_one(asking)
     assert conditions.retry_allowed(rejected)

@@ -32,6 +32,7 @@ from tests.agent_runtime.domain.builders import (
     REPORT,
     answer,
     calling,
+    cut_off_after_every_step,
     result,
     retry,
     stopped_after_the_count,
@@ -160,6 +161,16 @@ async def test_finishing_with_the_plan_unfinished_pauses_it_for_later() -> None:
     assert conversation.pending is not None and conversation.pending.plan == REPORT
     assert conversation.pending.prior is not None and conversation.pending.prior.done == 1
     assert [m.speaker for m in conversation.messages] == [Speaker.USER, Speaker.ASSISTANT]
+
+
+async def test_finishing_a_plan_cut_off_after_every_step_ran_pauses_it_too() -> None:
+    conversation, current = Conversation("c1"), cut_off_after_every_step()
+
+    await FinishStep().run(conversation, current)
+
+    assert current.answer is not None and current.answer.resumable
+    assert conversation.pending is not None and conversation.pending.prior is not None
+    assert conversation.pending.prior.done == len(PLAN.steps)
 
 
 async def test_finishing_a_completed_plan_leaves_nothing_pending() -> None:

@@ -70,8 +70,8 @@ class Turn:
 
     def paused_plan(self) -> PendingPlan:
         progress = self.progress
-        if progress is None or progress.is_complete:
-            raise ValueError("Only a plan left unfinished can be paused")
+        if progress is None or not self.is_resumable:
+            raise ValueError("Only a turn that stopped short of its plan can be paused")
         return PendingPlan.paused(progress, self.plan_actions)
 
     def conclude(self) -> Answer:
@@ -79,7 +79,7 @@ class Turn:
         if draft is None:
             return Answer.nothing()
         progress = self.progress
-        if progress is not None and not progress.is_complete:
+        if progress is not None and self.is_resumable:
             return Answer.plan_unfinished(progress)
         if draft.asks_for_tools:
             return Answer.budget_exhausted()
@@ -113,6 +113,16 @@ class Turn:
     def leaves_plan_unfinished(self) -> bool:
         progress = self.progress
         return progress is not None and not progress.is_complete
+
+    @property
+    def ran_out_of_steps(self) -> bool:
+        draft = self.last_draft
+        keeps_working = draft is not None and (draft.asks_for_tools or self.leaves_plan_unfinished)
+        return keeps_working and self.steps_taken >= self.settings.max_steps
+
+    @property
+    def is_resumable(self) -> bool:
+        return self.leaves_plan_unfinished or (self.plan is not None and self.ran_out_of_steps)
 
     @property
     def actions(self) -> list[Action]:

@@ -2,7 +2,7 @@ import pytest
 
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.turn.action import Action
-from agent_runtime.domain.turn.answer import BUDGET_EXHAUSTED, NO_ANSWER, Answer
+from agent_runtime.domain.turn.answer import BUDGET_EXHAUSTED, NO_ANSWER, PLAN_CUT_OFF, Answer
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.outcome import Outcome
@@ -13,6 +13,7 @@ from tests.agent_runtime.domain.builders import (
     accept,
     answer,
     calling,
+    cut_off_after_every_step,
     failure,
     result,
     retry,
@@ -37,13 +38,32 @@ def test_a_draft_still_rejected_is_a_best_effort_answer() -> None:
     assert current.conclude() == Answer("41", Outcome.BEST_EFFORT)
 
 
-def test_pending_tool_calls_after_the_plan_mean_the_step_budget_ran_out() -> None:
-    current = turn(Intent.PLAN_APPROVAL, plan=PLAN)
-    current.drafted(calling("echo"))
-    current.observed([result()])
+def test_tool_calls_left_at_the_step_limit_after_every_step_ran_cut_the_plan_off() -> None:
+    concluded = cut_off_after_every_step().conclude()
+
+    assert concluded.outcome is Outcome.BUDGET_EXHAUSTED and concluded.resumable
+    assert concluded.text.startswith(PLAN_CUT_OFF.split(":")[0])
+    assert "✓ 1. count (tool: echo)" in concluded.text
+
+
+def test_tool_calls_left_at_the_step_limit_without_a_plan_end_the_task() -> None:
+    current = turn(Intent.DIRECT, max_steps=1)
     current.drafted(calling("echo"))
 
     assert current.conclude() == Answer(BUDGET_EXHAUSTED, Outcome.BUDGET_EXHAUSTED)
+    assert not current.is_resumable
+
+
+def test_a_turn_stops_short_of_its_plan_with_a_step_open_or_cut_off_at_the_limit() -> None:
+    still_working = turn(Intent.PLAN_APPROVAL, max_steps=5, plan=PLAN)
+    still_working.drafted(calling("echo"))
+    still_working.observed([result()])
+    still_working.drafted(calling("echo"))
+
+    assert cut_off_after_every_step().ran_out_of_steps
+    assert cut_off_after_every_step().is_resumable
+    assert stopped_after_the_count().is_resumable
+    assert not still_working.ran_out_of_steps and not still_working.is_resumable
 
 
 def test_an_unfinished_plan_is_reported_step_by_step_not_claimed_as_done() -> None:
@@ -187,7 +207,14 @@ def test_pausing_again_keeps_the_tool_calls_of_every_earlier_turn() -> None:
     assert [action.tool for action in paused.prior.actions] == ["echo", "file_writer"]
 
 
-def test_only_a_plan_left_unfinished_can_be_paused() -> None:
+def test_a_plan_cut_off_after_every_step_ran_is_paused_with_all_its_tool_calls() -> None:
+    paused = cut_off_after_every_step().paused_plan()
+
+    assert paused.prior is not None and paused.prior.done == len(PLAN.steps)
+    assert [action.tool for action in paused.prior.actions] == ["echo"]
+
+
+def test_only_a_turn_that_stopped_short_of_its_plan_can_be_paused() -> None:
     finished = turn(Intent.PLAN_APPROVAL, plan=PLAN)
     finished.observed([result()])
 

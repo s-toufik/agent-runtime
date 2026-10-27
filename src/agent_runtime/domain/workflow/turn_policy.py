@@ -5,9 +5,9 @@ from agent_runtime.domain.workflow.conditions import (
     has_approved_plan,
     is_ambiguous,
     is_plain_direct_answer,
-    keeps_working_out_of_steps,
     leaves_plan_unfinished,
     needs_plan,
+    ran_out_of_steps,
     retry_allowed,
 )
 from agent_runtime.domain.workflow.step import Step
@@ -41,7 +41,7 @@ class TurnPolicy:
             *plan_exit,
             Transition(Step.CLARIFY, Step.FINISH),
             Transition(Step.ACT, Step.PLAN, asks_for_plan_without_one),
-            Transition(Step.ACT, Step.FINISH, keeps_working_out_of_steps),
+            Transition(Step.ACT, Step.FINISH, ran_out_of_steps),
             Transition(Step.ACT, Step.RUN_TOOLS, asks_for_tools),
             Transition(Step.ACT, Step.ACT, leaves_plan_unfinished),
             Transition(Step.ACT, Step.FINISH, is_plain_direct_answer),

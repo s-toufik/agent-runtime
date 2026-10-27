@@ -69,3 +69,11 @@ def stopped_after_the_count() -> Turn:
     stopped.drafted(calling("echo"))
     stopped.observed([result()])
     return stopped
+
+
+def cut_off_after_every_step() -> Turn:
+    cut_off = turn(Intent.PLAN_APPROVAL, max_steps=2, plan=PLAN)
+    cut_off.drafted(calling("echo"))
+    cut_off.observed([result()])
+    cut_off.drafted(calling("echo"))
+    return cut_off

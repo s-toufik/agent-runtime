@@ -9,10 +9,15 @@ from agent_runtime.domain.turn.plan_progress import PlanProgress
 NO_ANSWER: str = "No answer was produced."
 BUDGET_EXHAUSTED: str = (
     "I reached the step limit before finishing this task. "
-    "Ask me to continue, or narrow the request."
+    "Narrow the request, or split it into smaller ones."
 )
 PLAN_UNFINISHED: str = (
     "I reached the step limit before finishing the plan:\n\n{progress}\n\n"
+    "Ask me to continue, or narrow the request."
+)
+PLAN_CUT_OFF: str = (
+    "I reached the step limit before the plan's work was done. Every step has run, "
+    "but the task is not finished yet:\n\n{progress}\n\n"
     "Ask me to continue, or narrow the request."
 )
 NO_PLAN: str = "I could not write a plan for this request. Try rephrasing it."
@@ -44,7 +49,8 @@ class Answer:
 
     @classmethod
     def plan_unfinished(cls, progress: PlanProgress) -> Answer:
-        text = PLAN_UNFINISHED.format(progress=progress.render())
+        template = PLAN_CUT_OFF if progress.is_complete else PLAN_UNFINISHED
+        text = template.format(progress=progress.render())
         return cls(text, Outcome.BUDGET_EXHAUSTED, resumable=True)
 
     @classmethod

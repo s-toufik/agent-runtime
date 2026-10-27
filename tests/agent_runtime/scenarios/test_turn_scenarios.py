@@ -32,7 +32,7 @@ from agent_runtime.domain.conversation.message import Speaker
 from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.turn.action import Action
-from agent_runtime.domain.turn.answer import BUDGET_EXHAUSTED, NO_PLAN
+from agent_runtime.domain.turn.answer import NO_PLAN
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.outcome import Outcome
@@ -250,7 +250,9 @@ async def test_an_ambiguous_message_gets_a_clarifying_question(runner_kind, logg
 
 
 @RUNNERS
-async def test_running_out_of_steps_ends_with_a_clear_message(runner_kind, logger) -> None:
+async def test_running_out_of_steps_after_every_step_ran_pauses_the_plan(
+    runner_kind, logger
+) -> None:
     agent = Agent(
         runner_kind,
         logger,
@@ -263,12 +265,41 @@ async def test_running_out_of_steps_ends_with_a_clear_message(runner_kind, logge
     answer = await agent.say("yes", TurnSettings(max_steps=2))
 
     assert answer.answer is not None
-    assert (answer.answer.text, answer.answer.outcome) == (
-        BUDGET_EXHAUSTED,
-        Outcome.BUDGET_EXHAUSTED,
-    )
+    assert answer.answer.outcome is Outcome.BUDGET_EXHAUSTED and answer.answer.resumable
+    assert "✓ 1. echo hi" in answer.answer.text
     assert (answer.steps_taken, answer.max_steps) == (2, 2)
     assert agent.reviewer.calls == []
+    stored = await agent.stored()
+    assert stored.pending is not None and stored.pending.is_paused
+
+
+@RUNNERS
+async def test_continue_carries_on_a_plan_cut_off_after_every_step_ran(runner_kind, logger) -> None:
+    agent = Agent(
+        runner_kind,
+        logger,
+        understandings=[
+            _understood(Intent.TASK, "say hi until done"),
+            _understood(Intent.PLAN_APPROVAL),
+            _understood(Intent.PLAN_APPROVAL, "continue"),
+        ],
+        plans=[ECHO_HI],
+        drafts=[_calls("echo"), _calls("echo"), _calls("echo"), Draft("Said hi twice.")],
+        verdicts=[accept()],
+    )
+    await agent.say("say hi until done")
+    await agent.say("yes", TurnSettings(max_steps=2))
+
+    answer = await agent.say("continue")
+
+    assert answer.answer is not None
+    assert (answer.answer.text, answer.answer.outcome) == ("Said hi twice.", Outcome.ANSWERED)
+    assert len(agent.planner.calls) == 1
+    assert [call.name for call in agent.executor.calls] == ["echo", "echo"]
+    resumed: Turn = agent.actor.calls[2][1]
+    assert resumed.prior is not None and resumed.prior.done == len(ECHO_HI)
+    assert [action.tool for action in resumed.prior.actions] == ["echo"]
+    assert (await agent.stored()).pending is None
 
 
 async def test_a_thread_stored_in_an_older_format_starts_a_new_conversation(logger) -> None:

@@ -75,9 +75,16 @@ All steps of the approved plan are done:
 {prior}
 Answer the request from the tool results. Give the path of every file you wrote."""
 
+_CARRY_ON = """\
+Every step of the approved plan has run, but its work was cut off at the step limit:
+{progress}
+{prior}
+Carry on with your tools until the request is done, then answer from the tool results.
+Give the path of every file you wrote."""
+
 _PRIOR = """
-The plan was paused at the step limit and resumed in this turn. The steps marked ✓
-before it stopped already ran: do not run them again. Their tool calls:
+The plan was paused at the step limit and resumed in this turn. These tool calls ran
+before it stopped: do not redo their work, carry on from where they left off.
 {actions}
 """
 
@@ -128,8 +135,15 @@ def next_step_request(progress: PlanProgress) -> str | None:
 def _mode(progress: PlanProgress | None, prior: PriorRun | None) -> str:
     if progress is None:
         return _DIRECT
-    template = _FINISHED if progress.is_complete else _EXECUTE
-    return template.format(progress=progress.render(), prior=_prior(prior))
+    return _template(progress, prior).format(progress=progress.render(), prior=_prior(prior))
+
+
+def _template(progress: PlanProgress, prior: PriorRun | None) -> str:
+    if not progress.is_complete:
+        return _EXECUTE
+    if prior is not None and prior.done >= len(progress.plan.steps):
+        return _CARRY_ON
+    return _FINISHED
 
 
 def _prior(prior: PriorRun | None) -> str:

@@ -40,7 +40,7 @@ The user asked to change this previous plan:
 _PAUSED_REVISION = """
 The user asked to change this plan, paused at the step limit:
 {previous}
-The steps marked ✓ are done: plan only what is left, and reuse their results.
+The steps marked ✓ have run: plan only the work that is left, and reuse their results.
 """
 
 
