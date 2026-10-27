@@ -39,7 +39,7 @@ class LangChainActor:
         self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
     ) -> Draft:
         progress = turn.progress
-        system = act_system_prompt(turn.query, progress, tools)
+        system = act_system_prompt(turn.query, progress, tools, turn.prior)
         tail = [HumanMessage(content=turn.request), *from_work(turn.work)]
         next_step = next_step_request(progress) if progress else None
         if next_step:

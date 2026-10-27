@@ -3,6 +3,7 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import tool_catalog
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.plan_progress import PlanProgress
+from agent_runtime.domain.turn.prior_run import PriorRun
 
 _SYSTEM = """\
 You are BlueAI, an assistant for the Blue homelab platform.
@@ -42,7 +43,7 @@ _EXECUTE = """\
 The user approved this plan. Carry it out one step at a time with your tools.
 Progress (✓ done, → current, · to do):
 {progress}
-
+{prior}
 How to work:
 - A tool you call directly returns its whole result into your context. Fine for a 
   few rows or one value; a large result set will overflow your context window.
@@ -71,8 +72,14 @@ Example inside python_executor (heavy analysis only):
 _FINISHED = """\
 All steps of the approved plan are done:
 {progress}
-
+{prior}
 Answer the request from the tool results. Give the path of every file you wrote."""
+
+_PRIOR = """
+The plan was paused at the step limit and resumed in this turn. The steps marked ✓
+before it stopped already ran: do not run them again. Their tool calls:
+{actions}
+"""
 
 _NEXT_STEP = """\
 Now do step {number}: {action}
@@ -93,12 +100,15 @@ Write the corrected answer. Fix only what the critique flags."""
 
 
 def act_system_prompt(
-    request: str, progress: PlanProgress | None, tools: list[ToolSpecification]
+    request: str,
+    progress: PlanProgress | None,
+    tools: list[ToolSpecification],
+    prior: PriorRun | None = None,
 ) -> str:
     return _SYSTEM.format(
         request=request,
         tools=tool_catalog(tools),
-        mode=_mode(progress),
+        mode=_mode(progress, prior),
         diagrams=_DIAGRAMS,
         now=utc_now(),
     )
@@ -115,8 +125,15 @@ def next_step_request(progress: PlanProgress) -> str | None:
     return _NEXT_STEP.format(number=progress.number, action=step.action, tool=step.tool)
 
 
-def _mode(progress: PlanProgress | None) -> str:
+def _mode(progress: PlanProgress | None, prior: PriorRun | None) -> str:
     if progress is None:
         return _DIRECT
     template = _FINISHED if progress.is_complete else _EXECUTE
-    return template.format(progress=progress.render())
+    return template.format(progress=progress.render(), prior=_prior(prior))
+
+
+def _prior(prior: PriorRun | None) -> str:
+    if prior is None:
+        return ""
+    actions = "\n".join(f"- {action.render()}" for action in prior.actions) or "(none)"
+    return _PRIOR.format(actions=actions)

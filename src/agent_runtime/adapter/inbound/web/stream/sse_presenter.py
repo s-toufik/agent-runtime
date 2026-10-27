@@ -71,6 +71,8 @@ def _metadata(event: TurnEvent) -> dict[str, str]:
         fields["model"] = event.model
     if answer is not None:
         fields["outcome"] = str(answer.outcome)
+    if answer is not None and answer.resumable:
+        fields["resumable"] = "true"
     if event.tools:
         fields["tools"] = ", ".join(event.tools)
 

@@ -196,7 +196,7 @@ async def test_a_follow_up_is_understood_against_the_conversation(runner_kind, l
         logger,
         understandings=[
             _understood(Intent.DIRECT, "what is VaR"),
-            _understood(Intent.CONTINUATION, "explain VaR for AI agents"),
+            _understood(Intent.REWORK, "explain VaR for AI agents"),
         ],
         drafts=[Draft("VaR is a loss quantile."), Draft("For agents, ...")],
         verdicts=[accept()],
@@ -219,7 +219,7 @@ async def test_a_rejected_draft_is_retried_and_only_the_last_one_is_kept(
     agent = Agent(
         runner_kind,
         logger,
-        understandings=[_understood(Intent.CONTINUATION, "hi")],
+        understandings=[_understood(Intent.REWORK, "hi")],
         drafts=[Draft("first try"), Draft("second try")],
         verdicts=[retry("too short"), accept()],
     )
@@ -297,6 +297,21 @@ def test_an_unreadable_stored_conversation_is_ignored() -> None:
 
     assert codec.stored_conversation({}) is None
     assert codec.stored_conversation({"conversation": {"transcript": []}}) is None
+
+
+def test_a_conversation_stored_before_plans_could_pause_still_loads() -> None:
+    stored = {
+        "id": CONVERSATION,
+        "messages": [{"speaker": "user", "text": "hi"}],
+        "summary": "",
+        "pending_plan": {"task": "t", "steps": [{"action": "a", "tool": "echo"}]},
+        "actions": [],
+    }
+
+    conversation = TurnStateCodec().stored_conversation({"conversation": stored})
+
+    assert conversation is not None and [m.text for m in conversation.messages] == ["hi"]
+    assert conversation.pending is None
 
 
 @RUNNERS
@@ -473,3 +488,106 @@ async def test_a_plan_that_cannot_be_written_ends_the_turn_plainly(runner_kind, 
     assert answer.answer is not None
     assert (answer.answer.text, answer.answer.outcome) == (NO_PLAN, Outcome.BEST_EFFORT)
     assert (await agent.stored()).pending_plan is None
+
+
+REPORT_STEPS = (PlannedStep("compute", "echo"), PlannedStep("write the report", "file_writer"))
+
+
+async def _paused_after_the_first_step(agent: Agent) -> TurnEvent:
+    await agent.say("report")
+    return await agent.say("yes", TurnSettings(max_steps=2))
+
+
+@RUNNERS
+async def test_continue_resumes_a_paused_plan_where_it_stopped(runner_kind, logger) -> None:
+    agent = Agent(
+        runner_kind,
+        logger,
+        understandings=[
+            _understood(Intent.TASK, "report"),
+            _understood(Intent.PLAN_APPROVAL),
+            _understood(Intent.PLAN_APPROVAL, "continue"),
+        ],
+        plans=[REPORT_STEPS],
+        drafts=[
+            _calls("echo"),
+            Draft("I combined it."),
+            _calls("file_writer"),
+            Draft("The report is in report.md."),
+        ],
+        verdicts=[accept()],
+    )
+    paused = await _paused_after_the_first_step(agent)
+    assert paused.answer is not None and paused.answer.resumable
+
+    answer = await agent.say("continue")
+
+    assert answer.answer is not None
+    assert (answer.answer.text, answer.answer.outcome) == (
+        "The report is in report.md.",
+        Outcome.ANSWERED,
+    )
+    assert agent.entered() == [
+        Step.UNDERSTAND,
+        Step.ACT,
+        Step.RUN_TOOLS,
+        Step.ACT,
+        Step.REVIEW,
+        Step.FINISH,
+        Step.SUMMARIZE,
+    ]
+    assert len(agent.planner.calls) == 1
+    assert [call.name for call in agent.executor.calls] == ["echo", "file_writer"]
+    asked: Conversation = agent.classifier.calls[-1][0]
+    assert asked.pending is not None and asked.pending.is_paused
+    resumed: Turn = agent.actor.calls[2][1]
+    assert resumed.query == "report" and resumed.prior is not None
+    assert [action.tool for action in resumed.prior.actions] == ["echo"]
+    reviewed: Turn = agent.reviewer.calls[0][1]
+    assert [action.tool for action in reviewed.plan_actions] == ["echo", "file_writer"]
+    assert (await agent.stored()).pending is None
+
+
+@RUNNERS
+async def test_narrowing_a_paused_plan_replans_only_what_is_left(runner_kind, logger) -> None:
+    agent = Agent(
+        runner_kind,
+        logger,
+        understandings=[
+            _understood(Intent.TASK, "report"),
+            _understood(Intent.PLAN_APPROVAL),
+            _understood(Intent.PLAN_REVISION, "just write the report"),
+        ],
+        plans=[REPORT_STEPS, (PlannedStep("write the report", "file_writer"),)],
+        drafts=[_calls("echo"), Draft("I combined it.")],
+    )
+    await _paused_after_the_first_step(agent)
+
+    proposal = await agent.say("just write the report")
+
+    assert proposal.answer is not None
+    assert proposal.answer.outcome is Outcome.AWAITING_APPROVAL
+    revised: Conversation = agent.planner.calls[-1][0]
+    assert revised.pending is not None and revised.pending.is_paused
+    stored = await agent.stored()
+    assert stored.pending is not None and not stored.pending.is_paused
+
+
+@RUNNERS
+async def test_a_new_task_drops_a_paused_plan(runner_kind, logger) -> None:
+    agent = Agent(
+        runner_kind,
+        logger,
+        understandings=[
+            _understood(Intent.TASK, "report"),
+            _understood(Intent.PLAN_APPROVAL),
+            _understood(Intent.DIRECT, "what is VaR"),
+        ],
+        plans=[REPORT_STEPS],
+        drafts=[_calls("echo"), Draft("I combined it."), Draft("A loss quantile.")],
+    )
+    await _paused_after_the_first_step(agent)
+
+    await agent.say("what is VaR?")
+
+    assert (await agent.stored()).pending is None

@@ -5,14 +5,17 @@ Read the message together with the conversation: a short or vague message ("and 
 other one?", "shorter", "yes") continues what was being discussed.
 
 Pick the FIRST intent that applies:
-1. plan_approval: a pending plan is shown and the user accepts it as it is.
-2. plan_revision: a pending plan is shown and the user wants it changed.
+1. plan_approval: a pending plan is shown and the user accepts it as it is. A plan paused
+   at the step limit is accepted by "continue", "go on", "keep going" or "yes": it resumes
+   where it stopped.
+2. plan_revision: a pending plan is shown and the user wants it changed (a paused plan:
+   narrowed, or some of its remaining steps dropped or changed).
 3. plan_rejection: a pending plan is shown and the user rejects or cancels it (no, cancel,
-   don't do it, never mind) and asks for nothing else.
+   don't do it, never mind, stop) and asks for nothing else.
 4. task: the answer needs the user's own data, files, records or systems (reading them,
    changing them or checking their current state) or running code. Following up on an
    earlier answer is also a task when it needs any of these.
-5. continuation: the user wants the previous answer reworked (shorter, longer, another
+5. rework: the user wants the previous answer reworked (shorter, longer, another
    format, another angle, more detail) with nothing new to fetch or run.
 6. direct: anything answerable from the conversation or general knowledge: explaining a
    concept, how something works, comparisons, alternatives or good practices, even when
@@ -30,8 +33,9 @@ Examples:
 - "what tools do you have?" -> direct
 - "how many rows are in positions.csv?" -> task
 - "is the database up?" -> task
-- "make it shorter" -> continuation
+- "make it shorter" -> rework
 - "no, cancel that" (with a plan pending) -> plan_rejection
+- "continue" (with a paused plan pending) -> plan_approval
 
 Fill the fields:
 - standalone_query: the request rewritten so it makes sense without the conversation

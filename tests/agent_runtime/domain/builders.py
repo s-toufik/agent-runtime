@@ -56,3 +56,16 @@ def accept() -> Verdict:
 PLAN = Plan(
     task="count the rows", steps=(PlannedStep("count", "echo"),), expected_result="A count."
 )
+
+REPORT = Plan(
+    task="report",
+    steps=(PlannedStep("count", "echo"), PlannedStep("write", "file_writer")),
+    expected_result="A report.",
+)
+
+
+def stopped_after_the_count() -> Turn:
+    stopped = turn(Intent.PLAN_APPROVAL, plan=REPORT)
+    stopped.drafted(calling("echo"))
+    stopped.observed([result()])
+    return stopped

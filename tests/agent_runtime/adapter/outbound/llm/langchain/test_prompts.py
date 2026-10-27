@@ -17,8 +17,11 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.summary import summary
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import NO_TOOLS
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
+from agent_runtime.domain.turn.action import Action
+from agent_runtime.domain.turn.pending_plan import PendingPlan
 from agent_runtime.domain.turn.plan import Plan, PlannedStep
 from agent_runtime.domain.turn.plan_progress import PlanProgress
+from agent_runtime.domain.turn.prior_run import PriorRun
 
 TOOLS = [ToolSpecification("run_sql", "SQL.")]
 PLAN = Plan("q", (PlannedStep("count rows", "run_sql"), PlannedStep("write report", "file_writer")))
@@ -58,9 +61,9 @@ def test_the_act_prompt_links_plots_from_reports() -> None:
 
 
 def test_the_plan_prompt_lists_the_tools_the_schema_and_the_plan_to_revise() -> None:
-    prompt = plan_system_prompt("count users", TOOLS, "SCHEMA", previous_plan="1. old step")
+    prompt = plan_system_prompt("count users", TOOLS, "SCHEMA", PendingPlan(PLAN))
 
-    assert "count users" in prompt and "- run_sql: SQL." in prompt and "1. old step" in prompt
+    assert "count users" in prompt and "- run_sql: SQL." in prompt and PLAN.render() in prompt
     assert "SCHEMA" in prompt and "exactly one tool call" in prompt
     assert "Reuse the work done earlier" in prompt
     assert NO_TOOLS in plan_system_prompt("q", [], "SCHEMA")
@@ -91,11 +94,11 @@ def test_feedback_quotes_the_critique() -> None:
     assert "too short" in act_feedback("too short")
 
 
-def test_the_context_prompt_checks_for_a_task_before_a_continuation_or_a_direct_answer() -> None:
+def test_the_context_prompt_checks_for_a_task_before_a_rework_or_a_direct_answer() -> None:
     prompt = context_system_prompt("SCHEMA")
 
     assert "Pick the FIRST intent" in prompt
-    assert prompt.index("task:") < prompt.index("continuation:") < prompt.index("direct:")
+    assert prompt.index("task:") < prompt.index("rework:") < prompt.index("direct:")
     assert "questions about the assistant itself" in prompt
 
 
@@ -132,3 +135,38 @@ def test_the_act_prompt_asks_for_aligned_text_diagrams_not_mermaid() -> None:
     assert "```text" in prompt
     assert "never Mermaid" in prompt
     assert "►" in prompt and "Never use ▶ or ◀" in prompt
+
+
+ECHOED = Action("echo", "text='hi'", True, "hi")
+PAUSED_AFTER_ONE = PendingPlan(PLAN, PriorRun(1, (ECHOED,)))
+
+
+def test_the_context_prompt_reads_continue_as_approving_a_paused_plan() -> None:
+    prompt = context_system_prompt("SCHEMA")
+
+    assert '"continue" (with a paused plan pending) -> plan_approval' in prompt
+    assert '"make it shorter" -> rework' in prompt
+
+
+def test_a_paused_plan_is_revised_into_only_what_is_left() -> None:
+    paused = plan_system_prompt("q", TOOLS, "SCHEMA", PAUSED_AFTER_ONE)
+    proposed = plan_system_prompt("q", TOOLS, "SCHEMA", PendingPlan(PLAN))
+
+    assert "✓ 1. count rows" in paused and "plan only what is left" in paused
+    assert "plan only what is left" not in proposed
+
+
+def test_the_act_prompt_tells_a_resumed_plan_what_already_ran() -> None:
+    resumed = act_system_prompt("q", PlanProgress(PLAN, 1), TOOLS, PAUSED_AFTER_ONE.prior)
+    fresh = act_system_prompt("q", STARTED, TOOLS)
+
+    assert "do not run them again" in resumed and "- echo(text='hi'): ok -> hi" in resumed
+    assert "paused at the step limit" not in fresh
+    assert "paused at the step limit" in act_system_prompt("q", FINISHED, TOOLS, PriorRun(1))
+
+
+def test_the_review_lists_the_plan_s_earlier_tool_calls_only_when_it_was_resumed() -> None:
+    resumed = reflection_request("c", "q", [], None, [], [], "a", prior_actions=["echo(): ok"])
+
+    assert "in earlier turns" in resumed and "- echo(): ok" in resumed
+    assert "in earlier turns" not in reflection_request("c", "q", [], None, [], [], "a")

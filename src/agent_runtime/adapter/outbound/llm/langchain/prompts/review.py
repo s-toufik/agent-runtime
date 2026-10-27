@@ -31,13 +31,19 @@ Approved plan, with its progress (✓ done, → current, · to do):
 
 Tool calls made:
 {actions}
-
+{prior}
 Tool evidence:
 {evidence}
 
 Answer to check:
 {answer}"""
 
+
+_PRIOR = """
+Tool calls made for this plan in earlier turns, before it was paused (their outcomes are
+evidence too):
+{actions}
+"""
 
 _WITH_EVIDENCE = """\
 - Retry if it contradicts the tool evidence, or states data (numbers, records, file
@@ -62,13 +68,19 @@ def reflection_request(
     actions: list[str],
     evidence: list[str],
     answer: str,
+    prior_actions: list[str] | None = None,
 ) -> str:
     return _REQUEST.format(
         conversation=conversation,
         request=request,
-        criteria="\n".join(f"- {item}" for item in criteria) or "(none)",
+        criteria=_bullets(criteria) or "(none)",
         plan=plan or "(none)",
-        actions="\n".join(f"- {action}" for action in actions) or "(none)",
+        actions=_bullets(actions) or "(none)",
+        prior=_PRIOR.format(actions=_bullets(prior_actions)) if prior_actions else "",
         evidence="\n---\n".join(evidence) or "(none)",
         answer=answer or "(empty answer)",
     )
+
+
+def _bullets(lines: list[str]) -> str:
+    return "\n".join(f"- {line}" for line in lines)

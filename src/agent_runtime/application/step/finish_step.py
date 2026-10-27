@@ -9,4 +9,6 @@ class FinishStep:
     async def run(self, conversation: Conversation, turn: Turn) -> None:
         if turn.answer is None:
             turn.finish(turn.conclude())
+        if turn.leaves_plan_unfinished:
+            conversation.pause(turn)
         conversation.close(turn)

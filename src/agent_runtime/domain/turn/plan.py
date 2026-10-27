@@ -23,7 +23,8 @@ class Plan:
         return any(step.tool for step in self.steps)
 
     def render(self) -> str:
-        lines = ["### Plan", *(f"{n}. {step.render()}" for n, step in enumerate(self.steps, 1))]
-        if self.expected_result:
-            lines += ["### Expected result", self.expected_result]
-        return "\n".join(lines)
+        steps = (f"{n}. {step.render()}" for n, step in enumerate(self.steps, 1))
+        return "\n".join(["### Plan", *steps, *self.render_expected_result()])
+
+    def render_expected_result(self) -> list[str]:
+        return ["### Expected result", self.expected_result] if self.expected_result else []

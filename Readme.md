@@ -1,9 +1,12 @@
 # agent-runtime
 
-An agent served over HTTP. Send it a message: it works out what you want, answers straight away when it can, proposes a plan when the request needs tools, runs the tools once you approve, checks its own answer, and streams the reply back as server-sent events.
+An agent served over HTTP. You send it a message; it answers straight away when it can, proposes a plan when the request needs tools, runs the tools once you approve, checks its own answer, and streams the reply back as server-sent events.
 
-**[Using the agent](#using-the-agent)** — run it, talk to it, configure it.
-**[Working on the agent](#working-on-the-agent)** — how it is built and how to change it.
+| Section | For whom | What's in it |
+|---|---|---|
+| **[Users](#users)** | You run it or call it | Run, call, read the reply, configure, logs |
+| **[Developers](#developers)** | You change it | Architecture, layout, making changes, tests, evaluation, deploying |
+| **[Logic](#logic)** | Anyone who wants to know why it answered that way | Steps, routes, plans, typical journeys |
 
 ```text
                 ┌──────────────────────────────────────────┐
@@ -19,15 +22,20 @@ An agent served over HTTP. Send it a message: it works out what you want, answer
 
 ---
 
-## Using the agent
+## Users
 
 ### Run it
 
-Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/), an OpenAI-compatible model server, and optionally an MCP server for tools (the agent starts without one) and MongoDB for conversations (a local SQLite file is used when MongoDB is unreachable).
+You need:
+
+- Python 3.14 and [uv](https://docs.astral.sh/uv/)
+- an OpenAI-compatible model server
+- optionally, an MCP server for tools (the agent starts without one)
+- optionally, MongoDB for conversations (a local SQLite file is used when MongoDB is unreachable)
 
 ```bash
 uv sync --group dev
-cp .env.example .env      # fill in the llm_model server, MCP server and storage
+cp .env.example .env      # fill in the model server, MCP server and storage
 make run
 ```
 
@@ -37,11 +45,11 @@ make run
 | Models | `GET http://<host>:<port>/v1/models` |
 | Health | `GET http://<host>:<port>/actuator/health` (also `/health/liveness`, `/health/readiness`) |
 | Version | `GET http://<host>:<port>/actuator/info` |
-| API documentation (with `WEB_DOCS=true`) | `http://<host>:<port>/docs` in a browser (Swagger UI); the OpenAPI schema at `/docs/openapi.json` |
+| API documentation | `http://<host>:<port>/docs` (Swagger UI) and `/docs/openapi.json`, with `WEB_DOCS=true` |
 
 `/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
 
-With Docker: `make docker_build` builds the image; it reads its configuration from `/app/config` and takes the environment variables below. The API is served by Litestar.
+With Docker, `make docker_build` builds the image (see [Deploying](#deploying)).
 
 ### List the models
 
@@ -54,7 +62,7 @@ With Docker: `make docker_build` builds the image; it reads its configuration fr
 }
 ```
 
-A client builds its model picker from `models` rather than keeping its own list. When `pinned_steps` covers every step, the choice has no effect on which model answers.
+Build your model picker from `models`. When `pinned_steps` covers every step, the choice has no effect.
 
 ### Send a message
 
@@ -67,88 +75,62 @@ curl -N http://<host>:<port>/v1/stream \
 | Field | Meaning |
 |---|---|
 | `message` | What you say (non-empty) |
-| `model_name` | One of the models in `config/<env>/operation/llm.yml` |
-| `request_id` | The conversation id. Same value for every message of one conversation; a new value starts an empty one |
+| `model_name` | One of the models from `GET /v1/models` |
+| `request_id` | The conversation id: the same value for every message of one conversation; a new value starts an empty one |
 | `auto_approve` | Optional, default `false`. `true` runs a plan as soon as it is written instead of waiting for your "yes" |
 
 ### Read the reply
 
-A server-sent event stream; each frame is `event: <type>` + `data: <json>`. New event types and outcomes may be added: a client should ignore an event type it doesn't know, and treat an unknown `outcome` like `answered`.
+The reply is a server-sent event stream: each frame is `event: <type>` + `data: <json>`.
 
 | Event | What to do with it |
 |---|---|
-| `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader", "Reviewing the answer"): show it as an indicator |
-| `token` | A piece of the answer as it is written, sent for answers that need no review when `AGENT_ANSWER_DELIVERY=stream`: append the pieces, then let `final` replace them |
-| `final` | The complete answer: show it (it replaces any `token` pieces) |
-| `error` | The request failed. Expected failures come as one short sentence: the model server is temporarily unavailable or did not answer in time ("try again in a moment"); the model server rejected the request, e.g. a wrong address or key ("check the model configuration"); or the requested model is unknown ("pick one of the available models"). Anything unexpected comes with its full trace |
+| `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader"…): show it as an indicator |
+| `token` | A piece of the answer as it is written (only for answers that need no review, with `AGENT_ANSWER_DELIVERY=stream`): append the pieces |
+| `final` | The complete answer: show it, replacing any `token` pieces |
+| `error` | The request failed. An expected failure is one short sentence: the model server is down or too slow, it rejected the request (wrong address or key), or the model is unknown. Anything else comes with its full trace |
 | `complete` | Always last |
 
-While the agent works without sending anything (a long model call), the stream carries a `: heartbeat` comment line every 15 seconds, so proxies don't close it. SSE clients ignore comment lines.
+During a long model call, the stream sends a `: heartbeat` comment every 15 seconds so proxies keep it open; SSE clients ignore it.
 
-`final.metadata` describes the answer. Today it holds `outcome`, `iteration` (steps used), `max_iteration`, `model`, and when known `elapsed_time`, `input_tokens`, `output_tokens` and `tools` (the tools used, comma-separated). More fields may be added: show or ignore the ones you don't know.
+`final.metadata` describes the answer:
 
-| `outcome` | When | What the user can do |
+| Field | Meaning |
+|---|---|
+| `outcome` | What kind of reply it is (below) |
+| `iteration`, `max_iteration` | Steps used, and the step budget |
+| `model` | The model that answered |
+| `elapsed_time`, `input_tokens`, `output_tokens` | When known |
+| `tools` | The tools used, comma-separated |
+| `resumable` | `"true"` when a plan was paused at the step limit and "continue" resumes it |
+
+| `outcome` | What it means | What you can do |
 |---|---|---|
 | `answered` | A normal answer: it passed the agent's own review, or needed none | Read it |
-| `awaiting_approval` | The reply is a plan that needs tools, waiting for approval. A plan that needs no tool runs straight away, and so does any plan when `auto_approve` is on | Reply **yes** to run it, **Drop plan** to cancel it, or say what to change |
-| `clarification` | The reply is a question: the request was too vague to act on | Answer the question |
-| `best_effort` | The agent could not give an answer it was satisfied with. Either the review rejected every attempt and the rewrites allowed (`max_reflection_retries`) ran out, so the reply is the last attempt; or no answer was produced ("No answer was produced."); or no plan could be written ("I could not write a plan…") | Check the answer, or rephrase the request |
-| `budget_exhausted` | The agent used all its steps (`max_iterations`) before finishing; for a plan, the reply lists which steps ran and which did not | Ask it to continue, or narrow the request |
-| `refused` | The guardrail (`GUARDRAIL_ENABLED=true`) blocked the plan before anything ran; the reply is `[SCREEN]: <reason>` and the plan is dropped | Change the request |
+| `awaiting_approval` | The reply is a plan that needs tools | Reply **yes** to run it, **Drop plan** to cancel it, or say what to change |
+| `clarification` | The reply is a question: the request was too vague | Answer the question |
+| `best_effort` | No answer the agent was satisfied with: the review rejected every rewrite, no answer was produced, or no plan could be written | Check the answer, or rephrase |
+| `budget_exhausted` | The agent used all its steps (`max_iterations`). For a plan, the reply lists which steps ran, and the plan is paused | Say **continue** to resume it, narrow it, or drop it |
+| `refused` | The guardrail blocked the plan before anything ran: `[SCREEN]: <reason>` | Change the request |
 
-### How a message is handled
-
-Every message goes through **understand** first. What the agent understood decides the route; after acting, what the model produced decides the next step. The routes below are today's rules: they all live in one table, `TurnPolicy`, so new steps and rules are added there (see [The routing table](#the-routing-table)) and this section follows.
-
-```text
-                         ┌─ task, revision ──► PLAN ─┬─ auto-approve ──► ACT
-                         │                           └─ otherwise ─────► FINISH: waits for "yes"
-  message ──► UNDERSTAND ┼─ ambiguous ───────► CLARIFY ──► FINISH: a question
-                         └─ direct, follow-up,
-                            "yes" to a plan ─► ACT
-
-  ACT ─┬─ needs tools, has no plan ───► PLAN
-       ├─ more work, no steps left ───► FINISH: step limit reached
-       ├─ calls tools ────────────────► RUN TOOLS ──► ACT
-       ├─ plan step still open ───────► ACT: "now do step N"
-       ├─ plain direct answer ────────► FINISH: no check needed
-       └─ otherwise ──────────────────► REVIEW ─┬─ rejected, can retry ─► FEEDBACK ─► ACT
-                                                └─ accepted, or no retry ─► FINISH
-
-  FINISH ──► SUMMARIZE: folds old messages away when the history is long ──► reply sent
-```
-
-Some typical journeys:
-
-| You send | Route | Reply |
-|---|---|---|
-| "What can you do?" | understand → act → finish | `answered`, straight away |
-| "How many users signed up today?" | understand → plan → finish | `awaiting_approval`: the plan |
-| "yes" | understand → act → run tools → act → review → finish | `answered`, from the tool results |
-| The same task with `auto_approve: true` | understand → plan → act → run tools → act → review → finish | `answered`, in one go |
-| "Explain report.md" read as a plain question | understand → act → plan → … | The agent notices it needs a tool and plans after all |
-| "and the other one?" with nothing to refer to | understand → clarify → finish | `clarification`: a question back |
-| "shorter" after an answer | understand → act → review → finish | `answered`, reworked from the conversation |
-
-A pending plan survives while you discuss it (a revision or an unclear message) and is dropped as soon as you move on to something else.
-
-A plan is a list of steps, each naming the one tool it calls. The agent carries it out one step at a time: a step is done only when its tool succeeds, so the agent cannot answer while a step is still open, and a reply that only describes a step sends it back to run it. The tools it ran stay in the conversation, so later messages reuse earlier results instead of running them again.
+New events, fields and outcomes may be added: ignore the ones you don't know, and treat an unknown `outcome` like `answered`. Why a message gets a given outcome: see [Logic](#logic).
 
 ### Configure it
 
-**Environment variables** — `.env.example` is the reference; the main ones:
+**Environment variables.** `.env.example` is the reference; the main ones:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `APP_ENV` | `debug` | Which `config/<APP_ENV>/` folder is read |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, in upper case |
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
+| `GUARDRAIL_ENABLED` | `false` | `true` checks every plan before it runs and refuses unsafe ones |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
-| `WEB_BASE_PATH` | empty | A prefix for every route, the actuator included, e.g. `/agent-runtime`: the stream is then at `/agent-runtime/v1/stream` and the probes at `/agent-runtime/actuator/health/...`. Use it when the gateway forwards the prefix without removing it. Starts with `/`, no trailing `/` |
-| `WEB_DOCS` | `false` | `true` serves the API documentation: Swagger UI at `<base path>/docs`, the OpenAPI schema at `<base path>/docs/openapi.json` |
-| `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review are sent piece by piece as `token` events, then `final`. `whole`: only `final` |
-| `LLM_BASE_URL`, `LLM_API_KEY` | required | The OpenAI-compatible model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
+| `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/stream`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
+| `WEB_DOCS` | `false` | `true` serves the API documentation at `<base path>/docs` |
+| `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review arrive as `token` events, then `final`. `whole`: only `final` |
+| `LLM_BASE_URL`, `LLM_API_KEY` | required | The model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
 | `DB_MONGO_CHECKPOINT_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | required | Conversation storage in MongoDB |
 | `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name) |
@@ -156,38 +138,38 @@ A plan is a list of steps, each naming the one tool it calls. The agent carries 
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` are read by the YAML (`root.yml` and `server/asgi.yml`), which holds their defaults; you can write the value there instead of setting the variable. With Docker Compose, pass each one with a default, such as `${WEB_DOCS:-false}`: a variable passed empty is not replaced by the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). With Docker Compose, pass each one with a default, e.g. `${WEB_DOCS:-false}`: a variable passed empty overrides the YAML default, and the agent refuses to start.
 
-**Configuration files** live in `config/`: `root.yml` sets the log level and lists what exists, `config/<APP_ENV>/connector/*.yml`, `operation/*.yml` and `server/*.yml` define it.
+**Configuration files.** `config/root.yml` lists what exists; `config/<APP_ENV>/` defines it:
 
 | File | What you set there |
 |---|---|
-| `connector/api.yml` | The model server; `timeout`: the longest one model call may wait for an answer, in seconds; `retry`: how many times a call is retried after a server error (5xx, 429) or a connection failure; a model that stays silent for `timeout` is not retried, so the user waits at most one `timeout` |
+| `connector/api.yml` | The model server; `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
 | `connector/mcp.yml` | The MCP servers |
-| `connector/database.yml` | MongoDB and SQLite, conversation TTL |
+| `connector/database.yml` | MongoDB, SQLite, and how long conversations are kept |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
-| `server/asgi.yml` | How the API is served: `framework`, `base_path`, `docs`, `cors_origins`, and the agent's `parameters` (`max_concurrent_streams`, `answer_delivery`). The entry's key is the process role, `agent-runtime` |
+| `server/asgi.yml` | How the API is served: `base_path`, `docs`, `cors_origins`, and `parameters` (`max_concurrent_streams`, `answer_delivery`) |
 
 **Models** (`operation/llm.yml`), one entry per model:
 
-| Parameter | Meaning | Default |
-|---|---|---|
-| `model` | The name the model server knows, and the `model_name` requests use | the entry's `name` |
-| `temperature` | Sampling temperature | `0.0` |
-| `max_output_tokens` | Longest reply | `8000` |
-| `max_context_tokens` | The model's context window | `8000` |
-| `max_iterations` | Step budget per message | `10` |
-| `max_reflection_retries` | How many times a rejected answer is rewritten | `2` |
-| `reasoning_effort` | `null`: no thinking. `low` / `medium` / `high`: think first (slower, needs a larger `max_output_tokens`) | `null` |
+| Parameter                | Meaning                                                                                                  | Default            |
+|--------------------------|----------------------------------------------------------------------------------------------------------|--------------------|
+| `model`                  | The name the model server knows, and the `model_name` requests use                                       | the entry's `name` |
+| `temperature`            | Sampling temperature                                                                                     | `0.0`              |
+| `max_output_tokens`      | Longest reply                                                                                            | `8000`             |
+| `max_context_tokens`     | The model's context window                                                                               | `8000`             |
+| `max_iterations`         | Step budget per message                                                                                  | `10`               |
+| `max_reflection_retries` | How many times a rejected answer is rewritten                                                            | `2`                |
+| `reasoning_effort`       | `null`: no thinking. `low` / `medium` / `high`: think first (slower, needs a larger `max_output_tokens`) | `null`             |
 
-To add a model: add its entry, list it under `operation:` in `config/root.yml`, and restart; it then appears in `GET /v1/models`. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
+To add a model: add its entry, list it under `operation:` in `config/root.yml`, and restart. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
 
-**Model per step** (`operation/agent.yml`): every step that calls a model has an entry named after its role — today `agent_context` (understand), `agent_plan`, `agent_act` (answer and tools), `agent_reflection` (review), `agent_guard` (screen, when the guardrail is on) and `agent_summary`. A step added later that calls a model gets its own entry the same way.
+**Model per step** (`operation/agent.yml`): each step that calls a model has an entry named after its role. Today: `agent_context` (understand), `agent_plan`, `agent_act`, `agent_reflection` (review), `agent_guard` (screen) and `agent_summary`.
 
-- `parameters.model: null` — the step uses the model named in the request.
-- `parameters.model: <name>` — the step always uses that model, with the parameters written in the same entry. When `agent_act` is fixed, its entry also sets the turn's budget (`max_iterations`, `max_reflection_retries`, `max_context_tokens`).
+- `parameters.model: null`: the step uses the model named in the request.
+- `parameters.model: <name>`: the step always uses that model. When `agent_act` is fixed, its entry also sets the step budget (`max_iterations`, `max_reflection_retries`, `max_context_tokens`).
 
 **More MCP servers:** add a connector whose name starts with `external_mcp_` in `connector/mcp.yml`, list it under `mcp:` in `config/root.yml`, and restart. Its tools join the same catalogue:
 
@@ -214,13 +196,11 @@ One format for every line; the third column is the request id (the conversation 
 2026-09-27 10:47:52.310 | INFO     | my-conversation | handle_message:handle:42 - turn finished: answered, 1/20 steps in 4.5s
 ```
 
-Every turn ends with a `turn finished` line (outcome, steps used, duration) or a `turn cancelled after …` warning when the client left first.
-
-With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector, with `request_id` as an attribute.
+Every message ends with a `turn finished` line (outcome, steps, duration), or a `turn cancelled after …` warning when the client left first. With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector, with `request_id` as an attribute.
 
 ---
 
-## Working on the agent
+## Developers
 
 ### Architecture
 
@@ -249,34 +229,35 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 |---|---|
 | `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
 | `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `WorkflowRunner`…) |
-| `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter` (in `stream/`): one stream per request, whatever web framework serves it |
-| `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, prompts, `ModelCatalog` |
+| `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter`: one stream per request, whatever web framework serves it |
+| `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, the prompts, `ModelCatalog` |
 | `src/agent_runtime/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the container, and `create_agent_application`, which Granian calls: it reads the server in `config/<APP_ENV>/server/asgi.yml` and builds the Litestar API with the container's services. The API is in `application/litestar/`: `router/` (the routes), `schema/` (request and response bodies, msgspec), `litestar_api.py` (the app, built with `pycraftcore.web_litestar`) |
+| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the container, and `create_agent_application`, which Granian calls |
+| `src/bootstrap/application/litestar/` | The API: `router/` (routes), `schema/` (request and response bodies, msgspec), `litestar_api.py` (the app, built with `pycraftcore.web_litestar`) |
 | `config/` | YAML configuration |
-| `src/agent_evaluation/` | The evaluation: a separate program that tests a running agent over HTTP (see [its Readme](src/agent_evaluation/Readme.md)) |
-| `tests/` | Unit, scenario and architecture tests, including the evaluation's own tests |
+| `src/agent_evaluation/` | The evaluation, a separate program that tests a running agent over HTTP |
+| `tests/` | Unit, scenario and architecture tests, and the evaluation's own tests |
 
-### A turn, end to end
+### A turn in the code
 
 1. `StreamAgentController` validates the body, starts `HandleMessage` in the background and returns the SSE response at once.
 2. `HandleMessage` builds a `Turn` (the message, the model's budget, the user's options) and asks the `WorkflowRunner` to run it on the conversation `request_id`.
-3. `LangGraphWorkflowRunner` loads the stored `Conversation` and runs the graph. Each node decodes the state, runs its step handler, and saves the state: LangGraph's checkpointer keeps the conversation between messages.
-4. After each step, `TurnPolicy.next(step, turn)` picks the next one (the table below). Each node emits a `TurnEvent`, which `SsePresenter` turns into SSE frames.
-5. `finish` settles the answer and appends the exchange to the history; `summarize` compacts it when it grows past half the context.
+3. `LangGraphWorkflowRunner` loads the stored `Conversation` and runs the graph. Each node decodes the state, runs its step handler and saves the state; the checkpointer keeps the conversation between messages.
+4. After each step, `TurnPolicy.next(step, turn)` picks the next one. Each node emits a `TurnEvent`, which `SsePresenter` turns into SSE frames.
+5. `finish` settles the answer, pauses a plan left unfinished, and appends the exchange to the history; `summarize` compacts it when it grows past half the context.
 
 ### The routing table
 
-`domain/workflow/turn_policy.py` is an ordered list of transitions; after a step, the first row whose condition holds wins. The LangGraph edges are generated from it, and `test_agent_graph.py` checks they match.
+`domain/workflow/turn_policy.py` is an ordered list of transitions: after a step, the first row whose condition holds wins. The LangGraph edges are generated from it, and `test_agent_graph.py` checks they match. What each route means for a user: [Logic](#logic).
 
 | After | Condition | Next |
 |---|---|---|
 | understand | `needs_plan` (task, plan revision, or no intent) | plan |
 | understand | `is_ambiguous` | clarify |
-| understand | always | act |
-| plan | `has_approved_plan` (auto-approved) | act |
-| plan | always | finish |
+| understand | always (direct, rework, plan approval or rejection) | act |
+| plan | `has_approved_plan` (auto-approved, or a plan that needs no tool) | act |
+| plan | always (the plan waits for approval, or none was written) | finish |
 | clarify | always | finish |
 | act | `asks_for_plan_without_one` | plan |
 | act | `keeps_working_out_of_steps` (tool calls or an open plan step, no steps left) | finish |
@@ -290,18 +271,20 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | finish | always | summarize |
 | summarize | always | end |
 
+With `GUARDRAIL_ENABLED=true`, `TurnPolicy(screen=True)` replaces the two `plan` rows: plan → screen (always), screen → act (`has_approved_plan`), screen → finish (always).
+
 ### Making changes
 
 | To change | Edit |
 |---|---|
-| When a step follows another | `TurnPolicy.TRANSITIONS` (and a condition in `conditions.py`); the graph follows |
+| When a step follows another | `TurnPolicy` (and a condition in `conditions.py`); the graph follows |
 | What a step does | Its handler in `application/step/` |
 | What a model is told | `adapter/outbound/llm/langchain/prompts/` |
 | What the client sees for a step | `adapter/inbound/web/stream/sse_presenter.py` |
 | A LangGraph-only feature for one step (interrupt, subgraph) | Override `work` in that step's node in `adapter/outbound/langgraph/node/` |
 | A new request option | `AgentRequestSchema` (`bootstrap/application/litestar/schema/`) → `AgentRequest` → `TurnOptions`, read in the domain |
-| A new route | A handler in `bootstrap/application/litestar/router/`, listed in `litestar_api.py`. A service it needs is injected by Litestar: add it to `dependencies` in `litestar_api.py`, provided by the container in `create_agent_application` |
-| A new step | A `Step` value, a handler in `application/step/`, a node class in `langgraph/node/` listed in `NODE_TYPES`, the handler in `AgentDI._steps`, and its rows in `TurnPolicy`; the graph's edges follow |
+| A new route | A handler in `bootstrap/application/litestar/router/`, listed in `litestar_api.py`. A service it needs goes in `dependencies` there, provided by the container in `create_agent_application` |
+| A new step | A `Step` value, a handler in `application/step/`, a node class in `langgraph/node/` listed in `NODE_TYPES`, the handler in `AgentDI._steps`, and its rows in `TurnPolicy` |
 | A new model role | An `AgentRole` value, its entry in `operation/agent.yml` (and `root.yml`), and a LangChain adapter behind the step's port |
 | A new source of tools | A connector in `connector/mcp.yml` (see [More MCP servers](#configure-it)); a non-MCP source is a new adapter behind the `ToolCatalog` and `ToolExecutor` ports |
 
@@ -311,22 +294,9 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 make check        # ruff + ty + pytest
 make test         # unit, scenario and architecture tests: never calls a model
 make lint / make format / make typecheck
-make evaluate     # evaluates a running agent over HTTP: see "Evaluating the agent" below
 ```
 
-`tests/agent_runtime/scenarios/` runs whole turns on two runners — LangGraph and a plain in-memory loop over the same steps and policy — and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the ones a real model rarely takes (a review rejection, a plan request from act, running out of steps).
-
-### Evaluating the agent
-
-The evaluation is a separate program in `src/agent_evaluation/`. It tests a **running** agent from the outside, over the same HTTP endpoint a client uses. It never builds the agent or reads its configuration. You start the toolbox and the agent, point the evaluation's control panel at them, and run:
-
-```bash
-make evaluate                                  # every enabled kind
-make evaluate KINDS=SECURITY,MEMORY RUNS=1     # a few kinds, one run per case
-make evaluate DRY_RUN=1                        # what would run, without calling the agent
-```
-
-It checks several kinds of behaviour (today: tool selection, security, guardrail, task completion, memory, relevance, planning, routing and quality), runs each case several times with pauses so the model provider is not overloaded, and writes a JSON, a Markdown and a log file per kind plus an overall report. How to configure it, read its reports and add cases: [src/agent_evaluation/Readme.md](src/agent_evaluation/Readme.md).
+`tests/agent_runtime/scenarios/` runs whole turns on two runners, LangGraph and a plain in-memory loop over the same steps and policy, and requires the same answers, events and stored conversation from both. Scripted models make every route reachable, including the rare ones (a review rejection, a plan request from act, running out of steps).
 
 Pre-commit hooks:
 
@@ -334,8 +304,142 @@ Pre-commit hooks:
 uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
+### Evaluating the agent
+
+The evaluation in `src/agent_evaluation/` tests a **running** agent from the outside, over the same HTTP endpoint a client uses. Start the toolbox and the agent, point the evaluation's control panel at them, and run:
+
+```bash
+make evaluate                                  # every enabled kind
+make evaluate KINDS=SECURITY,MEMORY RUNS=1     # a few kinds, one run per case
+make evaluate DRY_RUN=1                        # what would run, without calling the agent
+```
+
+It checks several kinds of behaviour (today: tool selection, security, guardrail, task completion, memory, relevance, planning, routing and quality), runs each case several times, and writes a JSON, a Markdown and a log file per kind plus an overall report. Configuring it, reading its reports and adding cases: [src/agent_evaluation/Readme.md](src/agent_evaluation/Readme.md).
+
 ### Deploying
 
-`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the environment variables listed above.
+`make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the [environment variables](#configure-it) above.
 
-The image is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in the Dockerfile (ASGI interface, factory, host, port, access log). Set any other Granian option the same way in your deployment, without rebuilding: for example `GRANIAN_WORKERS=2` for two worker processes (each one builds its own app and container), or `GRANIAN_WORKERS_MAX_RSS=1024` to restart a worker that grows above 1 GiB. Granian's own start and stop lines (`[INFO] Starting granian…`) keep Granian's format; everything logged by the worker uses the service's format.
+It is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in `devops/docker/Dockerfile`. Set any other Granian option the same way in your deployment, without rebuilding:
+
+| Variable | Effect |
+|---|---|
+| `GRANIAN_WORKERS=2` | Two worker processes, each with its own app and container |
+| `GRANIAN_WORKERS_MAX_RSS=1024` | Restarts a worker that grows above 1 GiB |
+
+Granian's own start and stop lines keep Granian's format; everything the worker logs uses the service's format.
+
+---
+
+## Logic
+
+How the agent handles a message. Every message goes through **understand** first: what the agent understood decides the route, then what the model produces decides each next step. These are today's rules; they all live in one table, `TurnPolicy` (see [The routing table](#the-routing-table)), and this section follows it.
+
+### The big picture
+
+Every step, and every way between them:
+
+```text
+  message ──► UNDERSTAND ─┬─► CLARIFY ──────────────────────────────┐
+                          │                                         │
+                          ├─► PLAN ──► SCREEN¹ ─┬───────────────────┤
+                          │    ▲                │                   │
+                          │    │                ▼                   │
+                          └────┼─────────────► ACT ◄──► RUN TOOLS   │
+                               │               │ ▲                  │
+                               └───────────────┼─┤                  │
+                                               │ └── FEEDBACK ◄─┐   │
+                                               │                │   │
+                                               ├──► REVIEW ─────┴───┤
+                                               │                    │
+                                               └────────────────────┤
+                                                                    ▼
+                                                                 FINISH ──► SUMMARIZE ──► reply
+
+  ¹ only with GUARDRAIL_ENABLED=true; without it, PLAN goes straight on and nothing is blocked.
+```
+
+| Step | What it does |
+|---|---|
+| UNDERSTAND | Works out what the message is, from the conversation and any pending plan: a new task, a change to the plan, a "yes" or "drop plan", a question it can answer straight away, a rework of the last answer ("shorter"), or too vague to act on |
+| CLARIFY | Sends back a question |
+| PLAN | Writes the steps, each naming the one tool it runs |
+| SCREEN | Checks the plan before anything runs, and refuses it if it breaks a rule |
+| ACT | The model answers, or calls the tools of the plan's current step |
+| RUN TOOLS | Runs the tool calls and hands the results back to ACT |
+| REVIEW | The model checks the answer against the request |
+| FEEDBACK | Hands the review's critique back to ACT for another attempt |
+| FINISH | Settles the reply and its `outcome`, pauses a plan left unfinished, and saves the exchange |
+| SUMMARIZE | Folds old messages into a summary when the history is long |
+
+### Every route
+
+Each fork is read top to bottom: the first branch that holds is taken.
+
+```text
+                         ┌─ a task, or a change to the plan ─► PLAN
+  message ──► UNDERSTAND ┼─ too vague ───────────────────────► CLARIFY ──► FINISH: a question
+                         └─ anything else ───────────────────► ACT
+                            a question, "shorter", "drop plan",
+                            "yes" or "continue" to the pending plan
+
+  PLAN ──► SCREEN¹ ─┬─ no plan could be written ──► FINISH: "I could not write a plan"
+                    ├─ the guardrail blocks it ───► FINISH: refused, the plan is dropped
+                    ├─ auto-approve, or no tools ─► ACT
+                    └─ otherwise ─────────────────► FINISH: the plan, waiting for "yes"
+
+  ACT ─┬─ needs tools, has no plan ───► PLAN
+       ├─ more work, no steps left ───► FINISH: step limit; an unfinished plan is paused
+       ├─ calls tools ────────────────► RUN TOOLS ──► ACT
+       ├─ plan step still open ───────► ACT: "now do step N"
+       ├─ plain direct answer ────────► FINISH: no check needed
+       └─ otherwise ──────────────────► REVIEW ─┬─ rejected, can retry ───► FEEDBACK ─► ACT
+                                                └─ accepted, or no retry ─► FINISH
+
+  FINISH ──► SUMMARIZE: folds old messages away when the history is long ──► reply sent
+
+  ¹ only with GUARDRAIL_ENABLED=true; without it, PLAN goes straight on and nothing is blocked.
+```
+
+"No steps left" means `max_iterations` is used up; "can retry" means rewrites (`max_reflection_retries`) and steps are both left.
+
+### Plans
+
+A plan is a list of steps, each naming the one tool it calls. The agent carries it out one step at a time:
+
+- a step is done only when its tool succeeds, so the agent cannot answer while a step is still open;
+- a reply that only describes a step sends the agent back to run it;
+- the tools it ran stay in the conversation, so later messages reuse their results instead of running them again.
+
+A plan is **pending** while it waits for your "yes", or after it was paused at the step limit. Your next message decides what happens to it:
+
+| You send | The pending plan |
+|---|---|
+| "yes", "go on", "continue" | Runs. A paused plan resumes at the step where it stopped, without running its finished steps again |
+| A change: "only last month", "skip step 2" | Is rewritten (for a paused plan, only the steps left), then handled like any new plan |
+| Something unclear | Stays pending while the agent asks a question |
+| "Drop plan" | Is dropped |
+| Anything else | Is dropped, and the message is handled on its own |
+
+With no plan pending, "yes" or "continue" is an ordinary message. The pending plan is stored with the conversation, apart from the chat history, so summarizing the history never loses it.
+
+### Typical journeys
+
+| You send | Route | Reply |
+|---|---|---|
+| "What can you do?" | understand → act → finish | `answered`, straight away |
+| "shorter" after an answer | understand → act → review → finish | `answered`, reworked from the conversation |
+| "and the other one?" with nothing to refer to | understand → clarify → finish | `clarification`: a question back |
+| "Explain report.md" read as a plain question | understand → act → plan → … | The agent notices it needs a tool and plans after all |
+| "How many users signed up today?" | understand → plan → finish | `awaiting_approval`: the plan |
+| "only count verified users" while the plan waits | understand → plan → finish | `awaiting_approval`: the revised plan |
+| "yes" | understand → act → run tools → act → review → finish | `answered`, from the tool results |
+| "Drop plan" | understand → act → review → finish | `answered`: the plan is dropped |
+| The same task with `auto_approve: true` | understand → plan → act → run tools → act → review → finish | `answered`, in one go |
+| "yes" to a plan longer than the step limit | understand → act → run tools → act → … → finish | `budget_exhausted`, `resumable`: the plan is paused |
+| "continue" after that | understand → act → run tools → … → finish | The plan resumes where it stopped; no new plan |
+| A plan the guardrail blocks | understand → plan → screen → finish | `refused`: `[SCREEN]: <reason>` |
+| A request no plan can be written for | understand → plan → finish | `best_effort`: "I could not write a plan…" |
+| An answer the review rejects | … → act → review → feedback → act → review → finish | `answered`, or `best_effort` when the rewrites run out |
+
+With `GUARDRAIL_ENABLED=true`, screen comes right after plan in each of these routes.

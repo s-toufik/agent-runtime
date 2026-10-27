@@ -62,7 +62,7 @@ def test_conditions_read_the_turn() -> None:
     planned.drafted(calling("echo"))
     asking = turn(Intent.DIRECT)
     asking.drafted(Draft.asking_for_plan("read it"))
-    rejected = turn(Intent.CONTINUATION)
+    rejected = turn(Intent.REWORK)
     rejected.drafted(answer())
     rejected.reviewed(retry())
 

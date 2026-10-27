@@ -29,6 +29,7 @@ from agent_runtime.domain.turn.action import Action
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.plan import Plan, PlannedStep
+from agent_runtime.domain.turn.prior_run import PriorRun
 from agent_runtime.domain.turn.understanding import Understanding
 from agent_runtime.domain.turn.verdict import Verdict, VerdictAction
 from tests.agent_runtime.adapter.outbound.llm.langchain.fakes import (
@@ -38,7 +39,15 @@ from tests.agent_runtime.adapter.outbound.llm.langchain.fakes import (
     tool_request,
 )
 from tests.agent_runtime.application.fakes import RecordingEvents
-from tests.agent_runtime.domain.builders import PLAN, answer, calling, result, turn
+from tests.agent_runtime.domain.builders import (
+    PLAN,
+    REPORT,
+    answer,
+    calling,
+    result,
+    stopped_after_the_count,
+    turn,
+)
 
 ECHO = ToolSpecification("echo", "Echoes.", {"type": "object"})
 WINDOW = ContextWindow()
@@ -229,9 +238,54 @@ async def test_the_reviewer_judges_the_draft_against_the_evidence_and_the_exchan
     assert "not in the tool evidence" in prompt
 
 
+async def test_the_classifier_and_the_planner_see_a_paused_plan_with_its_progress(logger) -> None:
+    conversation = _talked()
+    conversation.pause(stopped_after_the_count())
+    classifier_llm = FakeLLM(
+        parsed=[UnderstandingDto(intent=Intent.PLAN_APPROVAL, standalone_query="go")]
+    )
+    planner_llm = FakeLLM(
+        parsed=[PlanDto(steps=[PlanStepDto(action="write", tool="echo")], expected_result="")]
+    )
+
+    await LangChainIntentClassifier(_models(classifier_llm)[1], WINDOW, logger).understand(
+        conversation, turn(None)
+    )
+    await LangChainPlanner(_models(planner_llm)[1], WINDOW, logger).plan(
+        conversation, turn(Intent.PLAN_REVISION), [ECHO]
+    )
+
+    assert "✓ 1. count (tool: echo)\n→ 2. write" in classifier_llm.prompt()
+    assert "plan only what is left" in str(planner_llm.calls[0][0].content)
+
+
+async def test_a_resumed_plan_is_reviewed_with_the_tool_calls_of_earlier_turns(logger) -> None:
+    llm = FakeLLM(parsed=[VerdictDto(action=VerdictAction.ACCEPT, critique="")])
+    current = turn(Intent.PLAN_APPROVAL)
+    current.execute(REPORT, PriorRun(1, (Action("echo", "", True, "12 rows"),)))
+    current.drafted(answer("12 rows, the report is in report.md"))
+
+    await LangChainReviewer(_models(llm)[1], logger).review(_talked(), current)
+
+    prompt = llm.prompt()
+    assert "in earlier turns" in prompt and "- echo(): ok -> 12 rows" in prompt
+    assert "not in the tool evidence" in prompt
+
+
+async def test_a_resumed_plan_tells_the_actor_what_already_ran(logger) -> None:
+    llm = FakeLLM(replies=[text("ok")])
+    current = turn(Intent.PLAN_APPROVAL)
+    current.execute(REPORT, PriorRun(1, (Action("echo", "", True, "12 rows"),)))
+
+    await _actor(llm, logger).act(Conversation("c1"), current, [ECHO])
+
+    system = str(llm.calls[0][0].content)
+    assert "do not run them again" in system and "- echo(): ok -> 12 rows" in system
+
+
 async def test_without_evidence_the_reviewer_accepts_general_knowledge(logger) -> None:
     llm = FakeLLM(parsed=[VerdictDto(action=VerdictAction.ACCEPT, critique="")])
-    current = turn(Intent.CONTINUATION)
+    current = turn(Intent.REWORK)
     current.drafted(answer("A KV cache stores keys and values."))
 
     await LangChainReviewer(_models(llm)[1], logger).review(_talked(), current)
@@ -285,7 +339,7 @@ async def test_a_reply_that_will_be_reviewed_is_never_read_by_the_final_reply(lo
     llm, events = FakeLLM(replies=[text("hello")]), RecordingEvents()
     actor = _actor(llm, logger, StreamedReply(events))
 
-    draft = await actor.act(Conversation("c1"), turn(Intent.CONTINUATION), [ECHO])
+    draft = await actor.act(Conversation("c1"), turn(Intent.REWORK), [ECHO])
 
     assert draft == Draft("hello")
     assert events.published == []

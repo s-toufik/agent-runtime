@@ -9,8 +9,10 @@ from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.feedback import Feedback
 from agent_runtime.domain.turn.intent import Intent
+from agent_runtime.domain.turn.pending_plan import PendingPlan
 from agent_runtime.domain.turn.plan import Plan
 from agent_runtime.domain.turn.plan_progress import PlanProgress
+from agent_runtime.domain.turn.prior_run import PriorRun
 from agent_runtime.domain.turn.screening import Screening
 from agent_runtime.domain.turn.turn_options import TurnOptions
 from agent_runtime.domain.turn.turn_settings import TurnSettings
@@ -28,6 +30,7 @@ class Turn:
     options: TurnOptions = field(default_factory=TurnOptions)
     understanding: Understanding | None = None
     plan: Plan | None = None
+    prior: PriorRun | None = None
     work: list[WorkItem] = field(default_factory=list)
     verdicts: list[Verdict] = field(default_factory=list)
     screening: Screening | None = None
@@ -36,8 +39,9 @@ class Turn:
     def understood(self, understanding: Understanding) -> None:
         self.understanding = understanding
 
-    def execute(self, plan: Plan) -> None:
+    def execute(self, plan: Plan, prior: PriorRun | None = None) -> None:
         self.plan = plan
+        self.prior = prior
         self.work = []
         self.verdicts = []
 
@@ -55,6 +59,7 @@ class Turn:
 
     def refuse(self, reason: str) -> None:
         self.plan = None
+        self.prior = None
         self.finish(Answer.refused(reason))
 
     def give_feedback(self, critique: str) -> None:
@@ -62,6 +67,12 @@ class Turn:
 
     def finish(self, answer: Answer) -> None:
         self.answer = answer
+
+    def paused_plan(self) -> PendingPlan:
+        progress = self.progress
+        if progress is None or progress.is_complete:
+            raise ValueError("Only a plan left unfinished can be paused")
+        return PendingPlan.paused(progress, self.plan_actions)
 
     def conclude(self) -> Answer:
         draft = self.last_draft
@@ -94,7 +105,9 @@ class Turn:
 
     @property
     def progress(self) -> PlanProgress | None:
-        return PlanProgress.of(self.plan, self.evidence) if self.plan else None
+        if self.plan is None:
+            return None
+        return PlanProgress.of(self.plan, self.evidence, done=self.prior.done if self.prior else 0)
 
     @property
     def leaves_plan_unfinished(self) -> bool:
@@ -111,6 +124,10 @@ class Turn:
             elif isinstance(item, ToolResult) and item.call_id in calls:
                 actions.append(Action.of(calls[item.call_id], item))
         return actions
+
+    @property
+    def plan_actions(self) -> list[Action]:
+        return [*(self.prior.actions if self.prior else ()), *self.actions]
 
     @property
     def last_draft(self) -> Draft | None:

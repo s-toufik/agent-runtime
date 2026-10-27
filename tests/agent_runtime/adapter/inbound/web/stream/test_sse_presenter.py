@@ -8,6 +8,7 @@ from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.plan import Plan, PlannedStep
+from agent_runtime.domain.turn.plan_progress import PlanProgress
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.turn_settings import TurnSettings
 from agent_runtime.domain.workflow.step import Step
@@ -70,6 +71,16 @@ def test_the_answer_is_sent_as_the_final_event_with_its_metadata() -> None:
         "outcome": "answered",
         "model": "m",
     }
+
+
+def test_a_paused_plan_is_flagged_as_resumable_in_the_metadata() -> None:
+    turn = Turn("hi", "m")
+    turn.finish(Answer.plan_unfinished(PlanProgress(Plan("t", (PlannedStep("x", "echo"),)), 0)))
+
+    final = _frames(PRESENTER.present(TurnEvent.finished(turn), "c1"))[0][1]
+
+    assert final["metadata"]["outcome"] == "budget_exhausted"
+    assert final["metadata"]["resumable"] == "true"
 
 
 def test_a_plan_awaiting_approval_tells_the_user_how_to_approve_it() -> None:

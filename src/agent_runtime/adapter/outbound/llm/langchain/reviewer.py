@@ -34,10 +34,12 @@ class LangChainReviewer:
         understanding = turn.understanding
         draft = turn.last_draft
         progress = turn.progress
+        prior_actions = [action.render() for action in turn.prior.actions] if turn.prior else []
         messages = [
             SystemMessage(
                 content=reflection_system_prompt(
-                    VerdictDto.model_json_schema(), has_evidence=bool(turn.evidence)
+                    VerdictDto.model_json_schema(),
+                    has_evidence=bool(turn.evidence or prior_actions),
                 )
             ),
             HumanMessage(
@@ -52,6 +54,7 @@ class LangChainReviewer:
                         for result in turn.evidence
                     ],
                     answer=draft.text if draft else "",
+                    prior_actions=prior_actions,
                 )
             ),
         ]

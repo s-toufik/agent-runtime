@@ -23,7 +23,7 @@ class LangChainIntentClassifier:
         self._logger = logger
 
     async def understand(self, conversation: Conversation, turn: Turn) -> Understanding | None:
-        pending = conversation.pending_plan
+        pending = conversation.pending
         history = self._window.history(conversation, turn.settings.context_tokens)
         messages = [
             SystemMessage(content=context_system_prompt(UnderstandingDto.model_json_schema())),

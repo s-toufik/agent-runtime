@@ -27,7 +27,16 @@ from tests.agent_runtime.application.fakes import (
     FakeSummarizer,
     FakeTokens,
 )
-from tests.agent_runtime.domain.builders import PLAN, answer, calling, retry, turn
+from tests.agent_runtime.domain.builders import (
+    PLAN,
+    REPORT,
+    answer,
+    calling,
+    result,
+    retry,
+    stopped_after_the_count,
+    turn,
+)
 
 ECHO_STEPS = (PlannedStep("echo", "echo"),)
 
@@ -101,7 +110,7 @@ async def test_every_requested_tool_runs_and_its_result_is_kept() -> None:
 
 
 async def test_an_unreadable_review_accepts_the_draft(logger) -> None:
-    current = turn(Intent.CONTINUATION)
+    current = turn(Intent.REWORK)
 
     await ReviewStep(FakeReviewer(None), logger).run(Conversation("c1"), current)
 
@@ -110,9 +119,9 @@ async def test_an_unreadable_review_accepts_the_draft(logger) -> None:
 
 
 async def test_feedback_hands_the_critique_back_to_the_actor(logger) -> None:
-    current = turn(Intent.CONTINUATION)
+    current = turn(Intent.REWORK)
     current.reviewed(retry("too short"))
-    empty = turn(Intent.CONTINUATION)
+    empty = turn(Intent.REWORK)
     empty.reviewed(retry(""))
 
     await FeedbackStep(logger).run(Conversation("c1"), current)
@@ -140,6 +149,29 @@ async def test_finishing_keeps_an_answer_already_settled() -> None:
     await FinishStep().run(conversation, current)
 
     assert current.answer == Answer.clarification("Which desk?")
+
+
+async def test_finishing_with_the_plan_unfinished_pauses_it_for_later() -> None:
+    conversation, current = Conversation("c1"), stopped_after_the_count()
+
+    await FinishStep().run(conversation, current)
+
+    assert current.answer is not None and current.answer.resumable
+    assert conversation.pending is not None and conversation.pending.plan == REPORT
+    assert conversation.pending.prior is not None and conversation.pending.prior.done == 1
+    assert [m.speaker for m in conversation.messages] == [Speaker.USER, Speaker.ASSISTANT]
+
+
+async def test_finishing_a_completed_plan_leaves_nothing_pending() -> None:
+    conversation, current = Conversation("c1"), turn(Intent.PLAN_APPROVAL, plan=PLAN)
+    current.drafted(calling("echo"))
+    current.observed([result()])
+    current.drafted(answer("12 rows"))
+
+    await FinishStep().run(conversation, current)
+
+    assert current.answer == Answer.answered("12 rows")
+    assert conversation.pending is None
 
 
 def _long(count: int = 6) -> Conversation:

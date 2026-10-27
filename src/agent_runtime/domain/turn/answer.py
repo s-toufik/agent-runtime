@@ -24,6 +24,7 @@ REFUSED: str = "[SCREEN]: {reason}"
 class Answer:
     text: str
     outcome: Outcome
+    resumable: bool = False
 
     @classmethod
     def answered(cls, text: str) -> Answer:
@@ -43,7 +44,8 @@ class Answer:
 
     @classmethod
     def plan_unfinished(cls, progress: PlanProgress) -> Answer:
-        return cls(PLAN_UNFINISHED.format(progress=progress.render()), Outcome.BUDGET_EXHAUSTED)
+        text = PLAN_UNFINISHED.format(progress=progress.render())
+        return cls(text, Outcome.BUDGET_EXHAUSTED, resumable=True)
 
     @classmethod
     def approval_request(cls, plan: Plan) -> Answer:

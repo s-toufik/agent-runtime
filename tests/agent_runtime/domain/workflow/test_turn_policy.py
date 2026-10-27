@@ -27,7 +27,7 @@ POLICY = TurnPolicy()
         (None, Step.PLAN),
         (Intent.AMBIGUOUS, Step.CLARIFY),
         (Intent.DIRECT, Step.ACT),
-        (Intent.CONTINUATION, Step.ACT),
+        (Intent.REWORK, Step.ACT),
         (Intent.PLAN_APPROVAL, Step.ACT),
     ],
 )
@@ -72,7 +72,7 @@ def test_a_plain_direct_answer_is_not_reviewed() -> None:
 @pytest.mark.parametrize(
     "current",
     [
-        _acted(turn(Intent.CONTINUATION), answer()),
+        _acted(turn(Intent.REWORK), answer()),
         _acted(turn(Intent.DIRECT), calling("echo"), result(), answer()),
         _acted(turn(Intent.PLAN_APPROVAL, plan=PLAN), calling("echo"), result(), answer()),
     ],
@@ -87,7 +87,7 @@ def test_tools_and_feedback_lead_back_to_acting(done: Step) -> None:
 
 
 def _reviewed(verdict, retries: int = 0, steps: int = 1, max_steps: int = 5) -> Turn:
-    current = turn(Intent.CONTINUATION, max_steps=max_steps)
+    current = turn(Intent.REWORK, max_steps=max_steps)
     for _ in range(steps):
         current.drafted(answer())
     for _ in range(retries):

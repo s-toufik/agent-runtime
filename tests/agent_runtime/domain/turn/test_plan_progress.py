@@ -54,3 +54,10 @@ def test_the_progress_marks_done_current_and_pending_steps() -> None:
         "→ 3. compute (tool: python_executor)\n"
         "· 4. write the report (tool: file_writer)"
     )
+
+
+def test_progress_can_start_where_an_earlier_turn_stopped() -> None:
+    resumed = PlanProgress.of(PLAN, [], done=1)
+
+    assert resumed.current == PLAN.steps[2]
+    assert PlanProgress.of(PLAN, [result("python_executor")], done=1).done == 3

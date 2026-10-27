@@ -3,7 +3,7 @@ from enum import StrEnum
 
 class Intent(StrEnum):
     TASK = "task"
-    CONTINUATION = "continuation"
+    REWORK = "rework"
     DIRECT = "direct"
     PLAN_APPROVAL = "plan_approval"
     PLAN_REVISION = "plan_revision"

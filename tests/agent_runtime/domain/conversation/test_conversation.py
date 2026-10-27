@@ -5,9 +5,18 @@ from agent_runtime.domain.conversation.message import Message, Speaker
 from agent_runtime.domain.turn.action import Action
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.intent import Intent
+from agent_runtime.domain.turn.pending_plan import PendingPlan
+from agent_runtime.domain.turn.prior_run import PriorRun
 from agent_runtime.domain.turn.turn_options import TurnOptions
 from agent_runtime.domain.turn.understanding import Understanding
-from tests.agent_runtime.domain.builders import PLAN, calling, result, turn
+from tests.agent_runtime.domain.builders import (
+    PLAN,
+    REPORT,
+    calling,
+    result,
+    stopped_after_the_count,
+    turn,
+)
 
 
 def _waiting() -> Conversation:
@@ -36,7 +45,7 @@ def test_discussing_the_plan_keeps_it_pending(intent: Intent) -> None:
     assert current.plan is None
 
 
-@pytest.mark.parametrize("intent", [Intent.TASK, Intent.DIRECT, Intent.CONTINUATION])
+@pytest.mark.parametrize("intent", [Intent.TASK, Intent.DIRECT, Intent.REWORK])
 def test_moving_on_drops_the_pending_plan(intent: Intent) -> None:
     conversation, current = _waiting(), turn(None)
 
@@ -108,3 +117,53 @@ def test_with_auto_approve_a_submitted_plan_is_carried_out_at_once() -> None:
     assert conversation.pending_plan is None
     assert current.plan == PLAN
     assert current.answer is None
+
+
+def _paused() -> Conversation:
+    conversation = Conversation(id="c1")
+    conversation.pause(stopped_after_the_count())
+    return conversation
+
+
+def test_pausing_keeps_the_plan_pending_with_how_far_it_got() -> None:
+    conversation = _paused()
+
+    assert conversation.pending is not None and conversation.pending.is_paused
+    assert conversation.pending_plan == REPORT
+    assert conversation.pending.prior == PriorRun(1, (Action("echo", "", True, "ok"),))
+
+
+def test_approving_a_paused_plan_resumes_it_where_it_stopped() -> None:
+    conversation, current = _paused(), turn(None)
+
+    conversation.interpret(current, Understanding(Intent.PLAN_APPROVAL, "continue"))
+
+    assert current.plan == REPORT and current.query == REPORT.task
+    assert current.progress is not None and current.progress.current == REPORT.steps[1]
+    assert conversation.pending is None
+
+
+def test_revising_a_paused_plan_keeps_it_paused_for_the_planner() -> None:
+    conversation, current = _paused(), turn(None)
+    paused = conversation.pending
+
+    conversation.interpret(current, Understanding(Intent.PLAN_REVISION, "only the count"))
+
+    assert conversation.pending == paused
+
+
+@pytest.mark.parametrize("intent", [Intent.TASK, Intent.PLAN_REJECTION, Intent.REWORK])
+def test_moving_on_or_rejecting_drops_a_paused_plan(intent: Intent) -> None:
+    conversation, current = _paused(), turn(None)
+
+    conversation.interpret(current, Understanding(intent, "q"))
+
+    assert conversation.pending is None
+
+
+def test_a_proposed_plan_is_pending_but_not_paused() -> None:
+    conversation = Conversation(id="c1")
+
+    conversation.propose(PLAN)
+
+    assert conversation.pending == PendingPlan(PLAN)

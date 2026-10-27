@@ -1,6 +1,7 @@
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import tool_catalog
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
+from agent_runtime.domain.turn.pending_plan import PendingPlan
 
 _SYSTEM = """\
 You are BlueAI, an assistant for the Blue homelab platform.
@@ -36,17 +37,30 @@ The user asked to change this previous plan:
 {previous}
 """
 
+_PAUSED_REVISION = """
+The user asked to change this plan, paused at the step limit:
+{previous}
+The steps marked ✓ are done: plan only what is left, and reuse their results.
+"""
+
 
 def plan_system_prompt(
     task: str,
     tools: list[ToolSpecification],
     output_format: object,
-    previous_plan: str | None = None,
+    previous: PendingPlan | None = None,
 ) -> str:
     return _SYSTEM.format(
         task=task,
-        revision=_REVISION.format(previous=previous_plan) if previous_plan else "",
+        revision=_revision(previous),
         tools=tool_catalog(tools),
         output_format=output_format,
         now=utc_now(),
     )
+
+
+def _revision(previous: PendingPlan | None) -> str:
+    if previous is None:
+        return ""
+    template = _PAUSED_REVISION if previous.is_paused else _REVISION
+    return template.format(previous=previous.render())

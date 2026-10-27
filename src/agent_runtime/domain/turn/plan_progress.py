@@ -15,8 +15,8 @@ class PlanProgress:
     done: int
 
     @classmethod
-    def of(cls, plan: Plan, results: Sequence[ToolResult]) -> PlanProgress:
-        progress = cls(plan, 0).past_reasoning()
+    def of(cls, plan: Plan, results: Sequence[ToolResult], done: int = 0) -> PlanProgress:
+        progress = cls(plan, done).past_reasoning()
         for result in results:
             if progress.is_done_by(result):
                 progress = cls(plan, progress.done + 1).past_reasoning()

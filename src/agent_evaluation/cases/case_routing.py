@@ -55,7 +55,7 @@ CASES: tuple[Case, ...] = (
         ),
     ),
     Case(
-        id="routing-rework-is-a-continuation",
+        id="routing-rework-needs-no-plan",
         title="'Make it shorter' reworks the last answer without planning or tools",
         says=(
             Say("Explain idempotency keys for payment APIs.", (Answers(),)),

@@ -22,9 +22,8 @@ class LangChainPlanner:
     async def plan(
         self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
     ) -> Plan | None:
-        previous = conversation.pending_plan
         system = plan_system_prompt(
-            turn.query, tools, PlanDto.model_json_schema(), previous.render() if previous else None
+            turn.query, tools, PlanDto.model_json_schema(), conversation.pending
         )
         messages = self._window.build(
             system, conversation, turn.settings.context_tokens, [HumanMessage(content=turn.request)]

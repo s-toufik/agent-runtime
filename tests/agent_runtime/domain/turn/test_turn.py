@@ -1,23 +1,28 @@
+import pytest
+
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.turn.action import Action
 from agent_runtime.domain.turn.answer import BUDGET_EXHAUSTED, NO_ANSWER, Answer
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.outcome import Outcome
+from agent_runtime.domain.turn.prior_run import PriorRun
 from tests.agent_runtime.domain.builders import (
     PLAN,
+    REPORT,
     accept,
     answer,
     calling,
     failure,
     result,
     retry,
+    stopped_after_the_count,
     turn,
 )
 
 
 def test_an_accepted_draft_is_the_answer() -> None:
-    current = turn(Intent.CONTINUATION)
+    current = turn(Intent.REWORK)
     current.drafted(answer("42"))
     current.reviewed(accept())
 
@@ -25,7 +30,7 @@ def test_an_accepted_draft_is_the_answer() -> None:
 
 
 def test_a_draft_still_rejected_is_a_best_effort_answer() -> None:
-    current = turn(Intent.CONTINUATION)
+    current = turn(Intent.REWORK)
     current.drafted(answer("41"))
     current.reviewed(retry())
 
@@ -110,7 +115,7 @@ def test_only_a_direct_answer_without_tools_is_plain() -> None:
 
     assert plain.is_plain_direct_answer
     assert not with_tools.is_plain_direct_answer
-    assert not turn(Intent.CONTINUATION).is_plain_direct_answer
+    assert not turn(Intent.REWORK).is_plain_direct_answer
 
 
 def test_the_query_is_the_understood_request_or_the_raw_message() -> None:
@@ -142,3 +147,60 @@ def test_carrying_out_a_plan_starts_from_fresh_work() -> None:
 
     assert current.plan == PLAN
     assert current.work == [] and current.verdicts == []
+
+
+def test_a_plan_left_unfinished_is_concluded_as_resumable() -> None:
+    assert stopped_after_the_count().conclude().resumable
+    assert not turn(Intent.DIRECT).conclude().resumable
+
+
+def test_the_paused_plan_records_how_far_the_turn_got_and_what_it_ran() -> None:
+    paused = stopped_after_the_count().paused_plan()
+
+    assert paused.plan == REPORT
+    assert paused.prior == PriorRun(1, (Action("echo", "", True, "ok"),))
+
+
+def test_a_resumed_plan_continues_from_the_earlier_turns() -> None:
+    earlier = Action("echo", "", True, "ok")
+    resumed = turn(Intent.PLAN_APPROVAL)
+    resumed.execute(REPORT, PriorRun(1, (earlier,)))
+
+    assert resumed.progress is not None and resumed.progress.current == REPORT.steps[1]
+    resumed.drafted(calling("file_writer"))
+    resumed.observed([result("file_writer", "written")])
+    assert resumed.progress.is_complete
+    assert resumed.actions == [Action("file_writer", "", True, "written")]
+    assert resumed.plan_actions == [earlier, *resumed.actions]
+
+
+def test_pausing_again_keeps_the_tool_calls_of_every_earlier_turn() -> None:
+    earlier = Action("echo", "", True, "ok")
+    resumed = turn(Intent.PLAN_APPROVAL)
+    resumed.execute(REPORT, PriorRun(1, (earlier,)))
+    resumed.drafted(calling("file_writer"))
+    resumed.observed([failure("file_writer")])
+
+    paused = resumed.paused_plan()
+
+    assert paused.prior is not None and paused.prior.done == 1
+    assert [action.tool for action in paused.prior.actions] == ["echo", "file_writer"]
+
+
+def test_only_a_plan_left_unfinished_can_be_paused() -> None:
+    finished = turn(Intent.PLAN_APPROVAL, plan=PLAN)
+    finished.observed([result()])
+
+    with pytest.raises(ValueError):
+        turn(Intent.DIRECT).paused_plan()
+    with pytest.raises(ValueError):
+        finished.paused_plan()
+
+
+def test_refusing_a_resumed_plan_drops_its_earlier_work_too() -> None:
+    resumed = turn(Intent.PLAN_APPROVAL)
+    resumed.execute(REPORT, PriorRun(1))
+
+    resumed.refuse("unsafe")
+
+    assert resumed.plan is None and resumed.prior is None

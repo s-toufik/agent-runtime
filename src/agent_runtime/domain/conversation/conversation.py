@@ -6,6 +6,7 @@ from agent_runtime.domain.conversation.message import Message, Speaker
 from agent_runtime.domain.turn.action import Action
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.intent import Intent
+from agent_runtime.domain.turn.pending_plan import PendingPlan
 from agent_runtime.domain.turn.plan import Plan
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.understanding import Understanding
@@ -18,18 +19,18 @@ class Conversation:
     id: str
     messages: list[Message] = field(default_factory=list)
     summary: str = ""
-    pending_plan: Plan | None = None
+    pending: PendingPlan | None = None
     actions: list[Action] = field(default_factory=list)
 
     def interpret(self, turn: Turn, understanding: Understanding) -> None:
-        understanding = understanding.normalized(has_pending_plan=self.pending_plan is not None)
-        pending, self.pending_plan = self.pending_plan, None
+        understanding = understanding.normalized(has_pending_plan=self.pending is not None)
+        pending, self.pending = self.pending, None
         if understanding.intent is Intent.PLAN_APPROVAL and pending is not None:
-            turn.understood(understanding.about(pending.task))
-            turn.execute(pending)
+            turn.understood(understanding.about(pending.plan.task))
+            turn.execute(pending.plan, pending.prior)
             return
         if understanding.intent.keeps_pending_plan:
-            self.pending_plan = pending
+            self.pending = pending
         turn.understood(understanding)
 
     def submit(self, turn: Turn, plan: Plan) -> None:
@@ -40,10 +41,17 @@ class Conversation:
         turn.finish(Answer.approval_request(plan))
 
     def propose(self, plan: Plan) -> None:
-        self.pending_plan = plan
+        self.pending = PendingPlan(plan)
+
+    def pause(self, turn: Turn) -> None:
+        self.pending = turn.paused_plan()
 
     def retract(self) -> None:
-        self.pending_plan = None
+        self.pending = None
+
+    @property
+    def pending_plan(self) -> Plan | None:
+        return self.pending.plan if self.pending else None
 
     def close(self, turn: Turn) -> None:
         answer = turn.answer.text if turn.answer else ""
