@@ -5,6 +5,8 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
+    # A release: image toufik142/agent-runtime:X.Y.Z and chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+    tags: ['v*.*.*']
 
 jobs:
   lint:
@@ -144,13 +146,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Determine image tag
+      - name: Determine image tags
         id: tag
         run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tags=toufik142/agent-runtime:${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            printf 'tags=toufik142/agent-runtime:latest,toufik142/agent-runtime:latest-%s\n' "${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=dev" >> "$GITHUB_OUTPUT"
+            printf 'tags=toufik142/agent-runtime:dev,toufik142/agent-runtime:dev-%s\n' "${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and push
@@ -159,8 +163,18 @@ jobs:
           context: .
           file: devops/docker/Dockerfile
           push: true
-          tags: |
-            toufik142/agent-runtime:${{ steps.tag.outputs.tag }}
-            toufik142/agent-runtime:${{ steps.tag.outputs.tag }}-${{ github.sha }}
+          tags: ${{ steps.tag.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  chart:
+    name: 📦 CHART
+    needs: publish
+    if: github.ref_type == 'tag'
+    uses: s-toufik/kube-charts/.github/workflows/app-chart.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      name: agent-runtime
+      image: toufik142/agent-runtime

@@ -138,7 +138,7 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). With Docker Compose, pass each one with a default, e.g. `${WEB_DOCS:-false}`: a variable passed empty overrides the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
 
 **Configuration files.** `config/root.yml` lists what exists; `config/<APP_ENV>/` defines it:
 
@@ -319,6 +319,13 @@ It checks several kinds of behaviour (today: tool selection, security, guardrail
 ### Deploying
 
 `make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the [environment variables](#configure-it) above.
+
+On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). A tag `vX.Y.Z` publishes the image `toufik142/agent-runtime:X.Y.Z` and the chart `oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z` with those values built in; homelab-infra's DevOps guide (Release an app) deploys it.
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
 
 It is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in `devops/docker/Dockerfile`. Set any other Granian option the same way in your deployment, without rebuilding:
 
