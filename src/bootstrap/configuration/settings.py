@@ -10,8 +10,7 @@ class ProcessSettings:
     role: str
     environment: str
     configuration_directory: Path
-    log_level: str = "INFO"
-    max_concurrent_streams: int = 200
+    guardrail_enabled: bool = False
 
     @classmethod
     def for_role(cls, role: str) -> ProcessSettings:
@@ -22,6 +21,6 @@ class ProcessSettings:
             role=role,
             environment=os.getenv("APP_ENV", "debug"),
             configuration_directory=Path(directory),
-            log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
-            max_concurrent_streams=int(os.getenv("MAX_CONCURRENT_STREAMS", "200")),
+            guardrail_enabled=os.getenv("GUARDRAIL_ENABLED", "").strip()
+            in ("true", "1", "on", "yes"),
         )

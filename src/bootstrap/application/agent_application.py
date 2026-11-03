@@ -2,17 +2,17 @@ import traceback
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from pycraftcore.http.middleware import RequestMiddleware
-from pycraftcore.http.middleware.request_id_middleware import RequestIDMiddleware
-from starlette.middleware.cors import CORSMiddleware
+from pycraftcore.web.asgi import ASGIApp
+from pycraftcore.web.schema import ApiSettings
 
+from bootstrap.application.litestar.litestar_api import create_litestar_api
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
+from src import APPLICATION_VERSION
 
 
 @asynccontextmanager
-async def _lifespan(application: FastAPI, container: AgentContainer) -> AsyncGenerator[None]:
+async def _lifespan(container: AgentContainer) -> AsyncGenerator[None]:
     try:
         await container.boot()
     except Exception as exception:
@@ -21,37 +21,29 @@ async def _lifespan(application: FastAPI, container: AgentContainer) -> AsyncGen
         )
         raise
 
-    for router in container.routers:
-        application.include_router(router)
-        container.logging.info(f"Router {router.prefix} included")
-    application.state.ready = container.is_ready
-
     try:
         yield
     finally:
-        application.state.ready = False
         await container.stop()
 
 
-def create_agent_application(settings: ProcessSettings | None = None) -> FastAPI:
-    process_settings = settings or ProcessSettings.for_role("agent-orchestrator")
+def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp:
+    process_settings = settings or ProcessSettings.for_role("agent-runtime")
     container = AgentContainer(process_settings)
+    server = container.server
 
-    application = FastAPI(
-        title="agent-orchestrator",
-        lifespan=lambda app: _lifespan(app, container),
+    api = ApiSettings(
+        title=server.name,
+        version=APPLICATION_VERSION,
+        base_path=server.base_path,
+        docs=server.docs,
+        cors_origins=server.cors_origins,
     )
-
-    application.add_middleware(RequestIDMiddleware)
-    application.add_middleware(RequestMiddleware)
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+    return create_litestar_api(
+        api,
+        lifespan=lambda: _lifespan(container),
+        agent=lambda: container.stream_agent_controller,
+        models=lambda: container.list_models,
+        actuator=container.actuator,
+        logger=container.logging,
     )
-
-    return application
-
-
-app: FastAPI = create_agent_application()

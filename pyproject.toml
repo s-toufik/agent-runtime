@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-orchestrator"
+name = "agent-runtime"
 version = "1.0.0"
 authors = [
     { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
@@ -11,21 +11,30 @@ authors = [
 description = "Analytics agent -- talks to its MCP toolbox as an independently deployed service"
 readme = "Readme.md"
 requires-python = ">=3.14"
+keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "litestar", "asyncio"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+    "Private :: Do Not Upload",
 ]
 license = "MIT"
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
+    "granian",
     "uvloop",
-    "starlette",
+    "litestar",
+    "msgspec",
     "httpx",
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore>=2.0.0",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_litestar]",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -38,10 +47,13 @@ dependencies = [
 ]
 
 [project.scripts]
-agent-orchestrator = "bootstrap.application.agent_application:main"
+agent-runtime = "bootstrap.application.agent_application:main"
 
 [dependency-groups]
 dev = [
+    "starlette",
+    "uvicorn",
+    "asgi-lifespan",
     "pytest",
     "pytest-asyncio",
     "pytest-cov>=7.1.0",
@@ -51,7 +63,6 @@ dev = [
     "ruff",
     "ty",
     "pre-commit",
-    "deepeval>=4.2.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -64,10 +75,6 @@ where = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
-markers = [
-    "evaluation: live DeepEval agent-quality tests -- call a real local LLM and a real toolbox; excluded by default, run explicitly with `pytest -m evaluation tests/evaluation`",
-]
-addopts = "-m 'not evaluation'"
 
 [tool.ruff]
 line-length = 100
@@ -85,5 +92,7 @@ include = ["src"]
 exclude = [".venv", "tests"]
 
 [project.urls]
-Homepage = "https://github.com/s-toufik/agent-orchestrator"
+Homepage = "https://github.com/s-toufik/agent-runtime"
+Repository = "https://github.com/s-toufik/agent-runtime"
+Issues = "https://github.com/s-toufik/agent-runtime/issues"
 

@@ -2,11 +2,14 @@ import ast
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[2] / "src"
-PACKAGE = SOURCE / "agent_orchestrator"
+PACKAGE = SOURCE / "agent_runtime"
 
 FRAMEWORKS = {
     "fastapi",
+    "litestar",
+    "blacksheep",
     "starlette",
+    "msgspec",
     "mcp",
     "langchain",
     "langchain_core",
@@ -44,15 +47,15 @@ def _violations(directory: Path, forbidden: set[str]) -> list[str]:
 
 def test_the_domain_is_free_of_frameworks_and_outer_layers() -> None:
     forbidden = FRAMEWORKS | {
-        "agent_orchestrator.application",
-        "agent_orchestrator.adapter",
+        "agent_runtime.application",
+        "agent_runtime.adapter",
         "bootstrap",
     }
     assert _violations(PACKAGE / "domain", forbidden) == []
 
 
 def test_the_application_depends_only_on_the_domain() -> None:
-    forbidden = FRAMEWORKS | {"agent_orchestrator.adapter", "bootstrap"}
+    forbidden = FRAMEWORKS | {"agent_runtime.adapter", "bootstrap"}
     assert _violations(PACKAGE / "application", forbidden) == []
 
 
@@ -61,7 +64,7 @@ def test_the_hexagon_never_imports_the_composition_root() -> None:
 
 
 def test_outbound_adapters_never_import_inbound_adapters() -> None:
-    forbidden = {"agent_orchestrator.adapter.inbound"}
+    forbidden = {"agent_runtime.adapter.inbound"}
     assert _violations(PACKAGE / "adapter" / "outbound", forbidden) == []
 
 
@@ -71,10 +74,32 @@ def test_the_agent_never_imports_a_toolbox_package_directly() -> None:
 
 def test_langgraph_nodes_only_delegate_to_the_application() -> None:
     forbidden = {
-        "agent_orchestrator.adapter.outbound.llm",
-        "agent_orchestrator.adapter.outbound.tool",
+        "agent_runtime.adapter.outbound.llm",
+        "agent_runtime.adapter.outbound.tool",
         "langchain",
         "langchain_core",
         "langchain_openai",
     }
     assert _violations(PACKAGE / "adapter" / "outbound" / "langgraph", forbidden) == []
+
+
+WEB_FRAMEWORKS = {"fastapi", "litestar", "blacksheep", "starlette", "msgspec"}
+LITESTAR_APPLICATION = SOURCE / "bootstrap" / "application" / "litestar"
+
+
+def test_the_agent_imports_no_web_framework() -> None:
+    assert _violations(PACKAGE, WEB_FRAMEWORKS) == []
+
+
+def test_only_the_litestar_application_imports_a_web_framework_in_bootstrap() -> None:
+    application = f"{LITESTAR_APPLICATION.relative_to(SOURCE)}/"
+    outside = [
+        violation
+        for violation in _violations(SOURCE / "bootstrap", WEB_FRAMEWORKS)
+        if not violation.startswith(application)
+    ]
+    assert outside == []
+
+
+def test_the_litestar_application_imports_no_other_web_framework() -> None:
+    assert _violations(LITESTAR_APPLICATION, WEB_FRAMEWORKS - {"litestar", "msgspec"}) == []

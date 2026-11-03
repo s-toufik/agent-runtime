@@ -1,0 +1,113 @@
+import pytest
+from langgraph.graph import END, START
+
+from agent_runtime.adapter.outbound.langgraph.graph.agent_graph_builder import (
+    AgentGraphBuilder,
+)
+from agent_runtime.adapter.outbound.langgraph.graph.policy_router import (
+    PolicyRouter,
+    node_name,
+)
+from agent_runtime.adapter.outbound.langgraph.node.act_node import ActNode
+from agent_runtime.adapter.outbound.langgraph.node.agent_nodes import NODE_TYPES, agent_nodes
+from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
+from agent_runtime.application.step.clarify_step import ClarifyStep
+from agent_runtime.application.step.finish_step import FinishStep
+from agent_runtime.domain.conversation.conversation import Conversation
+from agent_runtime.domain.event.turn_event import TurnEventKind
+from agent_runtime.domain.turn.answer import Answer
+from agent_runtime.domain.turn.draft import Draft
+from agent_runtime.domain.turn.intent import Intent
+from agent_runtime.domain.turn.turn import Turn
+from agent_runtime.domain.turn.understanding import Understanding
+from agent_runtime.domain.workflow.step import Step
+from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from tests.agent_runtime.application.fakes import RecordingEvents
+
+CODEC = TurnStateCodec()
+POLICY = TurnPolicy()
+
+
+class RecordingHandler:
+    def __init__(self, step: Step) -> None:
+        self.step = step
+        self.runs: list[Turn] = []
+
+    async def run(self, conversation: Conversation, turn: Turn) -> None:
+        self.runs.append(turn)
+        turn.drafted(Draft("done"))
+
+
+def test_there_is_one_node_class_per_step() -> None:
+    assert [node_type.step for node_type in NODE_TYPES] == [s for s in Step if s is not Step.END]
+
+
+def test_a_node_refuses_the_handler_of_another_step() -> None:
+    with pytest.raises(ValueError):
+        ActNode(ClarifyStep(), CODEC, RecordingEvents())
+
+
+async def test_a_node_delegates_to_its_handler_and_hands_back_the_state() -> None:
+    handler = RecordingHandler(Step.ACT)
+    state = CODEC.encode(Conversation("c1"), Turn("hi", "m"))
+
+    new_state = await ActNode(handler, CODEC, RecordingEvents())(state)
+
+    assert len(handler.runs) == 1
+    assert CODEC.decode_turn(new_state).last_draft == Draft("done")
+
+
+async def test_a_node_announces_its_step_before_running_it() -> None:
+    events = RecordingEvents()
+
+    await ActNode(RecordingHandler(Step.ACT), CODEC, events)(
+        CODEC.encode(Conversation("c1"), Turn("hi", "m"))
+    )
+
+    assert [(event.kind, event.step) for event in events.published] == [
+        (TurnEventKind.STEP_STARTED, Step.ACT)
+    ]
+
+
+def _policy_steps(policy: TurnPolicy) -> set[Step]:
+    return {step for t in policy.TRANSITIONS for step in (t.source, t.target)} - {Step.END}
+
+
+def _edges(policy: TurnPolicy = POLICY) -> dict[str, set[str]]:
+    handlers = [RecordingHandler(step) for step in _policy_steps(policy)]
+    nodes = agent_nodes(handlers, CODEC, RecordingEvents())  # ty: ignore[invalid-argument-type]
+    graph = AgentGraphBuilder(nodes, policy, PolicyRouter(policy, CODEC)).build().get_graph()
+    edges: dict[str, set[str]] = {}
+    for edge in graph.edges:
+        edges.setdefault(edge.source, set()).add(edge.target)
+    return edges
+
+
+@pytest.mark.parametrize("policy", [POLICY, TurnPolicy(screen=True)], ids=["no_screen", "screen"])
+def test_the_graph_edges_are_exactly_the_policy_transitions(policy: TurnPolicy) -> None:
+    edges = _edges(policy)
+
+    assert edges.pop(START) == {"understand"}
+    assert edges == {
+        step.value: {node_name(target) for target in policy.targets(step)}
+        for step in _policy_steps(policy)
+    }
+    assert sum(len(targets) for targets in edges.values()) == len(
+        {(t.source, t.target) for t in policy.TRANSITIONS}
+    )
+
+
+def test_the_end_of_the_policy_is_the_end_of_the_graph() -> None:
+    assert _edges()["summarize"] == {END}
+
+
+async def test_the_router_asks_the_policy_with_the_domain_turn() -> None:
+    turn = Turn("the numbers", "m")
+    turn.understood(Understanding(Intent.AMBIGUOUS, "?", clarification_question="Which?"))
+    state = CODEC.encode(Conversation("c1"), turn)
+    router = PolicyRouter(POLICY, CODEC)
+
+    assert router.after(Step.UNDERSTAND)(state) == "clarify"
+    turn.finish(Answer.clarification("Which?"))
+    await FinishStep().run(Conversation("c1"), turn)
+    assert router.after(Step.SUMMARIZE)(CODEC.encode(Conversation("c1"), turn)) == END

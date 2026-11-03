@@ -5,7 +5,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-APPLICATION_NAME: str = "agent-orchestrator"
+APPLICATION_NAME: str = "agent-runtime"
 project_metadata: PackageMetadata = metadata(APPLICATION_NAME)
 APPLICATION_VERSION: str = project_metadata.get("version", "X.X.X")
 APPLICATION_DEPLOYMENT_ENVIRONMENT: str = os.getenv("DEPLOYMENT_ENVIRONMENT", "unknown")

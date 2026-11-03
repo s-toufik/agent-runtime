@@ -12,12 +12,18 @@ from pycraftcore.application_configuration.model.connector import (
     McpConnector,
 )
 from pycraftcore.application_configuration.model.operation import OperationRegistry
+from pycraftcore.application_configuration.model.server import ServerRegistry
 from pycraftcore.authentication.model.no_auth import NoAuth
+from pycraftcore.logger.enum import LogLevel
 
-from agent_orchestrator.adapter.outbound.llm.model_catalog import AgentRole
-from agent_orchestrator.adapter.outbound.tool.tool_registry import ToolRegistry
-from agent_orchestrator.adapter.outbound.tool.toolbox import Toolbox
-from agent_orchestrator.domain.workflow.step import Step
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
+from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
+from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
+from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
+from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.domain.workflow.step import Step
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.agent_di import EXTERNAL_MCP_PREFIX, MCP_CONNECTOR_NAME, AgentDI
 
@@ -38,11 +44,15 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_API_KEY", "test")
 
 
-def make_settings(tmp_path: Path | None = None) -> ProcessSettings:
+def make_settings(
+    tmp_path: Path | None = None,
+    guardrail_enabled: bool = False,
+) -> ProcessSettings:
     return ProcessSettings(
-        role="agent-orchestrator",
+        role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
+        guardrail_enabled=guardrail_enabled,
     )
 
 
@@ -62,6 +72,8 @@ def _fake_config(mcp_connectors: dict[str, McpConnector]) -> ApplicationConfigur
     return ApplicationConfiguration(
         env=RunTypeEnvironment.debug,
         run=RunTypeApplication.asynchronous,
+        log=LogLevel.INFO,
+        server=ServerRegistry(),
         connector=ConnectorRegistry({ConnectorType.mcp: by_type}),
         operation=OperationRegistry({}),
     )
@@ -114,6 +126,14 @@ async def test_close_llm_http_client_is_a_no_op_when_never_built() -> None:
     di = AgentDI(make_settings())
 
     await di._close_llm_http_client()
+
+
+def test_model_calls_use_the_retry_rule_that_skips_silent_models() -> None:
+    di = AgentDI(make_settings())
+
+    retry = di._llm_transport_factory._settings.retry
+
+    assert retry.should_retry is should_retry_model_call
 
 
 class _FakeMcpSession:
@@ -218,10 +238,23 @@ def test_only_the_roles_naming_a_model_in_agent_yml_are_frozen() -> None:
         assert (frozen[1].model_name if frozen else None) == configured, role
 
 
-async def test_the_workflow_graph_has_one_node_per_step() -> None:
-    di = AgentDI(make_settings())
+@pytest.mark.parametrize("guardrail_enabled", [False, True], ids=["no_screen", "screen"])
+async def test_the_workflow_graph_has_one_node_per_step(guardrail_enabled: bool) -> None:
+    di = AgentDI(make_settings(guardrail_enabled=guardrail_enabled))
     runner = await di._workflow_runner(Toolbox(ToolRegistry([]), di._logging), checkpointer=None)
 
     nodes = set(runner.graph.get_graph().nodes) - {"__start__", "__end__"}
 
-    assert nodes == {step.value for step in Step if step is not Step.END}
+    expected = {step.value for step in Step if step is not Step.END}
+    assert nodes == (expected if guardrail_enabled else expected - {Step.SCREEN.value})
+
+
+@pytest.mark.parametrize(
+    ("delivery", "reader"),
+    [(AnswerDelivery.STREAM, StreamedReply), (AnswerDelivery.WHOLE, WholeReply)],
+)
+def test_the_final_reply_follows_the_answer_delivery(monkeypatch, delivery, reader) -> None:
+    monkeypatch.setenv("AGENT_ANSWER_DELIVERY", delivery)
+    di = AgentDI(make_settings())
+
+    assert isinstance(di._final_reply(), reader)

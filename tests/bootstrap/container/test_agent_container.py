@@ -9,6 +9,9 @@ from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import McpConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 
+from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
+    StreamAgentController,
+)
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
 from tests.support.mcp_test_server import build_mcp_asgi_app, build_mcp_server
@@ -34,7 +37,7 @@ def _base_env(monkeypatch, tmp_path):
 
 def make_settings() -> ProcessSettings:
     return ProcessSettings(
-        role="agent-orchestrator",
+        role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
     )
@@ -90,17 +93,36 @@ def test_logging_and_application_configuration_expose_the_di_internals() -> None
     assert container.application_configuration is container._configuration
 
 
-async def test_boot_wires_both_routers_and_becomes_ready(running_toolbox, monkeypatch) -> None:
+def test_the_stream_controller_exists_only_once_booted() -> None:
+    container = AgentContainer(make_settings())
+
+    with pytest.raises(RuntimeError, match="not booted"):
+        _ = container.stream_agent_controller
+
+
+def test_the_actuator_reports_the_readiness_of_the_container() -> None:
+    container = AgentContainer(make_settings())
+
+    assert container.actuator.readiness().status_code == 503
+    container._ready = True
+    assert container.actuator.readiness().status_code == 200
+
+
+async def test_boot_builds_the_stream_controller_and_becomes_ready(
+    running_toolbox, monkeypatch
+) -> None:
     monkeypatch.setenv("TOOLBOX_URL", running_toolbox)
     container = AgentContainer(make_settings())
 
     await container.boot()
 
     assert container.is_ready is True
-    prefixes = {router.prefix for router in container.routers}
-    assert prefixes == {"/v1", "/actuator"}
+    assert isinstance(container.stream_agent_controller, StreamAgentController)
+    assert (await container.list_models.handle()).models
 
     await container.stop()
+
+    assert container.is_ready is False
 
 
 async def test_stop_after_boot_does_not_raise(running_toolbox, monkeypatch) -> None:

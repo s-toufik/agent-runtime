@@ -13,10 +13,10 @@ from pycraftcore.application_configuration.model.connector import (
     DatabaseConnector,
     McpConnector,
 )
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model.operation import ApiOperation, McpOperation
 from pycraftcore.circuit_breaker.configuration import CircuitBreakerSettings
 from pycraftcore.http.configuration import HttpClientSettings, LimitsSettings
-from pycraftcore.http.policy.http_error_policy import is_business_error, is_retryable
+from pycraftcore.http.policy.http_error_policy import is_business_error
 from pycraftcore.repository.adapter import (
     MongoRepositoryFactory,
     MongoSettingsMapper,
@@ -29,53 +29,68 @@ from pycraftcore.resilient_http.configuration import ResilientHttpSettings
 from pycraftcore.retry.configuration import RetrySettings
 from pymongo import MongoClient
 
-from agent_orchestrator.adapter.outbound.langgraph.graph.agent_graph_builder import (
+from agent_runtime.adapter.outbound.langgraph.graph.agent_graph_builder import (
     AgentGraphBuilder,
 )
-from agent_orchestrator.adapter.outbound.langgraph.graph.policy_router import PolicyRouter
-from agent_orchestrator.adapter.outbound.langgraph.langgraph_workflow_runner import (
+from agent_runtime.adapter.outbound.langgraph.graph.policy_router import PolicyRouter
+from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
+    LangGraphEventPublisher,
+)
+from agent_runtime.adapter.outbound.langgraph.langgraph_workflow_runner import (
     LangGraphWorkflowRunner,
 )
-from agent_orchestrator.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
-from agent_orchestrator.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
-from agent_orchestrator.adapter.outbound.llm.langchain.actor import LangChainActor
-from agent_orchestrator.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_orchestrator.adapter.outbound.llm.langchain.context_window import ContextWindow
-from agent_orchestrator.adapter.outbound.llm.langchain.intent_classifier import (
+from agent_runtime.adapter.outbound.langgraph.node.agent_node import AgentNode
+from agent_runtime.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
+from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
+from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
+from agent_runtime.adapter.outbound.llm.langchain.actor import LangChainActor
+from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
+from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_runtime.adapter.outbound.llm.langchain.guard import LangChainGuard
+from agent_runtime.adapter.outbound.llm.langchain.intent_classifier import (
     LangChainIntentClassifier,
 )
-from agent_orchestrator.adapter.outbound.llm.langchain.planner import LangChainPlanner
-from agent_orchestrator.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
-from agent_orchestrator.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
-from agent_orchestrator.adapter.outbound.llm.langchain.token_counter import (
+from agent_runtime.adapter.outbound.llm.langchain.planner import LangChainPlanner
+from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
+from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
+from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
+from agent_runtime.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
+from agent_runtime.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
+from agent_runtime.adapter.outbound.llm.langchain.token_counter import (
     EstimatedTokenCounter,
 )
-from agent_orchestrator.adapter.outbound.llm.mapper import ModelSettingsMapper
-from agent_orchestrator.adapter.outbound.llm.model_catalog import (
+from agent_runtime.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
+from agent_runtime.adapter.outbound.llm.mapper import ModelSettingsMapper
+from agent_runtime.adapter.outbound.llm.model_catalog import (
     AgentRole,
     ModelCatalog,
     ModelSettings,
 )
-from agent_orchestrator.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
-from agent_orchestrator.adapter.outbound.tool.mcp.streamable_http_session_factory import (
+from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
+from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
+from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
 )
-from agent_orchestrator.adapter.outbound.tool.tool_port import ToolPort
-from agent_orchestrator.adapter.outbound.tool.tool_registry import ToolRegistry
-from agent_orchestrator.adapter.outbound.tool.toolbox import Toolbox
-from agent_orchestrator.application.step.act_step import ActStep
-from agent_orchestrator.application.step.clarify_step import ClarifyStep
-from agent_orchestrator.application.step.feedback_step import FeedbackStep
-from agent_orchestrator.application.step.finish_step import FinishStep
-from agent_orchestrator.application.step.plan_step import PlanStep
-from agent_orchestrator.application.step.review_step import ReviewStep
-from agent_orchestrator.application.step.run_tools_step import RunToolsStep
-from agent_orchestrator.application.step.step_handler import StepHandler
-from agent_orchestrator.application.step.summarize_step import SummarizeStep
-from agent_orchestrator.application.step.understand_step import UnderstandStep
-from agent_orchestrator.application.use_case.handle_message import HandleMessage
-from agent_orchestrator.application.use_case.list_models import ListModels
-from agent_orchestrator.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.adapter.outbound.tool.tool_port import ToolPort
+from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
+from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
+from agent_runtime.application.port.outbound.workflow_runner import WorkflowRunner
+from agent_runtime.application.step.act_step import ActStep
+from agent_runtime.application.step.clarify_step import ClarifyStep
+from agent_runtime.application.step.feedback_step import FeedbackStep
+from agent_runtime.application.step.finish_step import FinishStep
+from agent_runtime.application.step.plan_step import PlanStep
+from agent_runtime.application.step.review_step import ReviewStep
+from agent_runtime.application.step.run_tools_step import RunToolsStep
+from agent_runtime.application.step.screen_step import ScreenStep
+from agent_runtime.application.step.step_handler import StepHandler
+from agent_runtime.application.step.summarize_step import SummarizeStep
+from agent_runtime.application.step.understand_step import UnderstandStep
+from agent_runtime.application.use_case.handle_message import HandleMessage
+from agent_runtime.application.use_case.list_models import ListModels
+from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from bootstrap.configuration.server_parameters import ServerParameters
 from bootstrap.di.base_di import BaseDI
 
 MCP_CONNECTOR_NAME: str = "toolbox"
@@ -87,6 +102,10 @@ SQLITE_CHECKPOINTER: str = "sqlite_checkpointer"
 
 class AgentDI(BaseDI):
     @cached_property
+    def _server_parameters(self) -> ServerParameters:
+        return ServerParameters.of(self._server)
+
+    @cached_property
     def _mcp_connectors(self) -> dict[str, McpConnector]:
         connectors: Mapping[str, McpConnector] = self._configuration.connector[ConnectorType.mcp]
         names: list[str] = [MCP_CONNECTOR_NAME] + sorted(
@@ -95,11 +114,30 @@ class AgentDI(BaseDI):
         return {name: connectors[name] for name in names}
 
     @cached_property
-    def _mcp_session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
+    def _mcp_operation(self) -> dict[str, McpOperation]:
         return {
-            name: StreamableHttpSessionFactory(connector=connector, logger=self._logging)
+            operation.connector.name: operation
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, McpOperation)
+        }
+
+    @cached_property
+    def _mcp_session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
+        operations: dict[str, McpOperation] = self._mcp_operation
+        return {
+            name: StreamableHttpSessionFactory(
+                connector=connector,
+                logger=self._logging,
+                operation=operations.get(connector.name),
+            )
             for name, connector in self._mcp_connectors.items()
         }
+
+    async def close(self) -> None:
+        await self._stop_factories()
+        await self._close_llm_http_client()
+        await self._close_mcp_session_factories()
+        await self._shutdown_telemetry()
 
     async def _close_mcp_session_factories(self) -> None:
         self.__dict__.pop("_mcp_session_factories", None)
@@ -141,7 +179,7 @@ class AgentDI(BaseDI):
                 retry_delay=1,
                 max_retry_delay=20,
                 jitter=1,
-                should_retry=is_retryable,
+                should_retry=should_retry_model_call,
             ),
             circuit_breaker=CircuitBreakerSettings(
                 failure_threshold=3,
@@ -232,32 +270,52 @@ class AgentDI(BaseDI):
             return None
 
     async def _handle_message(self) -> HandleMessage:
-        runner = await self._workflow_runner(await self._toolbox(), await self._checkpointer())
+        runner: WorkflowRunner = await self._workflow_runner(
+            await self._toolbox(), await self._checkpointer()
+        )
         return HandleMessage(runner, self._model_catalog, self._logging)
 
     def _list_models(self) -> ListModels:
         return ListModels(self._model_catalog)
 
-    async def _workflow_runner(
-        self, toolbox: Toolbox, checkpointer: Any
-    ) -> LangGraphWorkflowRunner:
-        return LangGraphWorkflowRunner(self._agent_graph(toolbox, checkpointer), self._logging)
+    async def _workflow_runner(self, toolbox: Toolbox, checkpointer: Any) -> WorkflowRunner:
+        return LangGraphWorkflowRunner(
+            self._agent_graph(toolbox, checkpointer), self._logging, LangChainUsageMeter()
+        )
+
+    @cached_property
+    def _turn_events(self) -> TurnEventPublisher:
+        return LangGraphEventPublisher()
+
+    def _final_reply(self) -> ReplyReader:
+        match self._server_parameters.answer_delivery:
+            case AnswerDelivery.STREAM:
+                return StreamedReply(self._turn_events)
+            case AnswerDelivery.WHOLE:
+                return WholeReply()
 
     def _agent_graph(self, toolbox: Toolbox, checkpointer: Any) -> Any:
-        codec, policy = TurnStateCodec(), TurnPolicy()
-        nodes = agent_nodes(self._steps(toolbox), codec)
+        codec: TurnStateCodec = TurnStateCodec()
+        screen: bool = self._settings.guardrail_enabled
+        policy: TurnPolicy = TurnPolicy(screen=screen)
+        nodes: list[AgentNode] = agent_nodes(self._steps(toolbox, screen), codec, self._turn_events)
         return AgentGraphBuilder(nodes, policy, PolicyRouter(policy, codec)).build(checkpointer)
 
-    def _steps(self, toolbox: Toolbox) -> list[StepHandler]:
+    def _steps(self, toolbox: Toolbox, screen: bool) -> list[StepHandler]:
         models, window, logger = self._chat_models, ContextWindow(), self._logging
-        return [
+        steps: list[StepHandler] = [
             UnderstandStep(LangChainIntentClassifier(models, window, logger), logger),
             PlanStep(LangChainPlanner(models, window, logger), toolbox),
             ClarifyStep(),
-            ActStep(LangChainActor(models, window, logger), toolbox),
+            ActStep(
+                LangChainActor(models, window, logger, WholeReply(), self._final_reply()), toolbox
+            ),
             RunToolsStep(toolbox),
             ReviewStep(LangChainReviewer(models, logger), logger),
             FeedbackStep(logger),
             FinishStep(),
             SummarizeStep(LangChainSummarizer(models, logger), EstimatedTokenCounter(), logger),
         ]
+        if screen:
+            steps.append(ScreenStep(LangChainGuard(models, logger), logger))
+        return steps

@@ -3,7 +3,7 @@ connector:
     name: llm_provider
     type: api
     base_url: ${oc.env:LLM_BASE_URL}
-    timeout: 5
+    timeout: 120
     retry: 3
     auth:
       type: token

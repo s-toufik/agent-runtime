@@ -1,12 +1,16 @@
 from pathlib import Path
 
+from pycraftcore.logger.enum import LogLevel
+
+import bootstrap.di.base_di as base_di_module
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.base_di import BaseDI
+from tests.support.null_telemetry import NullTelemetryProvider
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 
-def make_settings(role: str = "agent-orchestrator") -> ProcessSettings:
+def make_settings(role: str = "agent-runtime") -> ProcessSettings:
     return ProcessSettings(
         role=role,
         environment="debug",
@@ -118,14 +122,51 @@ def test_configuration_loads_the_real_tree(monkeypatch) -> None:
     assert di._configuration.connector.mcp("toolbox").transport == "streamable_http"
 
 
+def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("LOG_LEVEL", "WARNING")
+    applied: list[str] = []
+    monkeypatch.setattr(base_di_module, "configure_logging", applied.append)
+    di = BaseDI(make_settings())
+
+    _ = di._configuration
+
+    assert applied == [LogLevel.WARNING]
+
+
+def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("WEB_BASE_PATH", "/agent-runtime")
+    monkeypatch.setenv("WEB_DOCS", "true")
+    di = BaseDI(make_settings())
+
+    assert di._configuration.log is LogLevel.DEBUG
+    assert di._server.name == "agent-runtime"
+    assert di._server.base_path == "/agent-runtime"
+    assert di._server.docs is True
+
+
+def test_the_server_defaults_to_the_root_without_docs_and_info_logs(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    for key in ("LOG_LEVEL", "WEB_BASE_PATH", "WEB_DOCS"):
+        monkeypatch.delenv(key, raising=False)
+    di = BaseDI(make_settings())
+
+    assert di._configuration.log is LogLevel.INFO
+    assert di._server.base_path == ""
+    assert di._server.docs is False
+    assert di._server.cors_origins == ["*"]
+
+
 def test_telemetry_provider_service_name_is_derived_from_the_role(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     di = BaseDI(make_settings(role="worker"))
 
     provider = di._telemetry_provider
 
-    assert provider is not None
-    provider.shutdown()
+    assert isinstance(provider, NullTelemetryProvider)
+    assert provider.service_name == "worker-service"
 
 
 async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:
@@ -137,9 +178,11 @@ async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:
 async def test_shutdown_telemetry_shuts_down_and_evicts_the_cached_provider(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     di = BaseDI(make_settings())
-    _ = di._telemetry_provider
+    provider = di._telemetry_provider
+    assert isinstance(provider, NullTelemetryProvider)
     assert "_telemetry_provider" in di.__dict__
 
     await di._shutdown_telemetry()
 
+    assert provider.is_shut_down
     assert "_telemetry_provider" not in di.__dict__

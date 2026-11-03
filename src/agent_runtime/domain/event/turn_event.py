@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+
+from agent_runtime.domain.turn.answer import Answer
+from agent_runtime.domain.turn.draft import Draft
+from agent_runtime.domain.turn.token_usage import TokenUsage
+from agent_runtime.domain.turn.turn import Turn
+from agent_runtime.domain.workflow.step import Step
+
+
+class TurnEventKind(StrEnum):
+    STEP_STARTED = "step_started"
+    ANSWER_DELTA = "answer_delta"
+    FINISHED = "finished"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class TurnEvent:
+    kind: TurnEventKind
+    step: Step | None = None
+    tools: tuple[str, ...] = field(default_factory=tuple)
+    answer: Answer | None = None
+    steps_taken: int = 0
+    max_steps: int = 0
+    text: str = ""
+    error: str = ""
+    model: str = ""
+    usage: TokenUsage | None = None
+    duration_ms: int = 0
+
+    @classmethod
+    def entering(cls, step: Step, turn: Turn) -> TurnEvent:
+        draft: Draft | None = turn.last_draft
+        tools: tuple[str, ...] = tuple(call.name for call in draft.tool_calls) if draft else ()
+        return cls(
+            TurnEventKind.STEP_STARTED, step=step, tools=tools if step is Step.RUN_TOOLS else ()
+        )
+
+    @classmethod
+    def finished(cls, turn: Turn, usage: TokenUsage | None = None) -> TurnEvent:
+        return cls(
+            TurnEventKind.FINISHED,
+            answer=turn.answer,
+            steps_taken=turn.steps_taken,
+            max_steps=turn.settings.max_steps,
+            model=turn.model,
+            tools=_used_tools(turn),
+            usage=usage,
+        )
+
+    @classmethod
+    def answer_delta(cls, text: str) -> TurnEvent:
+        return cls(TurnEventKind.ANSWER_DELTA, text=text)
+
+    @classmethod
+    def failed(cls, error: str) -> TurnEvent:
+        return cls(TurnEventKind.FAILED, error=error)
+
+
+def _used_tools(turn: Turn) -> tuple[str, ...]:
+    ordered: dict[str, None] = {}
+    for action in turn.actions:
+        ordered.setdefault(action.tool, None)
+    return tuple(ordered)
