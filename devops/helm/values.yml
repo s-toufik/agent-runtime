@@ -1,12 +1,9 @@
-# How agent-runtime runs on the homelab: values for the `app` chart (kube-charts). CI builds the
-# chart from this file on a release tag vX.Y.Z; every key is described in kube-charts'
-# charts/app/values.yaml. homelab-ui calls it through the gateway (/api/agent/, signed in); the
-# tailnet's devices reach its API on http://<domain>:8000.
+replicas: 1
 
 ports:
   - name: http
     port: 8000
-    hostPort: 8000   # on the server's Tailscale address only
+    hostPort: 8000
 
 env:
   APP_ENV: deploy
@@ -15,7 +12,6 @@ env:
   OTEL_HOST: otel-collector
   OTEL_PORT: "4317"
   TOOLBOX_URL: http://agent-toolbox:8001/mcp
-  # The server may choose another OpenAI-compatible provider (homelab-infra)
   LLM_BASE_URL: https://integrate.api.nvidia.com/v1
   WEB_DOCS: "true"
   AGENT_ANSWER_DELIVERY: stream
@@ -27,7 +23,6 @@ env:
   DB_SQLITE_CHECKPOINT_HOST: /data/sqlite
   DB_SQLITE_CHECKPOINT_NAME: checkpoint
 
-# Kubernetes Secrets on the server (homelab-infra's scripts/secrets.sh)
 secretEnv:
   LLM_API_KEY: { secret: agent-runtime, key: llm-api-key }
   DB_MONGO_CHECKPOINT_USERNAME: { secret: mongodb, key: username }
@@ -55,11 +50,9 @@ persistence:
     mountPath: /data/sqlite
     size: 1Gi
 
-# Its logs go to the OTel Collector over OTLP, so they aren't collected a second time from stdout
 podAnnotations:
   homelab.io/logs: otlp
 
-# The image's app user
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
