@@ -320,12 +320,52 @@ It checks several kinds of behaviour (today: tool selection, security, guardrail
 
 `make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the [environment variables](#configure-it) above.
 
-On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). A tag `vX.Y.Z` publishes the image `toufik142/agent-runtime:X.Y.Z` and the chart `oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z` with those values built in; homelab-infra's DevOps guide (Release an app) deploys it.
+On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). homelab-infra adds only this server's choices, in `apps/agent-runtime/values.yaml.gotmpl` (its LLM provider, from `environments/default.yaml`).
+
+#### Git flow: what each branch and tag publishes
+
+```text
+ feature/…  ──PR──►  develop  ──PR──►  main  ──tag vX.Y.Z──►  a release
+                        │                 │                        │
+                        ▼                 ▼                        ▼
+                  image :dev        image :latest       image toufik142/agent-runtime:X.Y.Z
+                  (never deployed)  (never deployed)    chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+                                                        deployed once homelab-infra's versions.yaml says X.Y.Z
+```
+
+| Event | CI ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) | Publishes | On the homelab |
+|---|---|---|---|
+| Pull request to `develop` or `main` | LINT, TYPECHECK, TEST, BUILD | nothing | nothing changes |
+| Push to `develop` | the same + PUBLISH | image `:dev`, `:dev-<sha>` | nothing changes |
+| Push to `main` | the same + PUBLISH | image `:latest`, `:latest-<sha>` | nothing changes |
+| Tag `vX.Y.Z` | the same + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-runtime:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
+
+Only tags reach the homelab. The `dev` and `latest` images are for trying a build by hand; the server never pulls them.
+
+#### What is deployed
+
+The homelab runs the version in homelab-infra's [`environments/versions.yaml`](https://github.com/s-toufik/homelab-infra/blob/develop/environments/versions.yaml), `apps.agentRuntime`. On the server:
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+helm -n homelab list --filter '^agent-runtime$'      # CHART agent-runtime-X.Y.Z, APP VERSION X.Y.Z
+kubectl -n homelab get deploy agent-runtime -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
 ```
+
+#### Release a version
+
+1. Merge `develop` into `main` (pull request); CI is green.
+2. Tag `main`:
+   ```bash
+   git switch main && git pull
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+3. **Actions**: PUBLISH and CHART are green.
+4. In homelab-infra: `apps.agentRuntime: X.Y.Z` in `environments/versions.yaml`, commit, push.
+5. On the server, in homelab-infra: `git pull`, `make diff R=agent-runtime`, `make apply R=agent-runtime` (raw: `helmfile -l name=agent-runtime apply`).
+6. Check: the `helm list` above shows `X.Y.Z`; `make logs R=agent-runtime`.
+
+Roll back: set the previous version in `versions.yaml` and `make apply R=agent-runtime`, or right away `make rollback R=agent-runtime` (raw: `helm -n homelab rollback agent-runtime`). The step-by-step version is homelab-infra's DevOps guide, **Release an app** and **Roll back**.
 
 It is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in `devops/docker/Dockerfile`. Set any other Granian option the same way in your deployment, without rebuilding:
 
