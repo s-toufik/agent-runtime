@@ -71,9 +71,8 @@ from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolPro
 from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
 )
-from agent_runtime.adapter.outbound.tool.tool_port import ToolPort
-from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.port.outbound.tool_provider import ToolSource
 from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
 from agent_runtime.application.port.outbound.workflow_runner import WorkflowRunner
 from agent_runtime.application.step.act_step import ActStep
@@ -87,8 +86,11 @@ from agent_runtime.application.step.screen_step import ScreenStep
 from agent_runtime.application.step.step_handler import StepHandler
 from agent_runtime.application.step.summarize_step import SummarizeStep
 from agent_runtime.application.step.understand_step import UnderstandStep
+from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRefresher
+from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.application.use_case.list_models import ListModels
+from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
 from bootstrap.configuration.server_parameters import ServerParameters
 from bootstrap.di.base_di import BaseDI
@@ -143,26 +145,34 @@ class AgentDI(BaseDI):
         self.__dict__.pop("_mcp_session_factories", None)
 
     async def _toolbox(self) -> Toolbox:
-        tools: list[ToolPort] = []
-        for name, factory in self._mcp_session_factories.items():
-            tools.extend(await self._discover_tools(name, factory))
-        if not tools:
-            self._logging.warning("No MCP tools available: the agent will answer without tools")
-        return Toolbox(ToolRegistry(tools), self._logging)
+        refresher: ToolCatalogRefresher = self._tool_catalog_refresher
+        await refresher.refresh()
+        if not len(self._tool_registry):
+            self._logging.warning(
+                "No MCP tools available yet: the agent answers without tools until its MCP "
+                "servers are back"
+            )
+        return Toolbox(self._tool_registry, self._logging, on_unknown_tool=refresher.wake)
 
-    async def _discover_tools(
-        self, name: str, factory: StreamableHttpSessionFactory
-    ) -> list[ToolPort]:
-        try:
-            discovered: list[ToolPort] = await McpToolProvider(factory, required=False).tools()
-        except Exception as exception:
-            self._logging.warning(f"MCP server '{name}' unavailable, skipping it: {exception}")
-            return []
-        self._logging.info(
-            f"Discovered {len(discovered)} MCP tools from '{name}': "
-            f"{', '.join(tool.specification.name for tool in discovered)}"
+    @cached_property
+    def _tool_registry(self) -> ToolRegistry:
+        return ToolRegistry()
+
+    @cached_property
+    def _tool_catalog_refresher(self) -> ToolCatalogRefresher:
+        connectors: dict[str, McpConnector] = self._mcp_connectors
+        return ToolCatalogRefresher(
+            [
+                ToolSource(
+                    name,
+                    McpToolProvider(factory, required=False),
+                    refresh_policy(connectors.get(name)),
+                )
+                for name, factory in self._mcp_session_factories.items()
+            ],
+            self._tool_registry,
+            self._logging,
         )
-        return discovered
 
     @cached_property
     def _llm_transport_factory(self) -> ResilientTransportFactory:
@@ -319,3 +329,13 @@ class AgentDI(BaseDI):
         if screen:
             steps.append(ScreenStep(LangChainGuard(models, logger), logger))
         return steps
+
+
+def refresh_policy(connector: McpConnector | None) -> RefreshPolicy:
+    if connector is None:
+        return RefreshPolicy()
+    return RefreshPolicy(
+        interval=connector.refresh.interval,
+        retry_delay=connector.refresh.retry_delay,
+        max_retry_delay=connector.refresh.max_retry_delay,
+    )

@@ -7,3 +7,7 @@ connector:
     transport: streamable_http
     auth:
       type: none
+    refresh:
+      interval: ${oc.env:MCP_REFRESH_INTERVAL,60}
+      retry_delay: ${oc.env:MCP_RETRY_DELAY,5}
+      max_retry_delay: ${oc.env:MCP_MAX_RETRY_DELAY,60}

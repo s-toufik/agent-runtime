@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import suppress
 from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
@@ -64,11 +66,20 @@ class AgentContainer(AgentDI):
             self._logging,
             max_concurrent_streams=self._server_parameters.max_concurrent_streams,
         )
+        if "_refreshing_tools" not in self.__dict__:
+            self._refreshing_tools = asyncio.create_task(
+                self._tool_catalog_refresher.run(), name="mcp-tool-refresher"
+            )
         self._ready = True
         self.logging.info("Agent container booted")
 
     async def stop(self) -> None:
         self._ready = False
+        refreshing: asyncio.Task[None] | None = self.__dict__.pop("_refreshing_tools", None)
+        if refreshing is not None:
+            refreshing.cancel()
+            with suppress(asyncio.CancelledError):
+                await refreshing
         await self.close()
         self.logging.info("Agent container shut down")
 

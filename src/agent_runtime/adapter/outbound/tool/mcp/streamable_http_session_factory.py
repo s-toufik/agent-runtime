@@ -55,12 +55,12 @@ class StreamableHttpSessionFactory:
                     f"(attempt {attempt}/{self._max_attempts})"
                 )
                 return session
-            except Exception as exception:
-                await attempt_stack.aclose()
+            except BaseException as raised:
+                exception: Exception = await self._close_failed_attempt(attempt_stack, raised)
                 last_exception = exception
                 self._logger.warning(
                     f"MCP connection to {self._connector.base_url} failed "
-                    f"(attempt {attempt}/{self._max_attempts}): {exception}"
+                    f"(attempt {attempt}/{self._max_attempts}): {root_causes(exception)}"
                 )
                 if attempt < self._max_attempts:
                     await asyncio.sleep(delay)
@@ -70,6 +70,22 @@ class StreamableHttpSessionFactory:
             f"Could not reach the MCP server at {self._connector.base_url} "
             f"after {self._max_attempts} attempts"
         ) from last_exception
+
+    @staticmethod
+    async def _close_failed_attempt(
+        attempt_stack: AsyncExitStack, raised: BaseException
+    ) -> Exception:
+        # A transport that fails cancels its task group's scope, which surfaces here as a
+        # CancelledError; closing the attempt exits that scope and raises the real cause.
+        cause: Exception | None = raised if isinstance(raised, Exception) else None
+        try:
+            await attempt_stack.aclose()
+        except Exception as closing_error:
+            cause = cause or closing_error
+        task: asyncio.Task[Any] | None = asyncio.current_task()
+        if cause is None or (task is not None and task.cancelling()):
+            raise raised
+        return cause
 
     async def _connect(self, stack: AsyncExitStack) -> ClientSession:
         read, write = await self._open_transport(stack)
@@ -120,3 +136,9 @@ class StreamableHttpSessionFactory:
             return {}
         headers: dict[str, Any] = self._operation.parameters.get("headers") or {}
         return {key: str(value) for key, value in headers.items() if value}
+
+
+def root_causes(error: BaseException) -> str:
+    if isinstance(error, BaseExceptionGroup):
+        return "; ".join(root_causes(inner) for inner in error.exceptions)
+    return f"{type(error).__name__}: {error}"

@@ -3,9 +3,10 @@ from contextlib import AbstractAsyncContextManager
 
 from litestar import Litestar
 from litestar.di import Provide
+from litestar.plugins.opentelemetry import OpenTelemetryConfig, OpenTelemetryPlugin
 from litestar.routes import HTTPRoute
 from pycraftcore.logger.port import Logger
-from pycraftcore.web.actuator import Actuator
+from pycraftcore.web.actuator import ACTUATOR_PATH, Actuator
 from pycraftcore.web.schema import ApiSettings
 from pycraftcore.web_litestar import actuator_router, create_app, detail_handler
 
@@ -38,6 +39,13 @@ def create_litestar_api(
             "models": Provide(models, sync_to_thread=False),
         },
         on_startup=[_log_routes(logger)],
+        plugins=[_tracing()],
+    )
+
+
+def _tracing() -> OpenTelemetryPlugin:
+    return OpenTelemetryPlugin(
+        OpenTelemetryConfig(exclude=[ACTUATOR_PATH], exclude_spans=["receive", "send"])
     )
 
 

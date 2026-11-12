@@ -2,7 +2,7 @@ from mcp import ListToolsResult
 
 from agent_runtime.adapter.outbound.tool.mcp.mcp_session_factory import McpSessionFactory
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool import McpTool
-from agent_runtime.adapter.outbound.tool.tool_port import ToolPort
+from agent_runtime.application.port.outbound.tool_provider import ToolPort
 from agent_runtime.domain.exception.tool_unavailable_exception import ToolUnavailableException
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 

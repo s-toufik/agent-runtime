@@ -10,6 +10,7 @@ from pycraftcore.application_configuration.model.connector import (
     ConnectorRegistry,
     ConnectorTyping,
     McpConnector,
+    McpRefresh,
 )
 from pycraftcore.application_configuration.model.operation import OperationRegistry
 from pycraftcore.application_configuration.model.server import ServerRegistry
@@ -21,8 +22,9 @@ from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import St
 from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
-from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.tool.tool_registry import ToolRegistry
+from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
 from agent_runtime.domain.workflow.step import Step
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.di.agent_di import EXTERNAL_MCP_PREFIX, MCP_CONNECTOR_NAME, AgentDI
@@ -112,6 +114,17 @@ def test_mcp_session_factories_merges_in_every_external_mcp_prefixed_connector()
         f"{EXTERNAL_MCP_PREFIX}analytics",
         f"{EXTERNAL_MCP_PREFIX}billing",
     }
+
+
+def test_each_mcp_server_is_refreshed_at_the_pace_its_connector_sets() -> None:
+    toolbox = _connector("toolbox", "http://localhost:8001/mcp")
+    toolbox.refresh = McpRefresh(interval=120, retry_delay=2, max_retry_delay=30)
+    di = make_di_with_fake_config(**{MCP_CONNECTOR_NAME: toolbox})
+
+    [source] = di._tool_catalog_refresher._sources
+
+    assert source.name == "toolbox"
+    assert source.policy == RefreshPolicy(interval=120, retry_delay=2, max_retry_delay=30)
 
 
 async def test_close_mcp_session_factories_is_a_no_op_when_never_built() -> None:

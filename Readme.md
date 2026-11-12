@@ -47,7 +47,7 @@ make run
 | Version | `GET http://<host>:<port>/actuator/info` |
 | API documentation | `http://<host>:<port>/docs` (Swagger UI) and `/docs/openapi.json`, with `WEB_DOCS=true` |
 
-`/health/readiness` answers `503` until the agent has booted, then `200`. The boot log lists the tools found on each MCP server; a server that is down is skipped with a warning.
+`/health/readiness` answers `503` until the agent has booted, then `200`; it doesn't wait for the MCP servers. The boot log lists the tools found on each MCP server. A server that is down at boot, or goes down later, is retried in the background (after 5 s, then 10, 20, 40, and every 60 s), and its tools join as soon as it answers, with no restart. Servers that work are re-read every 60 s, so new tools of a new toolbox appear within a minute; a model that asks for a tool the agent doesn't know makes it re-read at once. Each server has its own loop and its own numbers: the `refresh` block of its connector in `config/<APP_ENV>/connector/mcp.yml` (`interval`, `retry_delay`, `max_retry_delay`), which `MCP_REFRESH_INTERVAL`, `MCP_RETRY_DELAY` and `MCP_MAX_RETRY_DELAY` override. Leave a variable unset rather than empty, or the configuration fails to load.
 
 With Docker, `make docker_build` builds the image (see [Deploying](#deploying)).
 
@@ -198,6 +198,23 @@ One format for every line; the third column is the request id (the conversation 
 
 Every message ends with a `turn finished` line (outcome, steps, duration), or a `turn cancelled after …` warning when the client left first. With `OTEL_HOST` set, the same lines also go to the OpenTelemetry collector, with `request_id` as an attribute.
 
+### Traces
+
+With `OTEL_HOST` set, each message is one trace:
+
+```text
+POST /v1/stream                      the request, until the stream ends (continues the caller's traceparent)
+├─ agent understand                  one span per step, with agent.step and agent.steps_taken
+│  └─ http.request                   the model call
+├─ agent plan …
+├─ agent run_tools
+│  └─ MCP send tools/call <tool>     the tool call; the MCP SDK passes the trace in the request's _meta
+│     └─ tools/call <tool>           the toolbox's span, in the same trace
+└─ agent finish …
+```
+
+Health checks (`/actuator`) are not traced. Log lines written during a span carry its `trace_id`, so a log line leads to its trace.
+
 ---
 
 ## Developers
@@ -228,10 +245,10 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | Path | What it holds |
 |---|---|
 | `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
-| `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `WorkflowRunner`…) |
+| `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), `tool/` (`ToolRegistry`, `ToolCatalogRefresher`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `ToolProviderPort`, `WorkflowRunner`…) |
 | `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter`: one stream per request, whatever web framework serves it |
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, the prompts, `ModelCatalog` |
-| `src/agent_runtime/adapter/outbound/tool/` | MCP discovery and calls (`Toolbox`) |
+| `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (MCP sessions, discovery and calls) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
 | `src/bootstrap/` | Settings, `AgentDI` (wiring only), the container, and `create_agent_application`, which Granian calls |
 | `src/bootstrap/application/litestar/` | The API: `router/` (routes), `schema/` (request and response bodies, msgspec), `litestar_api.py` (the app, built with `pycraftcore.web_litestar`) |
@@ -325,22 +342,24 @@ On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm
 #### Git flow: what each branch and tag publishes
 
 ```text
- feature/…  ──PR──►  develop  ──PR──►  main  ──tag vX.Y.Z──►  a release
-                        │                 │                        │
-                        ▼                 ▼                        ▼
-                  image :dev        image :latest       image toufik142/agent-runtime:X.Y.Z
-                  (never deployed)  (never deployed)    chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
-                                                        deployed once homelab-infra's versions.yaml says X.Y.Z
+ feature/…  ──PR──►  develop  ──PR──►  main
+                        │                  │
+                        └─ tag             └─ tag vX.Y.Z               a release
+                           vX.Y.Z-rc.N        image toufik142/agent-runtime:X.Y.Z and :latest
+                           image :X.Y.Z-rc.N  chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+                           and :dev           deployed once homelab-infra's versions.yaml says X.Y.Z
+                           (never deployed)
 ```
 
 | Event | CI ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) | Publishes | On the homelab |
 |---|---|---|---|
 | Pull request to `develop` or `main` | LINT, TYPECHECK, TEST, BUILD | nothing | nothing changes |
-| Push to `develop` | the same + PUBLISH | image `:dev`, `:dev-<sha>` | nothing changes |
-| Push to `main` | the same + PUBLISH | image `:latest`, `:latest-<sha>` | nothing changes |
-| Tag `vX.Y.Z` | the same + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-runtime:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
+| Push to `develop` or `main` | the same | nothing | nothing changes |
+| Tag `vX.Y.Z-rc.N` on a commit only on `develop` | the same + RELEASE TARGET + PUBLISH | image `:X.Y.Z-rc.N` and `:dev` | nothing changes |
+| Tag `vX.Y.Z` on a commit of `main` | the same + RELEASE TARGET + PUBLISH + CHART | image `:X.Y.Z` and `:latest`, chart `agent-runtime:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
 
-Only tags reach the homelab. The `dev` and `latest` images are for trying a build by hand; the server never pulls them.
+- Only tags publish: `:dev` is the last pre-release, `:latest` the last release. Only tags on `main` reach the homelab; to try a pre-release there, homelab-infra's Q&A, *How do I deploy a dev image of the agent?*
+- RELEASE TARGET finds the branch the tag is on, the same job in every repository with this pipeline (pycraftcore and homelab-ui too). A commit on both branches counts as `main`. It refuses a tag on neither branch, a pre-release on `main` and a final version only on `develop`, and then nothing is published.
 
 #### What is deployed
 
