@@ -2,6 +2,12 @@
 
 An agent served over HTTP. You send it a message; it answers straight away when it can, proposes a plan when the request needs tools, runs the tools once you approve, checks its own answer, and streams the reply back as server-sent events.
 
+<p align="center">
+  <img src="docs/agent-runtime-harness.svg" alt="agent-runtime as a harnessed LLM agent: the harness (routing table, guard, plan approval, review and retry, step limit, summarizing, a span per step) around models, memory and protocols, and the route of one turn" width="900">
+</p>
+
+The model only answers. Everything around it is the harness: a routing table picks each step, a guard screens plans, you approve them, a reviewer checks the answer, a step limit pauses long runs, and every step is traced. It runs on six model roles, keeps a memory per conversation, and talks SSE to you, MCP to its tools and OTLP to the platform. The [Logic](#logic) section explains each part.
+
 | Section | For whom | What's in it |
 |---|---|---|
 | **[Users](#users)** | You run it or call it | Run, call, read the reply, configure, logs |
