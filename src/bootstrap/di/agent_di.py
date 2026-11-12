@@ -97,7 +97,6 @@ from bootstrap.di.base_di import BaseDI
 
 MCP_CONNECTOR_NAME: str = "toolbox"
 EXTERNAL_MCP_PREFIX: str = "external_mcp_"
-LLM_CONNECTOR_NAME: str = "llm"
 MONGODB_CONNECTOR_NAME: str = "mongodb_checkpointer"
 SQLITE_CHECKPOINTER: str = "sqlite_checkpointer"
 
@@ -137,7 +136,7 @@ class AgentDI(BaseDI):
 
     async def close(self) -> None:
         await self._stop_factories()
-        await self._close_llm_http_client()
+        await self._close_llm_http_clients()
         await self._close_mcp_session_factories()
         await self._shutdown_telemetry()
 
@@ -175,9 +174,25 @@ class AgentDI(BaseDI):
         )
 
     @cached_property
-    def _llm_transport_factory(self) -> ResilientTransportFactory:
-        connector: ApiConnector = self._configuration.connector.api(LLM_CONNECTOR_NAME)
+    def _llm_connectors(self) -> dict[str, ApiConnector]:
+        declared: dict[str, ApiConnector] = {
+            operation.connector.name: operation.connector
+            for operation in self._configuration.operation.by_name.values()
+            if isinstance(operation, ApiOperation)
+        }
+        for name, connector in declared.items():
+            if not connector.base_url.strip():
+                self._logging.info(f"Model provider '{name}' has no URL: its models are left out")
+        return {name: c for name, c in declared.items() if c.base_url.strip()}
 
+    @cached_property
+    def _llm_http_clients(self) -> dict[str, AsyncClient]:
+        return {
+            name: self._llm_transport_factory(connector).create_async_client()
+            for name, connector in self._llm_connectors.items()
+        }
+
+    def _llm_transport_factory(self, connector: ApiConnector) -> ResilientTransportFactory:
         http_settings = HttpClientSettings(limits=LimitsSettings(timeout=connector.timeout))
         http_settings.client_params.base_url = connector.base_url
         http_settings.security.certificate = connector.certificate
@@ -195,23 +210,19 @@ class AgentDI(BaseDI):
                 failure_threshold=3,
                 recovery_timeout=30,
                 is_excluded=is_business_error,
-                name="llm-gateway",
+                name=f"llm-{connector.name}",
             ),
         )
 
         return ResilientTransportFactory(
             settings=settings,
-            trace_manager=self._telemetry_provider.tracer("llm-gateway"),
+            trace_manager=self._telemetry_provider.tracer(f"llm-{connector.name}"),
             logger=self._logging,
         )
 
-    @cached_property
-    def _llm_http_client(self) -> AsyncClient:
-        return self._llm_transport_factory.create_async_client()
-
-    async def _close_llm_http_client(self) -> None:
-        client = self.__dict__.pop("_llm_http_client", None)
-        if client is not None:
+    async def _close_llm_http_clients(self) -> None:
+        clients: dict[str, AsyncClient] = self.__dict__.pop("_llm_http_clients", {})
+        for client in clients.values():
             await client.aclose()
 
     @cached_property
@@ -221,21 +232,34 @@ class AgentDI(BaseDI):
         for name, operation in self._configuration.operation.by_name.items():
             if name in roles or not isinstance(operation, ApiOperation):
                 continue
+            if operation.connector.name not in self._llm_connectors:
+                continue
             connector, parameters = ModelSettingsMapper(operation)()
+            if parameters.model_name in models:
+                self._logging.warning(
+                    f"Model '{parameters.model_name}' is declared twice; keeping the one of "
+                    f"'{models[parameters.model_name][0].name}'"
+                )
+                continue
             models[parameters.model_name] = (connector, parameters)
-        return ModelCatalog(models=models, roles=self._frozen_roles())
+        if not models:
+            self._logging.warning("No model provider has a URL: the agent has no model to use")
+        return ModelCatalog(models=models, roles=self._frozen_roles(models))
 
-    def _frozen_roles(self) -> dict[AgentRole, ModelSettings]:
+    def _frozen_roles(self, models: Mapping[str, ModelSettings]) -> dict[AgentRole, ModelSettings]:
         frozen: dict[AgentRole, ModelSettings] = {}
         for role in AgentRole:
             operation = self._configuration.operation.by_name.get(role.value)
-            if isinstance(operation, ApiOperation) and operation.parameters.get("model"):
-                frozen[role] = ModelSettingsMapper(operation)()
+            if not isinstance(operation, ApiOperation) or not operation.parameters.get("model"):
+                continue
+            connector, parameters = ModelSettingsMapper(operation)()
+            served = models.get(parameters.model_name)
+            frozen[role] = (served[0] if served else connector, parameters)
         return frozen
 
     @cached_property
     def _chat_models(self) -> ChatModels:
-        return ChatModels(self._model_catalog, self._llm_http_client)
+        return ChatModels(self._model_catalog, self._llm_http_clients)
 
     def _database_connector(self, connector_name: str) -> DatabaseConnector:
         return self._configuration.connector.database(connector_name)

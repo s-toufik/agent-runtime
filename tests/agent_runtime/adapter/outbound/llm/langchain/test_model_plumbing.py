@@ -85,6 +85,30 @@ def test_chat_clients_are_built_once_per_model() -> None:
     assert models.for_role(AgentRole.CONTEXT, "big").model_name == "small"  # ty: ignore[unresolved-attribute]
 
 
+async def test_each_model_is_called_through_its_own_provider_s_client() -> None:
+    homelab = CONNECTOR.model_copy(update={"name": "homelab"})
+    nvidia = ModelConnector(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=SecretStr("k"),
+        timeout_seconds=60,
+        name="nvidia_nim",
+    )
+    catalog = ModelCatalog(
+        models={"local": (homelab, _parameters("local")), "remote": (nvidia, _parameters("remote"))}
+    )
+    clients = {"homelab": httpx.AsyncClient(), "nvidia_nim": httpx.AsyncClient()}
+    models = ChatModels(catalog, clients)
+
+    local = models.for_role(AgentRole.ACT, "local")
+    remote = models.for_role(AgentRole.ACT, "remote")
+
+    assert local.http_async_client is clients["homelab"]  # ty: ignore[missing-attribute]
+    assert remote.http_async_client is clients["nvidia_nim"]  # ty: ignore[missing-attribute]
+    assert str(remote.openai_api_base) == "https://integrate.api.nvidia.com/v1"  # ty: ignore[missing-attribute]
+    for client in clients.values():
+        await client.aclose()
+
+
 class _Unavailable(ModelError):
     is_retryable = True
 

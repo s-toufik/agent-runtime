@@ -35,7 +35,7 @@ The model only answers. Everything around it is the harness: a routing table pic
 You need:
 
 - Python 3.14 and [uv](https://docs.astral.sh/uv/)
-- an OpenAI-compatible model server
+- one or two OpenAI-compatible model servers: the homelab's llama.cpp, NVIDIA's API, or both
 - optionally, an MCP server for tools (the agent starts without one)
 - optionally, MongoDB for conversations (a local SQLite file is used when MongoDB is unreachable)
 
@@ -136,7 +136,8 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 | `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/stream`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
 | `WEB_DOCS` | `false` | `true` serves the API documentation at `<base path>/docs` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review arrive as `token` events, then `final`. `whole`: only `final` |
-| `LLM_BASE_URL`, `LLM_API_KEY` | required | The model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
+| `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
+| `NVIDIA_LLM_BASE_URL`, `NVIDIA_LLM_API_KEY` | one provider required | NVIDIA's API, `https://integrate.api.nvidia.com/v1`, and its `nvapi-…` key |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
 | `DB_MONGO_CHECKPOINT_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | required | Conversation storage in MongoDB |
 | `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name) |
@@ -150,7 +151,7 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 
 | File | What you set there |
 |---|---|
-| `connector/api.yml` | The model server; `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
+| `connector/api.yml` | The model providers, `homelab_llm_provider` and `nvidia_llm_provider`; per provider, `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
 | `connector/mcp.yml` | The MCP servers |
 | `connector/database.yml` | MongoDB, SQLite, and how long conversations are kept |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
@@ -170,12 +171,16 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 | `max_reflection_retries` | How many times a rejected answer is rewritten                                                            | `2`                |
 | `reasoning_effort`       | `null`: no thinking. `low` / `medium` / `high`: think first (slower, needs a larger `max_output_tokens`) | `null`             |
 
-To add a model: add its entry, list it under `operation:` in `config/root.yml`, and restart. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
+**Two providers.** Each model's entry names its provider with `connector:` (`${connector.homelab_llm_provider}` or `${connector.nvidia_llm_provider}`), and is called on that provider's URL, with its key.
+- Each provider has its own HTTP client, retries and circuit breaker (`llm-homelab`, `llm-nvidia_nim`): NVIDIA failing never blocks the homelab's models, and the other way round.
+- A provider whose URL is empty is left out with its models, and the boot log says so. Two models with the same `model` name: the first one listed is kept, with a warning.
+
+To add a model: add its entry with its provider, list it under `operation:` in `config/root.yml`, and restart. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
 
 **Model per step** (`operation/agent.yml`): each step that calls a model has an entry named after its role. Today: `agent_context` (understand), `agent_plan`, `agent_act`, `agent_reflection` (review), `agent_guard` (screen) and `agent_summary`.
 
 - `parameters.model: null`: the step uses the model named in the request.
-- `parameters.model: <name>`: the step always uses that model. When `agent_act` is fixed, its entry also sets the step budget (`max_iterations`, `max_reflection_retries`, `max_context_tokens`).
+- `parameters.model: <name>`: the step always uses that model, on that model's provider (the entry's own `connector:` is used only for a model no provider lists). When `agent_act` is fixed, its entry also sets the step budget (`max_iterations`, `max_reflection_retries`, `max_context_tokens`).
 
 **More MCP servers:** add a connector whose name starts with `external_mcp_` in `connector/mcp.yml`, list it under `mcp:` in `config/root.yml`, and restart. Its tools join the same catalogue:
 
@@ -343,7 +348,7 @@ It checks several kinds of behaviour (today: tool selection, security, guardrail
 
 `make docker_build` builds `agent:local`. The image listens on port 8000, reads its configuration from `/app/config`, and takes the [environment variables](#configure-it) above.
 
-On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). homelab-infra adds only this server's choices, in `apps/agent-runtime/values.yaml.gotmpl` (its LLM provider, from `environments/default.yaml`).
+On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm/values.yml) is how it runs there (env variables, Secrets it reads, port, probes, volumes). homelab-infra adds only this server's choices, in `apps/agent-runtime/values.yaml.gotmpl` (the address of its own LLM, `HOMELAB_LLM_BASE_URL`).
 
 #### Git flow: what each branch and tag publishes
 

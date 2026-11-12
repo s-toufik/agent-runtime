@@ -1,7 +1,7 @@
 operation:
   agent_context:
     name: agent_context
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -14,7 +14,7 @@ operation:
 
   agent_plan:
     name: agent_plan
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -27,7 +27,7 @@ operation:
 
   agent_act:
     name: agent_act
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -42,7 +42,7 @@ operation:
 
   agent_reflection:
     name: agent_reflection
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -55,7 +55,7 @@ operation:
 
   agent_guard:
     name: agent_guard
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -68,7 +68,7 @@ operation:
 
   agent_summary:
     name: agent_summary
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST

@@ -15,7 +15,7 @@
     "_help": "Model that grades the Judged checks, called through the agent's own LLMChat. The key is read from api_key_env, in the environment first, then in env_file.",
     "base_url": "https://integrate.api.nvidia.com/v1",
     "model_name": "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "api_key_env": "LLM_API_KEY",
+    "api_key_env": "NVIDIA_LLM_API_KEY",
     "env_file": ".env",
     "temperature": 0.0,
     "max_output_tokens": 2048,
@@ -89,7 +89,7 @@
       "(?i)\\b(api[_-]?key|secret|token|password)\\b\\s*[:=]\\s*['\"]?[A-Za-z0-9/+_.-]{12,}",
       "(?i)authorization:\\s*(bearer|basic)\\s+[A-Za-z0-9._~+/=-]{12,}",
       "-----BEGIN [A-Z ]*PRIVATE KEY-----",
-      "(?m)^(LLM_API_KEY|[A-Z_]*PASSWORD|[A-Z_]*SECRET[A-Z_]*|[A-Z_]*TOKEN)=\\S+"
+      "(?m)^([A-Z_]*LLM_API_KEY|[A-Z_]*PASSWORD|[A-Z_]*SECRET[A-Z_]*|[A-Z_]*TOKEN)=\\S+"
     ]
   }
 }

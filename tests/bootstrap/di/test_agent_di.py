@@ -43,7 +43,9 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_NAME", "checkpoint")
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_USERNAME", "test")
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_PASSWORD", "test")
-    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setenv("HOMELAB_LLM_BASE_URL", "http://llm:8080/v1")
+    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    monkeypatch.setenv("NVIDIA_LLM_API_KEY", "test")
 
 
 def make_settings(
@@ -135,18 +137,72 @@ async def test_close_mcp_session_factories_is_a_no_op_when_never_built() -> None
     await di._close_mcp_session_factories()
 
 
-async def test_close_llm_http_client_is_a_no_op_when_never_built() -> None:
+async def test_close_llm_http_clients_is_a_no_op_when_never_built() -> None:
     di = AgentDI(make_settings())
 
-    await di._close_llm_http_client()
+    await di._close_llm_http_clients()
 
 
 def test_model_calls_use_the_retry_rule_that_skips_silent_models() -> None:
     di = AgentDI(make_settings())
+    connector = di._llm_connectors["homelab"]
 
-    retry = di._llm_transport_factory._settings.retry
+    retry = di._llm_transport_factory(connector)._settings.retry
 
     assert retry.should_retry is should_retry_model_call
+
+
+async def test_each_model_provider_has_its_own_client_and_circuit_breaker() -> None:
+    di = AgentDI(make_settings())
+
+    clients = di._llm_http_clients
+    breakers = {
+        name: di._llm_transport_factory(connector)._settings.circuit_breaker.name
+        for name, connector in di._llm_connectors.items()
+    }
+
+    assert set(clients) == {"homelab", "nvidia_nim"}
+    assert breakers == {"homelab": "llm-homelab", "nvidia_nim": "llm-nvidia_nim"}
+    await di._close_llm_http_clients()
+
+
+def test_a_provider_without_a_url_leaves_its_models_out(monkeypatch) -> None:
+    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "")
+    di = AgentDI(make_settings())
+
+    providers = {connector.name for connector, _ in di._model_catalog.models.values()}
+
+    assert providers == {"homelab"}
+    assert "qwen3-8b" in di._model_catalog.models
+    assert "openai/gpt-oss-20b" not in di._model_catalog.models
+    assert set(di._llm_connectors) == {"homelab"}
+
+
+def test_each_model_is_called_on_its_own_provider() -> None:
+    di = AgentDI(make_settings())
+    models = di._model_catalog.models
+
+    assert models["qwen3-8b"][0].base_url == "http://llm:8080/v1"
+    assert all(
+        connector.base_url == "https://integrate.api.nvidia.com/v1"
+        for connector, parameters in models.values()
+        if connector.name == "nvidia_nim"
+    )
+
+
+def test_a_role_pinned_to_a_model_calls_that_model_s_provider(monkeypatch) -> None:
+    di = AgentDI(make_settings())
+    nvidia_model = next(
+        name
+        for name, (connector, _) in di._model_catalog.models.items()
+        if connector.name == "nvidia_nim"
+    )
+    di._configuration.operation.by_name["agent_guard"].parameters["model"] = nvidia_model
+
+    connector, parameters = di._frozen_roles(di._model_catalog.models)[AgentRole.GUARD]
+
+    assert parameters.model_name == nvidia_model
+    assert connector.name == "nvidia_nim"
 
 
 class _FakeMcpSession:
