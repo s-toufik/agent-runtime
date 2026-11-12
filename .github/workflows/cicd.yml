@@ -5,7 +5,8 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
-    # A release: image toufik142/agent-runtime:X.Y.Z and chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+    # A tag on main (vX.Y.Z): image toufik142/agent-runtime:X.Y.Z and chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+    # A tag on develop (vX.Y.Z-rc.N): image toufik142/agent-runtime:X.Y.Z-rc.N only, never deployed
     tags: ['v*.*.*']
 
 jobs:
@@ -128,11 +129,48 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  release:
+    name: 🏷️ RELEASE TARGET
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    outputs:
+      channel: ${{ steps.target.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find the branch the tag is on
+        id: target
+        run: |
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/develop:refs/remotes/origin/develop
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            channel=release
+          elif git merge-base --is-ancestor "$GITHUB_SHA" origin/develop; then
+            channel=prerelease
+          else
+            echo "::error::$GITHUB_REF_NAME is on neither main nor develop: nothing is published"
+            exit 1
+          fi
+          final='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          if [ "$channel" = release ] && ! [[ "$GITHUB_REF_NAME" =~ $final ]]; then
+            echo "::error::$GITHUB_REF_NAME is on main: a release is vX.Y.Z"
+            exit 1
+          fi
+          if [ "$channel" = prerelease ] && [[ "$GITHUB_REF_NAME" =~ $final ]]; then
+            echo "::error::$GITHUB_REF_NAME is only on develop: a pre-release is vX.Y.Z-rc.N"
+            exit 1
+          fi
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "::notice::$GITHUB_REF_NAME is a $channel"
+
   publish:
     name: 🚀 PUBLISH
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
+    needs: [build, release]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.build.result == 'success' && needs.release.result != 'failure' }}
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -169,8 +207,8 @@ jobs:
 
   chart:
     name: 📦 CHART
-    needs: publish
-    if: github.ref_type == 'tag'
+    needs: [publish, release]
+    if: needs.release.outputs.channel == 'release'
     uses: s-toufik/kube-charts/.github/workflows/app-chart.yml@main
     permissions:
       contents: read

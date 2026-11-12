@@ -1,6 +1,10 @@
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from tests.support.tracing import install_recording_provider
 
 
 class FakeLogger:
@@ -71,9 +75,17 @@ def _null_telemetry(monkeypatch):
 
 
 @pytest.fixture(autouse=True, scope="session")
-def _isolate_global_tracer_provider():
+def _isolate_global_tracer_provider() -> Iterator[InMemorySpanExporter]:
     import opentelemetry.trace as otel_trace
 
+    exporter = install_recording_provider()
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(otel_trace, "set_tracer_provider", lambda provider: None)
-        yield
+        yield exporter
+
+
+@pytest.fixture
+def spans(_isolate_global_tracer_provider: InMemorySpanExporter) -> Iterator[InMemorySpanExporter]:
+    _isolate_global_tracer_provider.clear()
+    yield _isolate_global_tracer_provider
+    _isolate_global_tracer_provider.clear()

@@ -1,5 +1,5 @@
-from agent_runtime.adapter.outbound.tool.tool_registry import ToolRegistry
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
@@ -46,3 +46,14 @@ async def test_a_tool_that_raises_is_a_failed_result(logger) -> None:
     assert result.error == "boom"
     assert result.content == "Error: boom"
     assert logger.messages("error")
+
+
+async def test_an_unknown_tool_asks_for_the_catalog_to_be_refreshed(logger) -> None:
+    asked: list[bool] = []
+    toolbox = Toolbox(
+        ToolRegistry([EchoTool()]), logger, on_unknown_tool=lambda: asked.append(True)
+    )
+
+    await toolbox.run(ToolCall("1", "missing"))
+
+    assert asked == [True]

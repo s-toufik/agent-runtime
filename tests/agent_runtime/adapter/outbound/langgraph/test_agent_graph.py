@@ -69,6 +69,16 @@ async def test_a_node_announces_its_step_before_running_it() -> None:
     ]
 
 
+async def test_a_node_runs_its_step_in_a_span_of_its_own(spans) -> None:
+    await ActNode(RecordingHandler(Step.ACT), CODEC, RecordingEvents())(
+        CODEC.encode(Conversation("c1"), Turn("hi", "m"))
+    )
+
+    [span] = spans.get_finished_spans()
+    assert span.name == "agent act"
+    assert span.attributes == {"agent.step": "act", "agent.steps_taken": 0}
+
+
 def _policy_steps(policy: TurnPolicy) -> set[Step]:
     return {step for t in policy.TRANSITIONS for step in (t.source, t.target)} - {Step.END}
 

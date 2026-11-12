@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-runtime"
-version = "1.0.0"
+version = "1.0.1"
 authors = [
     { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
 ]
@@ -44,6 +44,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite",
     "pymongo>=4.9,<4.18",
     "langgraph-checkpoint-mongodb",
+    "opentelemetry-instrumentation-asgi>=0.66b2",
 ]
 
 [project.scripts]

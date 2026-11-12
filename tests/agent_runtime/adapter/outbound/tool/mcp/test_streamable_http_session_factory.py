@@ -1,5 +1,8 @@
+import asyncio
+import socket
 from typing import Literal
 
+import pytest
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import McpConnector
 from pycraftcore.authentication.model.basic_auth import BasicAuth
@@ -9,6 +12,7 @@ from pycraftcore.authentication.model.token_auth import TokenAuth
 from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
 )
+from agent_runtime.domain.exception.tool_unavailable_exception import ToolUnavailableException
 
 
 def make_connector(
@@ -69,3 +73,43 @@ def test_headers_for_no_auth_are_empty() -> None:
     factory = fast_factory(connector=make_connector(auth=NoAuth()))
 
     assert factory._headers() == {}
+
+
+def _unreachable_connector() -> McpConnector:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    return McpConnector(
+        name="toolbox",
+        type=ConnectorType.mcp,
+        auth=NoAuth(),
+        base_url=f"http://127.0.0.1:{port}/mcp",
+        timeout=5,
+        transport="streamable_http",
+    )
+
+
+async def test_an_unreachable_server_is_a_clean_failure_not_a_cancelled_task() -> None:
+    factory = fast_factory(connector=_unreachable_connector(), max_attempts=2)
+
+    with pytest.raises(ToolUnavailableException):
+        async with factory.session():
+            pass
+
+    current = asyncio.current_task()
+    assert current is not None and current.cancelling() == 0
+
+
+async def test_a_cancel_from_outside_still_cancels_the_connection() -> None:
+    factory = fast_factory(connector=_unreachable_connector(), max_attempts=50)
+
+    async def connect() -> None:
+        async with factory.session():
+            pass
+
+    task = asyncio.create_task(connect())
+    await asyncio.sleep(0.05)
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task

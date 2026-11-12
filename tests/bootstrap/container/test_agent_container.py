@@ -1,6 +1,7 @@
 import asyncio
 import socket
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -49,15 +50,14 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest.fixture
-async def running_toolbox() -> AsyncIterator[str]:
+@asynccontextmanager
+async def serving_toolbox(port: int) -> AsyncIterator[str]:
     server = build_mcp_server(name="toolbox", version="1.0.0")
 
     @server.tool(name="echo", description="Echoes.")
     async def echo(text: str) -> str:
         return text
 
-    port = _free_port()
     base_url = f"http://127.0.0.1:{port}/mcp"
     connector = McpConnector(
         name="self",
@@ -78,6 +78,12 @@ async def running_toolbox() -> AsyncIterator[str]:
     finally:
         uv_server.should_exit = True
         await serve_task
+
+
+@pytest.fixture
+async def running_toolbox() -> AsyncIterator[str]:
+    async with serving_toolbox(_free_port()) as base_url:
+        yield base_url
 
 
 def test_is_not_ready_before_boot() -> None:
@@ -130,4 +136,24 @@ async def test_stop_after_boot_does_not_raise(running_toolbox, monkeypatch) -> N
     container = AgentContainer(make_settings())
     await container.boot()
 
+    await container.stop()
+
+
+async def test_a_toolbox_that_starts_after_the_agent_gives_it_its_tools_without_a_restart(
+    monkeypatch,
+) -> None:
+    port = _free_port()
+    monkeypatch.setenv("TOOLBOX_URL", f"http://127.0.0.1:{port}/mcp")
+    container = AgentContainer(make_settings())
+    await container.boot()
+    assert container.is_ready is True
+    assert container._tool_registry.specifications() == []
+
+    async with serving_toolbox(port):
+        container._tool_catalog_refresher.wake()
+        async with asyncio.timeout(15):
+            while not container._tool_registry.specifications():
+                await asyncio.sleep(0.05)
+
+    assert [spec.name for spec in container._tool_registry.specifications()] == ["echo"]
     await container.stop()

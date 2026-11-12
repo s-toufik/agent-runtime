@@ -1,5 +1,7 @@
 from typing import ClassVar
 
+from opentelemetry import trace
+
 from agent_runtime.adapter.outbound.langgraph.state.graph_state import GraphState
 from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
 from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
@@ -8,6 +10,8 @@ from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.workflow.step import Step
+
+_tracer = trace.get_tracer("agent-runtime.workflow")
 
 
 class AgentNode:
@@ -28,8 +32,11 @@ class AgentNode:
 
     async def __call__(self, state: GraphState) -> GraphState:
         conversation, turn = self._codec.decode(state)
-        await self._events.publish(TurnEvent.entering(self.step, turn))
-        await self.work(conversation, turn)
+        with _tracer.start_as_current_span(f"agent {self.name}") as span:
+            span.set_attribute("agent.step", self.name)
+            span.set_attribute("agent.steps_taken", turn.steps_taken)
+            await self._events.publish(TurnEvent.entering(self.step, turn))
+            await self.work(conversation, turn)
         return self._codec.encode(conversation, turn)
 
     async def work(self, conversation: Conversation, turn: Turn) -> None:
