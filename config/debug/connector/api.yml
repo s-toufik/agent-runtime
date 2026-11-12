@@ -1,14 +1,25 @@
 connector:
-  llm_provider:
-    name: llm_provider
+  nvidia_llm_provider:
+    name: nvidia_nim
     type: api
-    base_url: ${oc.env:LLM_BASE_URL}
+    base_url: ${oc.env:NVIDIA_LLM_BASE_URL,''}
     timeout: 120
     retry: 3
     auth:
       type: token
       key_name: apikey
-      key_value: ${oc.env:LLM_API_KEY}
+      key_value: ${oc.env:NVIDIA_LLM_API_KEY,''}
+
+  homelab_llm_provider:
+    name: homelab
+    type: api
+    base_url: ${oc.env:HOMELAB_LLM_BASE_URL,''}
+    timeout: 120
+    retry: 3
+    auth:
+      type: token
+      key_name: apikey
+      key_value: ${oc.env:HOMELAB_LLM_API_KEY,''}
 
 
 

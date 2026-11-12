@@ -58,7 +58,7 @@ class AgentContainer(AgentDI):
         )
 
     async def boot(self) -> None:
-        _ = self._llm_transport_factory
+        _ = self._llm_http_clients
         await self._start_factories()
         self._stream_agent_controller = StreamAgentController(
             await self._handle_message(),

@@ -9,7 +9,8 @@ application_configuration:
 
   connector:
     api:
-      llm: ${connector.llm_provider}
+      nvidia_llm: ${connector.nvidia_llm_provider}
+      homelab_llm: ${connector.homelab_llm_provider}
     database:
       mongodb_checkpointer: ${connector.mongodb_checkpointer}
       sqlite_checkpointer: ${connector.sqlite_checkpointer}

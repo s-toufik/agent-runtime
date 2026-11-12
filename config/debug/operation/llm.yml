@@ -1,7 +1,7 @@
 operation:
   qwen3-8b:
     name: qwen3-8b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -15,7 +15,7 @@ operation:
 
   qwen3_5-0_8b:
     name: qwen3_5-0_8b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -29,7 +29,7 @@ operation:
 
   qwen3-1_7b:
     name: qwen3-1_7b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -43,7 +43,7 @@ operation:
 
   qwen3_5-2b:
     name: qwen3_5-2b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -57,7 +57,7 @@ operation:
 
   lfm2-8b-a1b:
     name: lfm2-8b-a1b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -71,7 +71,7 @@ operation:
 
   ministral-8b-instruct-2410:
     name: ministral-8b-instruct-2410
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -85,7 +85,7 @@ operation:
 
   gigachat3_1-10b-a1_8b:
     name: gigachat3_1-10b-a1_8b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -99,7 +99,7 @@ operation:
 
   qwen3-14b:
     name: qwen3-14b
-    connector: ${connector.llm_provider}
+    connector: ${connector.homelab_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -113,7 +113,7 @@ operation:
   # ------------------------------------------- NVIDIA Models
   nemotron-3_5-super-vl-120b-a12b:
     name: nemotron-3_5-super-vl-120b-a12b
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -128,7 +128,7 @@ operation:
 
   gpt-oss-20b:
     name: gpt-oss-20b
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -143,7 +143,7 @@ operation:
 
   deepseek-v4_1-flash:
     name: deepseek-v4_1-flash
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -158,7 +158,7 @@ operation:
 
   nemotron-3-ultra-550b-a55b:
     name: nemotron-3-ultra-550b-a55b
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -173,7 +173,7 @@ operation:
 
   nemotron-3_5-lightning-30b-a3b:
     name: nemotron-3_5-lightning-30b-a3b
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST
@@ -188,7 +188,7 @@ operation:
 
   nemotron-3-nano-omni-30b-a3b-reasoning:
     name: nemotron-3-nano-omni-30b-a3b-reasoning
-    connector: ${connector.llm_provider}
+    connector: ${connector.nvidia_llm_provider}
     type: api
     endpoint: /chat/completions
     method: POST

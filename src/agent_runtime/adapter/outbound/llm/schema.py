@@ -7,6 +7,7 @@ class ModelConnector(BaseModel):
     base_url: str
     api_key: SecretStr | None
     timeout_seconds: float
+    name: str = "llm"
 
 
 class ModelParameters(BaseModel):

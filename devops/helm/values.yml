@@ -12,7 +12,7 @@ env:
   OTEL_HOST: otel-collector
   OTEL_PORT: "4317"
   TOOLBOX_URL: http://agent-toolbox:8001/mcp
-  LLM_BASE_URL: https://integrate.api.nvidia.com/v1
+  NVIDIA_LLM_BASE_URL: https://integrate.api.nvidia.com/v1
   WEB_DOCS: "true"
   AGENT_ANSWER_DELIVERY: stream
   MAX_CONCURRENT_STREAMS: "200"
@@ -24,7 +24,7 @@ env:
   DB_SQLITE_CHECKPOINT_NAME: checkpoint
 
 secretEnv:
-  LLM_API_KEY: { secret: agent-runtime, key: llm-api-key }
+  NVIDIA_LLM_API_KEY: { secret: agent-runtime, key: llm-api-key }
   DB_MONGO_CHECKPOINT_USERNAME: { secret: mongodb, key: username }
   DB_MONGO_CHECKPOINT_PASSWORD: { secret: mongodb, key: password }
 

@@ -33,7 +33,9 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_NAME", "checkpoint")
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_USERNAME", "test")
     monkeypatch.setenv("DB_MONGO_CHECKPOINT_PASSWORD", "test")
-    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setenv("HOMELAB_LLM_BASE_URL", "http://llm:8080/v1")
+    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    monkeypatch.setenv("NVIDIA_LLM_API_KEY", "test")
 
 
 def make_settings() -> ProcessSettings:

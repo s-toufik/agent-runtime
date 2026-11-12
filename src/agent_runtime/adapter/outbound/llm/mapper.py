@@ -25,6 +25,7 @@ class ModelSettingsMapper:
                 base_url=connector.base_url,
                 api_key=SecretStr(connector_api_key(connector) or NO_KEY),
                 timeout_seconds=float(connector.timeout),
+                name=connector.name,
             ),
             ModelParameters(
                 model_name=str(parameters.get("model") or self._operation.name),
