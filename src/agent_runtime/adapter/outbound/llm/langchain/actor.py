@@ -17,6 +17,7 @@ from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.draft import Draft
+from agent_runtime.domain.turn.plan_progress import PlanProgress
 from agent_runtime.domain.turn.turn import Turn
 
 
@@ -44,7 +45,9 @@ class LangChainActor:
         next_step = next_step_request(progress) if progress else None
         if next_step:
             tail.append(HumanMessage(content=next_step))
-        bound: list[dict] = [REQUEST_PLAN_TOOL] if progress is None else [_tool(s) for s in tools]
+        bound: list[dict] = (
+            [REQUEST_PLAN_TOOL] if progress is None else _plan_tools(progress, tools)
+        )
         settings = turn.settings
         budget: int = input_budget(settings.context_tokens, settings.output_tokens, bound)
         messages = self._window.build(system, conversation, budget, tail)
@@ -57,6 +60,11 @@ class LangChainActor:
         if bound:
             model = model.bind_tools(bound)
         return to_draft(await self._reply.read(model, messages))
+
+
+def _plan_tools(progress: PlanProgress, tools: list[ToolSpecification]) -> list[dict]:
+    named: set[str] = {step.tool for step in progress.plan.steps if step.tool}
+    return [_tool(spec) for spec in tools if spec.name in named]
 
 
 def _tool(specification: ToolSpecification) -> dict:

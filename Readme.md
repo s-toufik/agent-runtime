@@ -176,6 +176,7 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 - A provider whose URL is empty is left out with its models, and the boot log says so. Two models with the same `model` name: the first one listed is kept, with a warning.
 
 **How a request fits the window.** Before each model call, the agent sizes the request to `max_context_tokens`:
+- The planner sees every tool as a typed signature, its inputs with their types and defaults and what it returns, then the first sentence of its description, so it can pick the tool by what goes in and comes out. The act step's prompt lists each tool in one line (name, first sentence, argument names), and full definitions go only with the tools the model may call: none for a direct answer (just the plan request), and only the plan's tools in a plan step. With the homelab's 55 tools: about 4k tokens to plan, 2.5k for a direct answer, 4–10k for a plan step.
 - It keeps room for the answer (`max_output_tokens`, at most half the window) and for the tool definitions it sends, and counts only 85 % of the rest, since its token count is an estimate.
 - This turn's tool results come first. When they don't fit, each is cut to a quarter of the room, then the older ones to a few lines, and the latest last. A cut result ends with a note telling the model to ask the tool for less, e.g. with a filter or a limit.
 - The conversation history gets what is left, newest first. After the reply, SUMMARIZE folds the oldest messages into a summary once they pass half the window.

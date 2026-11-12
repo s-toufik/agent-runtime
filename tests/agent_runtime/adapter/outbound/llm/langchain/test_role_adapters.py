@@ -127,7 +127,7 @@ async def test_the_planner_revises_the_pending_plan_and_ends_on_the_request(logg
     assert fake.requested == [(AgentRole.PLAN, "m")]
     system = llm.calls[0][0]
     assert isinstance(system, SystemMessage) and PLAN.render() in str(system.content)
-    assert "- echo: Echoes." in str(system.content)
+    assert "- echo()\n  Echoes." in str(system.content)
     assert llm.calls[0][-1] == HumanMessage(content="msg")
 
 
@@ -203,6 +203,18 @@ async def test_under_a_plan_the_actor_binds_tools_and_replays_the_work(logger) -
     assert tail[3] == AIMessage(content="draft")
     assert isinstance(tail[4], HumanMessage) and "shorter" in str(tail[4].content)
     assert "✓ 1. count (tool: echo)" in llm.prompt()
+
+
+async def test_under_a_plan_the_actor_binds_only_the_tools_the_plan_names(logger) -> None:
+    llm = FakeLLM(replies=[text("Step 1 done.")])
+    current = turn(Intent.PLAN_APPROVAL, plan=REPORT)
+    unused = ToolSpecification("grafana_query_loki_logs", "Query logs.", {"type": "object"})
+    writer = ToolSpecification("file_writer", "Write a file.", {"type": "object"})
+
+    await _actor(llm, logger).act(Conversation("c1"), current, [ECHO, unused, writer])
+
+    assert [tool["name"] for tool in llm.tool_bindings[0]] == ["echo", "file_writer"]
+    assert "- grafana_query_loki_logs: Query logs." in llm.prompt()
 
 
 async def test_a_huge_tool_result_is_shortened_so_the_act_call_fits_the_model(logger) -> None:
