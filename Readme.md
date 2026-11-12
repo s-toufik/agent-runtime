@@ -343,25 +343,22 @@ On the homelab it runs as a Helm release: [`devops/helm/values.yml`](devops/helm
 
 ```text
  feature/…  ──PR──►  develop  ──PR──►  main
-                        │                 │
-                        ├─ push           ├─ push
-                        │  image :dev     │  image :latest          (never deployed)
-                        │                 │
-                        └─ tag            └─ tag vX.Y.Z             a release
-                           vX.Y.Z-rc.N       image toufik142/agent-runtime:X.Y.Z
-                           image only        chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
-                           (never deployed)  deployed once homelab-infra's versions.yaml says X.Y.Z
+                        │                  │
+                        └─ tag             └─ tag vX.Y.Z               a release
+                           vX.Y.Z-rc.N        image toufik142/agent-runtime:X.Y.Z and :latest
+                           image :X.Y.Z-rc.N  chart oci://ghcr.io/s-toufik/charts/agent-runtime:X.Y.Z
+                           and :dev           deployed once homelab-infra's versions.yaml says X.Y.Z
+                           (never deployed)
 ```
 
 | Event | CI ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) | Publishes | On the homelab |
 |---|---|---|---|
 | Pull request to `develop` or `main` | LINT, TYPECHECK, TEST, BUILD | nothing | nothing changes |
-| Push to `develop` | the same + PUBLISH | image `:dev`, `:dev-<sha>` | nothing changes |
-| Push to `main` | the same + PUBLISH | image `:latest`, `:latest-<sha>` | nothing changes |
-| Tag `vX.Y.Z-rc.N` on a commit only on `develop` | the same + RELEASE TARGET + PUBLISH | image `:X.Y.Z-rc.N` | nothing changes |
-| Tag `vX.Y.Z` on a commit of `main` | the same + RELEASE TARGET + PUBLISH + CHART | image `:X.Y.Z`, chart `agent-runtime:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
+| Push to `develop` or `main` | the same | nothing | nothing changes |
+| Tag `vX.Y.Z-rc.N` on a commit only on `develop` | the same + RELEASE TARGET + PUBLISH | image `:X.Y.Z-rc.N` and `:dev` | nothing changes |
+| Tag `vX.Y.Z` on a commit of `main` | the same + RELEASE TARGET + PUBLISH + CHART | image `:X.Y.Z` and `:latest`, chart `agent-runtime:X.Y.Z` | nothing yet: deployed once homelab-infra asks for `X.Y.Z` |
 
-- Only tags on `main` reach the homelab. The `dev`, `latest` and `-rc.N` images are for trying a build by hand; the server never pulls them.
+- Only tags publish: `:dev` is the last pre-release, `:latest` the last release. Only tags on `main` reach the homelab; to try a pre-release there, homelab-infra's Q&A, *How do I deploy a dev image of the agent?*
 - RELEASE TARGET finds the branch the tag is on, the same job in every repository with this pipeline (pycraftcore and homelab-ui too). A commit on both branches counts as `main`. It refuses a tag on neither branch, a pre-release on `main` and a final version only on `develop`, and then nothing is published.
 
 #### What is deployed
