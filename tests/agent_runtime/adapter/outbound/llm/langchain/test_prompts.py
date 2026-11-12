@@ -14,7 +14,13 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.review import (
     reflection_system_prompt,
 )
 from agent_runtime.adapter.outbound.llm.langchain.prompts.summary import summary_request
-from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import NO_TOOLS
+from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import (
+    LONGEST_SUMMARY,
+    NO_TOOLS,
+    planning_catalog,
+    summary,
+    tool_catalog,
+)
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.action import Action
@@ -63,7 +69,7 @@ def test_the_act_prompt_links_plots_from_reports() -> None:
 def test_the_plan_prompt_lists_the_tools_the_schema_and_the_plan_to_revise() -> None:
     prompt = plan_system_prompt("count users", TOOLS, "SCHEMA", PendingPlan(PLAN))
 
-    assert "count users" in prompt and "- run_sql: SQL." in prompt and PLAN.render() in prompt
+    assert "count users" in prompt and "- run_sql()\n  SQL." in prompt and PLAN.render() in prompt
     assert "SCHEMA" in prompt and "exactly one tool call" in prompt
     assert "Reuse the work done earlier" in prompt
     assert NO_TOOLS in plan_system_prompt("q", [], "SCHEMA")
@@ -185,3 +191,53 @@ def test_the_review_lists_the_plan_s_earlier_tool_calls_only_when_it_was_resumed
 
     assert "in earlier turns" in resumed and "- echo(): ok" in resumed
     assert "in earlier turns" not in reflection_request("c", "q", [], None, [], [], "a")
+
+
+def test_the_catalog_gives_each_tool_one_line_its_first_sentence_and_its_arguments() -> None:
+    loki = ToolSpecification(
+        "grafana_query_loki_logs",
+        "Query and retrieve log entries from a Loki datasource. Long details follow.\nMore.",
+        {"type": "object", "properties": {"datasourceUid": {}, "logql": {}, "limit": {}}},
+    )
+
+    assert tool_catalog([loki]) == (
+        "- grafana_query_loki_logs: Query and retrieve log entries from a Loki datasource. "
+        "Arguments: datasourceUid, logql, limit."
+    )
+
+
+def test_a_long_first_sentence_is_cut() -> None:
+    line = summary("word " * 100)
+
+    assert len(line) <= LONGEST_SUMMARY
+    assert line.endswith("…")
+
+
+def test_the_planner_sees_each_tool_s_typed_inputs_and_output() -> None:
+    query = ToolSpecification(
+        "users_tables",
+        "Execute read-only SQL queries. Details follow.",
+        {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "dialect": {"type": "string", "default": "sqlite"},
+                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            },
+            "required": ["query"],
+        },
+        {
+            "type": "object",
+            "properties": {"rows": {"type": "array", "items": {"type": "object"}}},
+        },
+    )
+
+    assert planning_catalog([query]) == (
+        "- users_tables(query: str, dialect: str = 'sqlite', limit: int | None = None)"
+        " -> {rows: list[dict[str, Any]]}\n"
+        "  Execute read-only SQL queries."
+    )
+
+
+def test_a_summary_stops_before_an_appended_return_shape() -> None:
+    assert summary("Run an aggregation\n\nReturns: {documents: list[Any]}") == "Run an aggregation"

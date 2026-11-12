@@ -1,5 +1,5 @@
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
-from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import tool_catalog
+from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import planning_catalog
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.pending_plan import PendingPlan
 
@@ -53,7 +53,7 @@ def plan_system_prompt(
     return _SYSTEM.format(
         task=task,
         revision=_revision(previous),
-        tools=tool_catalog(tools),
+        tools=planning_catalog(tools),
         output_format=output_format,
         now=utc_now(),
     )

@@ -57,7 +57,7 @@ def test_a_role_without_a_model_follows_the_selection_and_a_frozen_one_does_not(
 
 def test_the_turn_budget_comes_from_the_model_that_acts() -> None:
     assert CATALOG.turn_settings("big") == TurnSettings(
-        max_steps=9, max_retries=2, context_tokens=1_000
+        max_steps=9, max_retries=2, context_tokens=1_000, output_tokens=100
     )
 
 
