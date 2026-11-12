@@ -4,7 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent_runtime.adapter.outbound.llm.langchain.actor import LangChainActor
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_runtime.adapter.outbound.llm.langchain.context_window import (
+    ContextWindow,
+    count_message_tokens,
+    input_budget,
+)
 from agent_runtime.adapter.outbound.llm.langchain.dto import (
     PlanDto,
     PlanStepDto,
@@ -199,6 +203,23 @@ async def test_under_a_plan_the_actor_binds_tools_and_replays_the_work(logger) -
     assert tail[3] == AIMessage(content="draft")
     assert isinstance(tail[4], HumanMessage) and "shorter" in str(tail[4].content)
     assert "✓ 1. count (tool: echo)" in llm.prompt()
+
+
+async def test_a_huge_tool_result_is_shortened_so_the_act_call_fits_the_model(logger) -> None:
+    llm = FakeLLM(replies=[text("Step 1 done.")])
+    current = turn(Intent.PLAN_APPROVAL, plan=PLAN)
+    current.drafted(calling("echo"))
+    current.observed([result(output="log line with some words " * 20_000)])
+    settings = current.settings
+    tools = [{"name": "echo", "description": "Echoes.", "parameters": {"type": "object"}}]
+
+    await _actor(llm, logger).act(Conversation("c1"), current, [ECHO])
+
+    sent = llm.calls[0]
+    assert count_message_tokens(sent) <= input_budget(
+        settings.context_tokens, settings.output_tokens, tools
+    )
+    assert "shortened to fit the model's context" in llm.prompt()
 
 
 async def test_while_a_step_is_open_the_actor_ends_on_the_next_step_to_do(logger) -> None:

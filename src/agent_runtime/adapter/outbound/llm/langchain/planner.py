@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow, input_budget
 from agent_runtime.adapter.outbound.llm.langchain.dto import PlanDto
 from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke_structured
 from agent_runtime.adapter.outbound.llm.langchain.prompts.plan import plan_system_prompt
@@ -25,8 +25,12 @@ class LangChainPlanner:
         system = plan_system_prompt(
             turn.query, tools, PlanDto.model_json_schema(), conversation.pending
         )
+        settings = turn.settings
+        budget: int = input_budget(
+            settings.context_tokens, settings.output_tokens, [PlanDto.model_json_schema()]
+        )
         messages = self._window.build(
-            system, conversation, turn.settings.context_tokens, [HumanMessage(content=turn.request)]
+            system, conversation, budget, [HumanMessage(content=turn.request)]
         )
         self._logger.debug("Calling the plan model")
         model = self._models.for_role(AgentRole.PLAN, turn.model)

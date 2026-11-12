@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
+from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow, input_budget
 from agent_runtime.adapter.outbound.llm.langchain.messages import from_work, to_draft
 from agent_runtime.adapter.outbound.llm.langchain.plan_request import (
     REQUEST_PLAN_TOOL,
@@ -44,15 +44,18 @@ class LangChainActor:
         next_step = next_step_request(progress) if progress else None
         if next_step:
             tail.append(HumanMessage(content=next_step))
-        messages = self._window.build(system, conversation, turn.settings.context_tokens, tail)
+        bound: list[dict] = [REQUEST_PLAN_TOOL] if progress is None else [_tool(s) for s in tools]
+        settings = turn.settings
+        budget: int = input_budget(settings.context_tokens, settings.output_tokens, bound)
+        messages = self._window.build(system, conversation, budget, tail)
         model = self._models.for_role(AgentRole.ACT, turn.model)
         self._logger.debug(f"Calling the act model (step {turn.steps_taken + 1})")
         if progress is None:
             reader = self._final_reply if turn.is_plain_direct_answer else self._reply
-            reply = await reader.read(model.bind_tools([REQUEST_PLAN_TOOL]), messages)
+            reply = await reader.read(model.bind_tools(bound), messages)
             return direct_draft(to_draft(reply))
-        if tools:
-            model = model.bind_tools([_tool(spec) for spec in tools])
+        if bound:
+            model = model.bind_tools(bound)
         return to_draft(await self._reply.read(model, messages))
 
 

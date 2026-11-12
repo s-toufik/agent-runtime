@@ -166,7 +166,7 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 | `model`                  | The name the model server knows, and the `model_name` requests use                                       | the entry's `name` |
 | `temperature`            | Sampling temperature                                                                                     | `0.0`              |
 | `max_output_tokens`      | Longest reply                                                                                            | `8000`             |
-| `max_context_tokens`     | The model's context window                                                                               | `8000`             |
+| `max_context_tokens`     | The model's context window; never more than the server's own (`--ctx-size` for llama.cpp)                | `8000`             |
 | `max_iterations`         | Step budget per message                                                                                  | `10`               |
 | `max_reflection_retries` | How many times a rejected answer is rewritten                                                            | `2`                |
 | `reasoning_effort`       | `null`: no thinking. `low` / `medium` / `high`: think first (slower, needs a larger `max_output_tokens`) | `null`             |
@@ -174,6 +174,11 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 **Two providers.** Each model's entry names its provider with `connector:` (`${connector.homelab_llm_provider}` or `${connector.nvidia_llm_provider}`), and is called on that provider's URL, with its key.
 - Each provider has its own HTTP client, retries and circuit breaker (`llm-homelab`, `llm-nvidia_nim`): NVIDIA failing never blocks the homelab's models, and the other way round.
 - A provider whose URL is empty is left out with its models, and the boot log says so. Two models with the same `model` name: the first one listed is kept, with a warning.
+
+**How a request fits the window.** Before each model call, the agent sizes the request to `max_context_tokens`:
+- It keeps room for the answer (`max_output_tokens`, at most half the window) and for the tool definitions it sends, and counts only 85 % of the rest, since its token count is an estimate.
+- This turn's tool results come first. When they don't fit, each is cut to a quarter of the room, then the older ones to a few lines, and the latest last. A cut result ends with a note telling the model to ask the tool for less, e.g. with a filter or a limit.
+- The conversation history gets what is left, newest first. After the reply, SUMMARIZE folds the oldest messages into a summary once they pass half the window.
 
 To add a model: add its entry with its provider, list it under `operation:` in `config/root.yml`, and restart. An entry's key cannot contain a dot: write `qwen3_5-2b` as the key and `model: qwen3.5-2b` in its parameters.
 
