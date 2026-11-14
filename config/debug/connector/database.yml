@@ -20,8 +20,34 @@ connector:
     default_name: ${oc.env:DB_MONGO_CHECKPOINT_NAME}
     pool:
       timeout_ms: 3000
-      ttl: 3600
+      ttl: 604800
     auth:
       type: basic
       username: ${oc.env:DB_MONGO_CHECKPOINT_USERNAME}
       password: ${oc.env:DB_MONGO_CHECKPOINT_PASSWORD}
+
+  postgres_a2a_tasks:
+    name: a2a_tasks
+    type: database
+    engine: postgresql
+    host: ${oc.env:DB_POSTGRES_A2A_HOST,""}
+    port: ${oc.env:DB_POSTGRES_A2A_PORT,5432}
+    default_name: ${oc.env:DB_POSTGRES_A2A_NAME,agent_runtime}
+    pool:
+      max: 5
+    auth:
+      type: basic
+      username: ${oc.env:DB_POSTGRES_A2A_USERNAME,""}
+      password: ${oc.env:DB_POSTGRES_A2A_PASSWORD,""}
+
+  sqlite_a2a_tasks:
+    name: a2a_tasks
+    type: database
+    engine: sqlite
+    host: ${oc.env:DB_SQLITE_CHECKPOINT_HOST}
+    port: 0
+    default_name: a2a_tasks
+    pool:
+      max: 5
+    auth:
+      type: none

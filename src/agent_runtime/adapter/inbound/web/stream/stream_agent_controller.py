@@ -7,7 +7,7 @@ from pycraftcore.context.request_id_context import request_id_context
 from pycraftcore.logger.port import Logger
 from pycraftcore.web.sse import with_heartbeat
 
-from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
+from agent_runtime.adapter.inbound.exception.server_at_capacity_exception import (
     ServerAtCapacityException,
 )
 from agent_runtime.adapter.inbound.web.stream.sse_presenter import SsePresenter

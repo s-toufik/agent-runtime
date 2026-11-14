@@ -1,104 +1,13 @@
-import asyncio
-from collections.abc import Mapping
 from functools import cached_property
-from typing import Any
 
-import aiosqlite
-from httpx import AsyncClient
-from langgraph.checkpoint.mongodb import MongoDBSaver
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import (
-    ApiConnector,
-    DatabaseConnector,
-    McpConnector,
-)
-from pycraftcore.application_configuration.model.operation import ApiOperation, McpOperation
-from pycraftcore.circuit_breaker.configuration import CircuitBreakerSettings
-from pycraftcore.http.configuration import HttpClientSettings, LimitsSettings
-from pycraftcore.http.policy.http_error_policy import is_business_error
-from pycraftcore.repository.adapter import (
-    MongoRepositoryFactory,
-    MongoSettingsMapper,
-    SqliteRepositoryFactory,
-    SqliteSettingsMapper,
-)
-from pycraftcore.repository.port import AsyncRepositoryFactory
-from pycraftcore.resilient_http.adapter import ResilientTransportFactory
-from pycraftcore.resilient_http.configuration import ResilientHttpSettings
-from pycraftcore.retry.configuration import RetrySettings
-from pymongo import MongoClient
-
-from agent_runtime.adapter.outbound.langgraph.graph.agent_graph_builder import (
-    AgentGraphBuilder,
-)
-from agent_runtime.adapter.outbound.langgraph.graph.policy_router import PolicyRouter
-from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
-    LangGraphEventPublisher,
-)
-from agent_runtime.adapter.outbound.langgraph.langgraph_workflow_runner import (
-    LangGraphWorkflowRunner,
-)
-from agent_runtime.adapter.outbound.langgraph.node.agent_node import AgentNode
-from agent_runtime.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
-from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
-from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
-from agent_runtime.adapter.outbound.llm.langchain.actor import LangChainActor
-from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
-from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextWindow
-from agent_runtime.adapter.outbound.llm.langchain.guard import LangChainGuard
-from agent_runtime.adapter.outbound.llm.langchain.intent_classifier import (
-    LangChainIntentClassifier,
-)
-from agent_runtime.adapter.outbound.llm.langchain.planner import LangChainPlanner
-from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
-from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
-from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
-from agent_runtime.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
-from agent_runtime.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
-from agent_runtime.adapter.outbound.llm.langchain.token_counter import (
-    EstimatedTokenCounter,
-)
-from agent_runtime.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
-from agent_runtime.adapter.outbound.llm.mapper import ModelSettingsMapper
-from agent_runtime.adapter.outbound.llm.model_catalog import (
-    AgentRole,
-    ModelCatalog,
-    ModelSettings,
-)
-from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
-from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
-from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
-    StreamableHttpSessionFactory,
-)
-from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
-from agent_runtime.application.port.outbound.tool_provider import ToolSource
-from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
-from agent_runtime.application.port.outbound.workflow_runner import WorkflowRunner
-from agent_runtime.application.step.act_step import ActStep
-from agent_runtime.application.step.clarify_step import ClarifyStep
-from agent_runtime.application.step.feedback_step import FeedbackStep
-from agent_runtime.application.step.finish_step import FinishStep
-from agent_runtime.application.step.plan_step import PlanStep
-from agent_runtime.application.step.review_step import ReviewStep
-from agent_runtime.application.step.run_tools_step import RunToolsStep
-from agent_runtime.application.step.screen_step import ScreenStep
-from agent_runtime.application.step.step_handler import StepHandler
-from agent_runtime.application.step.summarize_step import SummarizeStep
-from agent_runtime.application.step.understand_step import UnderstandStep
-from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRefresher
-from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.application.use_case.list_models import ListModels
-from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
-from agent_runtime.domain.workflow.turn_policy import TurnPolicy
 from bootstrap.configuration.server_parameters import ServerParameters
 from bootstrap.di.base_di import BaseDI
-
-MCP_CONNECTOR_NAME: str = "toolbox"
-EXTERNAL_MCP_PREFIX: str = "external_mcp_"
-MONGODB_CONNECTOR_NAME: str = "mongodb_checkpointer"
-SQLITE_CHECKPOINTER: str = "sqlite_checkpointer"
+from bootstrap.di.models_di import ModelsDI
+from bootstrap.di.storage_di import StorageDI
+from bootstrap.di.tools_di import ToolsDI
+from bootstrap.di.workflow_di import WorkflowDI
 
 
 class AgentDI(BaseDI):
@@ -107,259 +16,38 @@ class AgentDI(BaseDI):
         return ServerParameters.of(self._server)
 
     @cached_property
-    def _mcp_connectors(self) -> dict[str, McpConnector]:
-        connectors: Mapping[str, McpConnector] = self._configuration.connector[ConnectorType.mcp]
-        names: list[str] = [MCP_CONNECTOR_NAME] + sorted(
-            name for name in connectors if name.startswith(EXTERNAL_MCP_PREFIX)
+    def _tools(self) -> ToolsDI:
+        return ToolsDI(self._configuration, self._logging)
+
+    @cached_property
+    def _models(self) -> ModelsDI:
+        return ModelsDI(self._configuration, self._logging, self._telemetry_provider)
+
+    @cached_property
+    def _storage(self) -> StorageDI:
+        return StorageDI(self._configuration, self._logging, self._register_repository)
+
+    @cached_property
+    def _workflow(self) -> WorkflowDI:
+        return WorkflowDI(
+            self._models.chat_models,
+            self._logging,
+            answer_delivery=self._server_parameters.answer_delivery,
+            screen=self._settings.guardrail_enabled,
         )
-        return {name: connectors[name] for name in names}
 
-    @cached_property
-    def _mcp_operation(self) -> dict[str, McpOperation]:
-        return {
-            operation.connector.name: operation
-            for operation in self._configuration.operation.by_name.values()
-            if isinstance(operation, McpOperation)
-        }
+    async def _handle_message(self) -> HandleMessage:
+        runner = self._workflow.runner(
+            await self._tools.toolbox(), await self._storage.checkpointer()
+        )
+        return HandleMessage(runner, self._models.catalog, self._logging)
 
-    @cached_property
-    def _mcp_session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
-        operations: dict[str, McpOperation] = self._mcp_operation
-        return {
-            name: StreamableHttpSessionFactory(
-                connector=connector,
-                logger=self._logging,
-                operation=operations.get(connector.name),
-            )
-            for name, connector in self._mcp_connectors.items()
-        }
+    def _list_models(self) -> ListModels:
+        return ListModels(self._models.catalog)
 
     async def close(self) -> None:
         await self._stop_factories()
-        await self._close_llm_http_clients()
-        await self._close_mcp_session_factories()
+        for module in (self.__dict__.get("_models"), self.__dict__.get("_tools")):
+            if module is not None:
+                await module.close()
         await self._shutdown_telemetry()
-
-    async def _close_mcp_session_factories(self) -> None:
-        self.__dict__.pop("_mcp_session_factories", None)
-
-    async def _toolbox(self) -> Toolbox:
-        refresher: ToolCatalogRefresher = self._tool_catalog_refresher
-        await refresher.refresh()
-        if not len(self._tool_registry):
-            self._logging.warning(
-                "No MCP tools available yet: the agent answers without tools until its MCP "
-                "servers are back"
-            )
-        return Toolbox(self._tool_registry, self._logging, on_unknown_tool=refresher.wake)
-
-    @cached_property
-    def _tool_registry(self) -> ToolRegistry:
-        return ToolRegistry()
-
-    @cached_property
-    def _tool_catalog_refresher(self) -> ToolCatalogRefresher:
-        connectors: dict[str, McpConnector] = self._mcp_connectors
-        return ToolCatalogRefresher(
-            [
-                ToolSource(
-                    name,
-                    McpToolProvider(factory, required=False),
-                    refresh_policy(connectors.get(name)),
-                )
-                for name, factory in self._mcp_session_factories.items()
-            ],
-            self._tool_registry,
-            self._logging,
-        )
-
-    @cached_property
-    def _llm_connectors(self) -> dict[str, ApiConnector]:
-        declared: dict[str, ApiConnector] = {
-            operation.connector.name: operation.connector
-            for operation in self._configuration.operation.by_name.values()
-            if isinstance(operation, ApiOperation)
-        }
-        for name, connector in declared.items():
-            if not connector.base_url.strip():
-                self._logging.info(f"Model provider '{name}' has no URL: its models are left out")
-        return {name: c for name, c in declared.items() if c.base_url.strip()}
-
-    @cached_property
-    def _llm_http_clients(self) -> dict[str, AsyncClient]:
-        return {
-            name: self._llm_transport_factory(connector).create_async_client()
-            for name, connector in self._llm_connectors.items()
-        }
-
-    def _llm_transport_factory(self, connector: ApiConnector) -> ResilientTransportFactory:
-        http_settings = HttpClientSettings(limits=LimitsSettings(timeout=connector.timeout))
-        http_settings.client_params.base_url = connector.base_url
-        http_settings.security.certificate = connector.certificate
-
-        settings = ResilientHttpSettings(
-            http=http_settings,
-            retry=RetrySettings(
-                retry_count=connector.retry,
-                retry_delay=1,
-                max_retry_delay=20,
-                jitter=1,
-                should_retry=should_retry_model_call,
-            ),
-            circuit_breaker=CircuitBreakerSettings(
-                failure_threshold=3,
-                recovery_timeout=30,
-                is_excluded=is_business_error,
-                name=f"llm-{connector.name}",
-            ),
-        )
-
-        return ResilientTransportFactory(
-            settings=settings,
-            trace_manager=self._telemetry_provider.tracer(f"llm-{connector.name}"),
-            logger=self._logging,
-        )
-
-    async def _close_llm_http_clients(self) -> None:
-        clients: dict[str, AsyncClient] = self.__dict__.pop("_llm_http_clients", {})
-        for client in clients.values():
-            await client.aclose()
-
-    @cached_property
-    def _model_catalog(self) -> ModelCatalog:
-        roles: set[str] = {role.value for role in AgentRole}
-        models: dict[str, ModelSettings] = {}
-        for name, operation in self._configuration.operation.by_name.items():
-            if name in roles or not isinstance(operation, ApiOperation):
-                continue
-            if operation.connector.name not in self._llm_connectors:
-                continue
-            connector, parameters = ModelSettingsMapper(operation)()
-            if parameters.model_name in models:
-                self._logging.warning(
-                    f"Model '{parameters.model_name}' is declared twice; keeping the one of "
-                    f"'{models[parameters.model_name][0].name}'"
-                )
-                continue
-            models[parameters.model_name] = (connector, parameters)
-        if not models:
-            self._logging.warning("No model provider has a URL: the agent has no model to use")
-        return ModelCatalog(models=models, roles=self._frozen_roles(models))
-
-    def _frozen_roles(self, models: Mapping[str, ModelSettings]) -> dict[AgentRole, ModelSettings]:
-        frozen: dict[AgentRole, ModelSettings] = {}
-        for role in AgentRole:
-            operation = self._configuration.operation.by_name.get(role.value)
-            if not isinstance(operation, ApiOperation) or not operation.parameters.get("model"):
-                continue
-            connector, parameters = ModelSettingsMapper(operation)()
-            served = models.get(parameters.model_name)
-            frozen[role] = (served[0] if served else connector, parameters)
-        return frozen
-
-    @cached_property
-    def _chat_models(self) -> ChatModels:
-        return ChatModels(self._model_catalog, self._llm_http_clients)
-
-    def _database_connector(self, connector_name: str) -> DatabaseConnector:
-        return self._configuration.connector.database(connector_name)
-
-    async def _checkpointer(self) -> AsyncSqliteSaver | MongoDBSaver:
-        mongo_saver: MongoDBSaver | None = await self._mongodb_checkpointer()
-        if mongo_saver is not None:
-            self._logging.info("Using MongoDB checkpointer with TTL")
-            return mongo_saver
-
-        self._logging.info("Using Sqlite checkpointer with no TTL")
-        return AsyncSqliteSaver(await self._sqlite_connection(SQLITE_CHECKPOINTER))
-
-    async def _mongodb_checkpointer(self) -> MongoDBSaver | None:
-        client = await self._mongo_connection(MONGODB_CONNECTOR_NAME)
-        if client is None:
-            return None
-        connector: DatabaseConnector = self._database_connector(MONGODB_CONNECTOR_NAME)
-        return await asyncio.to_thread(
-            MongoDBSaver,
-            client,
-            db_name=connector.default_name,
-            ttl=connector.pool.get("ttl", 3600),
-        )
-
-    async def _sqlite_connection(self, connector_name: str) -> aiosqlite.Connection:
-        connector = self._database_connector(connector_name)
-        factory: AsyncRepositoryFactory = SqliteRepositoryFactory(SqliteSettingsMapper(connector)())
-        self._register_repository(factory)
-        return await factory.connection()
-
-    async def _mongo_connection(self, connector_name: str) -> MongoClient | None:
-        connector = self._database_connector(connector_name)
-        factory: AsyncRepositoryFactory = MongoRepositoryFactory(MongoSettingsMapper(connector)())
-        self._register_repository(factory)
-        try:
-            await factory.ping()
-            return await factory.connection()
-        except Exception as exception:
-            self._logging.warning(f"MongoDB '{connector_name}' unavailable: {exception}")
-            await factory.disconnect()
-            return None
-
-    async def _handle_message(self) -> HandleMessage:
-        runner: WorkflowRunner = await self._workflow_runner(
-            await self._toolbox(), await self._checkpointer()
-        )
-        return HandleMessage(runner, self._model_catalog, self._logging)
-
-    def _list_models(self) -> ListModels:
-        return ListModels(self._model_catalog)
-
-    async def _workflow_runner(self, toolbox: Toolbox, checkpointer: Any) -> WorkflowRunner:
-        return LangGraphWorkflowRunner(
-            self._agent_graph(toolbox, checkpointer), self._logging, LangChainUsageMeter()
-        )
-
-    @cached_property
-    def _turn_events(self) -> TurnEventPublisher:
-        return LangGraphEventPublisher()
-
-    def _final_reply(self) -> ReplyReader:
-        match self._server_parameters.answer_delivery:
-            case AnswerDelivery.STREAM:
-                return StreamedReply(self._turn_events)
-            case AnswerDelivery.WHOLE:
-                return WholeReply()
-
-    def _agent_graph(self, toolbox: Toolbox, checkpointer: Any) -> Any:
-        codec: TurnStateCodec = TurnStateCodec()
-        screen: bool = self._settings.guardrail_enabled
-        policy: TurnPolicy = TurnPolicy(screen=screen)
-        nodes: list[AgentNode] = agent_nodes(self._steps(toolbox, screen), codec, self._turn_events)
-        return AgentGraphBuilder(nodes, policy, PolicyRouter(policy, codec)).build(checkpointer)
-
-    def _steps(self, toolbox: Toolbox, screen: bool) -> list[StepHandler]:
-        models, window, logger = self._chat_models, ContextWindow(), self._logging
-        steps: list[StepHandler] = [
-            UnderstandStep(LangChainIntentClassifier(models, window, logger), logger),
-            PlanStep(LangChainPlanner(models, window, logger), toolbox),
-            ClarifyStep(),
-            ActStep(
-                LangChainActor(models, window, logger, WholeReply(), self._final_reply()), toolbox
-            ),
-            RunToolsStep(toolbox),
-            ReviewStep(LangChainReviewer(models, logger), logger),
-            FeedbackStep(logger),
-            FinishStep(),
-            SummarizeStep(LangChainSummarizer(models, logger), EstimatedTokenCounter(), logger),
-        ]
-        if screen:
-            steps.append(ScreenStep(LangChainGuard(models, logger), logger))
-        return steps
-
-
-def refresh_policy(connector: McpConnector | None) -> RefreshPolicy:
-    if connector is None:
-        return RefreshPolicy()
-    return RefreshPolicy(
-        interval=connector.refresh.interval,
-        retry_delay=connector.refresh.retry_delay,
-        max_retry_delay=connector.refresh.max_retry_delay,
-    )

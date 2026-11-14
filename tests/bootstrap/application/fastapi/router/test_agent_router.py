@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from typing import cast
 
-from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
+from agent_runtime.adapter.inbound.exception.server_at_capacity_exception import (
     ServerAtCapacityException,
 )
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
@@ -10,7 +10,7 @@ from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
 from agent_runtime.domain.llm_model.model_listing import ModelListing
 from agent_runtime.domain.request.agent_request import AgentRequest
 from tests.agent_runtime.application.fakes import LISTING
-from tests.bootstrap.application.litestar.support import litestar_api
+from tests.bootstrap.application.fastapi.support import fastapi_api
 from tests.support.web import http_client
 
 BODY = {"message": "hi", "model_name": "qwen3-14b", "request_id": "r1"}
@@ -38,7 +38,7 @@ class FakeModels:
 
 
 def app_with(logger, agent: FakeAgent):
-    return litestar_api(logger, lambda: cast(StreamAgentController, agent), FakeModels)
+    return fastapi_api(logger, lambda: cast(StreamAgentController, agent), FakeModels)
 
 
 async def test_a_message_is_handed_to_the_agent_and_its_frames_are_streamed(logger) -> None:
@@ -60,7 +60,7 @@ async def test_an_invalid_message_is_rejected_before_the_agent(logger) -> None:
     async with http_client(app_with(logger, agent)) as client:
         response = await client.post("/v1/stream", json={"message": ""})
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert agent.received is None
 
 

@@ -1,3 +1,4 @@
+from agent_runtime.adapter.inbound.turn_status import step_status
 from agent_runtime.adapter.inbound.web.stream.schema.agent_message_schema import AgentMessageSchema
 from agent_runtime.adapter.inbound.web.stream.schema.agent_message_stream_schema import (
     AgentMessageStreamSchema,
@@ -7,13 +8,7 @@ from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.outcome import Outcome
 from agent_runtime.domain.turn.token_usage import TokenUsage
-from agent_runtime.domain.workflow.step import Step
 
-STEP_STATUS: dict[Step, str] = {
-    Step.UNDERSTAND: "Comprehending the request",
-    Step.PLAN: "Formulating a plan",
-    Step.REVIEW: "Reviewing the answer",
-}
 APPROVAL_PROMPT: str = (
     "Reply **yes** to approve the plan, **Drop plan** to cancel, or specify any required changes."
 )
@@ -23,7 +18,7 @@ class SsePresenter:
     def present(self, event: TurnEvent, session_id: str) -> list[bytes]:
         match event.kind:
             case TurnEventKind.STEP_STARTED:
-                status = self._status(event)
+                status = step_status(event)
                 return [_stream(MessageStreamType.STATUS, status)] if status else []
             case TurnEventKind.ANSWER_DELTA:
                 return [_stream(MessageStreamType.TOKEN, event.text)]
@@ -39,12 +34,6 @@ class SsePresenter:
     @staticmethod
     def error(trace: str) -> bytes:
         return _stream(MessageStreamType.ERROR, trace)
-
-    @staticmethod
-    def _status(event: TurnEvent) -> str | None:
-        if event.step is Step.RUN_TOOLS:
-            return f"Running {', '.join(event.tools)}"
-        return STEP_STATUS.get(event.step) if event.step else None
 
     @staticmethod
     def _finished(event: TurnEvent, session_id: str) -> list[bytes]:

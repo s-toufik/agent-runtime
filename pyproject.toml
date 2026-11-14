@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-runtime"
-version = "1.1.1"
+version = "1.2.0"
 authors = [
     { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
 ]
 description = "Analytics agent -- talks to its MCP toolbox as an independently deployed service"
 readme = "Readme.md"
 requires-python = ">=3.14"
-keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "litestar", "asyncio"]
+keywords = ["llm", "agent", "langgraph", "langchain", "mcp", "analytics", "fastapi", "a2a", "asyncio"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Framework :: AsyncIO",
@@ -28,13 +28,13 @@ license = "MIT"
 dependencies = [
     "granian",
     "uvloop",
-    "litestar",
-    "msgspec",
+    "fastapi",
+    "a2a-sdk[fastapi]>=1.3,<2",
     "httpx",
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_litestar]",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_fastapi]>=5.2.0",
     "pydantic>=2",
     "python-dotenv",
     "langchain",
@@ -44,7 +44,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite",
     "pymongo>=4.9,<4.18",
     "langgraph-checkpoint-mongodb",
-    "opentelemetry-instrumentation-asgi>=0.66b2",
+    "opentelemetry-instrumentation-fastapi>=0.66b2",
 ]
 
 [project.scripts]

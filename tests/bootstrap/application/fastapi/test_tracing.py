@@ -8,7 +8,7 @@ from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
 )
 from agent_runtime.domain.request.agent_request import AgentRequest
 from tests.agent_runtime.application.fakes import LISTING
-from tests.bootstrap.application.litestar.support import litestar_api
+from tests.bootstrap.application.fastapi.support import fastapi_api
 from tests.support.tracing import by_name, is_child_of
 from tests.support.web import http_client
 
@@ -32,7 +32,7 @@ class FakeModels:
 
 
 def app(logger):
-    return litestar_api(logger, lambda: cast(StreamAgentController, TracingAgent()), FakeModels)
+    return fastapi_api(logger, lambda: cast(StreamAgentController, TracingAgent()), FakeModels)
 
 
 async def test_a_message_is_one_trace_with_the_agent_s_work_inside_it(logger, spans) -> None:

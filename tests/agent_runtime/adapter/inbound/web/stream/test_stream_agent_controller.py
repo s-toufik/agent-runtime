@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import pytest
 from pycraftcore.web.sse import SSE_HEARTBEAT
 
-from agent_runtime.adapter.inbound.web.exception.server_at_capacity_exception import (
+from agent_runtime.adapter.inbound.exception.server_at_capacity_exception import (
     ServerAtCapacityException,
 )
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (

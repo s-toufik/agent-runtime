@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from agent_runtime.domain.conversation.message import Message, Speaker

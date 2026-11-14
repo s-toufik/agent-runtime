@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pycraftcore.web.asgi import ASGIApp
 from pycraftcore.web.schema import ApiSettings
 
-from bootstrap.application.litestar.litestar_api import create_litestar_api
+from bootstrap.application.fastapi.fastapi_api import create_fastapi_api
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
 from src import APPLICATION_VERSION
@@ -39,11 +39,13 @@ def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp
         docs=server.docs,
         cors_origins=server.cors_origins,
     )
-    return create_litestar_api(
+    return create_fastapi_api(
         api,
         lifespan=lambda: _lifespan(container),
         agent=lambda: container.stream_agent_controller,
         models=lambda: container.list_models,
+        a2a_handler=container.a2a_request_handler,
+        agent_card=container.a2a_agent_card,
         actuator=container.actuator,
         logger=container.logging,
     )
