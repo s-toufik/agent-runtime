@@ -13,21 +13,7 @@ def make_settings(directory: Path, role: str = "agent-runtime") -> ProcessSettin
     return ProcessSettings(role=role, environment="debug", configuration_directory=directory)
 
 
-def _set_required_env(monkeypatch) -> None:
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_HOST", "/tmp")
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_NAME", "test-checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_HOST", "localhost")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PORT", "27017")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_NAME", "test-checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_USERNAME", "test")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PASSWORD", "test")
-    monkeypatch.setenv("HOMELAB_LLM_BASE_URL", "http://llm:8080/v1")
-    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    monkeypatch.setenv("NVIDIA_LLM_API_KEY", "test")
-
-
-def test_loads_the_real_configuration_tree(logger, monkeypatch) -> None:
-    _set_required_env(monkeypatch)
+def test_loads_the_real_configuration_tree(logger) -> None:
 
     configuration = SetApplicationConfiguration(make_settings(REAL_CONFIG_DIR), logger)()
 
@@ -52,8 +38,7 @@ def test_raises_a_value_error_when_the_loader_returns_nothing(logger, monkeypatc
         SetApplicationConfiguration(make_settings(REAL_CONFIG_DIR), logger)()
 
 
-def test_uses_a_default_stdlib_logger_when_none_given(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
+def test_uses_a_default_stdlib_logger_when_none_given() -> None:
 
     configuration = SetApplicationConfiguration(make_settings(REAL_CONFIG_DIR))()
 

@@ -11,22 +11,6 @@ from tests.support.web import http_client, starts
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 
-@pytest.fixture(autouse=True)
-def _base_env(monkeypatch, tmp_path):
-    monkeypatch.setenv("USER_DB_HOST", str(tmp_path))
-    monkeypatch.setenv("USER_DB_NAME", "users")
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_HOST", str(tmp_path))
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_NAME", "checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_HOST", "localhost")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PORT", "27017")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_NAME", "checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_USERNAME", "test")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PASSWORD", "test")
-    monkeypatch.setenv("HOMELAB_LLM_BASE_URL", "http://llm:8080/v1")
-    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    monkeypatch.setenv("NVIDIA_LLM_API_KEY", "test")
-
-
 @pytest.fixture
 def booted(monkeypatch) -> None:
     async def fake_boot(self) -> None:

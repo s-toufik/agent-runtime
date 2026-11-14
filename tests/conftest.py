@@ -1,10 +1,17 @@
+import os
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from tests.support.environment import apply_test_environment
 from tests.support.tracing import install_recording_provider
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    os.environ["PYTHON_DOTENV_DISABLED"] = "1"
 
 
 class FakeLogger:
@@ -47,6 +54,11 @@ def anyio_backend() -> Any:
 
 
 @pytest.fixture(autouse=True)
+def _test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    apply_test_environment(monkeypatch, tmp_path)
+
+
+@pytest.fixture(autouse=True)
 def _fake_mongo_client(monkeypatch):
     from pycraftcore.repository.adapter.no_sql.mongodb import factory as mongo_factory
 
@@ -66,8 +78,6 @@ def _fake_mongo_client(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _null_telemetry(monkeypatch):
-    # .env reaches the test process (ProcessSettings.for_role), so the real provider would
-    # export to the configured collector from background threads.
     from bootstrap.di import base_di
     from tests.support.null_telemetry import NullTelemetryProvider
 

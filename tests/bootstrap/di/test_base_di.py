@@ -18,19 +18,6 @@ def make_settings(role: str = "agent-runtime") -> ProcessSettings:
     )
 
 
-def _set_required_env(monkeypatch) -> None:
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_HOST", "/tmp")
-    monkeypatch.setenv("DB_SQLITE_CHECKPOINT_NAME", "test-checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_HOST", "localhost")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PORT", "27017")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_NAME", "test-checkpoint")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_USERNAME", "test")
-    monkeypatch.setenv("DB_MONGO_CHECKPOINT_PASSWORD", "test")
-    monkeypatch.setenv("HOMELAB_LLM_BASE_URL", "http://llm:8080/v1")
-    monkeypatch.setenv("NVIDIA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    monkeypatch.setenv("NVIDIA_LLM_API_KEY", "test")
-
-
 class RecordingClient:
     def __init__(self) -> None:
         self.started = False
@@ -117,15 +104,13 @@ async def test_stop_factories_closes_clients_and_disconnects_repositories() -> N
     assert repository.disconnected
 
 
-def test_configuration_loads_the_real_tree(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
+def test_configuration_loads_the_real_tree() -> None:
     di = BaseDI(make_settings())
 
     assert di._configuration.connector.mcp("toolbox").transport == "streamable_http"
 
 
 def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     applied: list[str] = []
     monkeypatch.setattr(base_di_module, "configure_logging", applied.append)
@@ -137,7 +122,6 @@ def test_loading_the_configuration_applies_its_log_level_first(monkeypatch) -> N
 
 
 def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("WEB_BASE_PATH", "/agent-runtime")
     monkeypatch.setenv("WEB_DOCS", "true")
@@ -150,7 +134,6 @@ def test_the_server_of_the_role_takes_its_values_from_the_environment(monkeypatc
 
 
 def test_the_server_defaults_to_the_root_without_docs_and_info_logs(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
     for key in ("LOG_LEVEL", "WEB_BASE_PATH", "WEB_DOCS"):
         monkeypatch.delenv(key, raising=False)
     di = BaseDI(make_settings())
@@ -161,8 +144,7 @@ def test_the_server_defaults_to_the_root_without_docs_and_info_logs(monkeypatch)
     assert di._server.cors_origins == ["*"]
 
 
-def test_telemetry_provider_service_name_is_derived_from_the_role(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
+def test_telemetry_provider_service_name_is_derived_from_the_role() -> None:
     di = BaseDI(make_settings(role="worker"))
 
     provider = di._telemetry_provider
@@ -177,8 +159,7 @@ async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:
     await di._shutdown_telemetry()
 
 
-async def test_shutdown_telemetry_shuts_down_and_evicts_the_cached_provider(monkeypatch) -> None:
-    _set_required_env(monkeypatch)
+async def test_shutdown_telemetry_shuts_down_and_evicts_the_cached_provider() -> None:
     di = BaseDI(make_settings())
     provider = di._telemetry_provider
     assert isinstance(provider, NullTelemetryProvider)
