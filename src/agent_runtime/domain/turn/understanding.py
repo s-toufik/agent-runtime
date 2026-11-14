@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field, replace
 
 from agent_runtime.domain.turn.intent import Intent

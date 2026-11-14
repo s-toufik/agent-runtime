@@ -22,11 +22,16 @@ env:
   DB_MONGO_CHECKPOINT_NAME: agent_runtime
   DB_SQLITE_CHECKPOINT_HOST: /data/sqlite
   DB_SQLITE_CHECKPOINT_NAME: checkpoint
+  DB_POSTGRES_A2A_HOST: postgres-rw
+  DB_POSTGRES_A2A_PORT: "5432"
+  DB_POSTGRES_A2A_NAME: agent_runtime
 
 secretEnv:
   NVIDIA_LLM_API_KEY: { secret: agent-runtime, key: llm-api-key }
   DB_MONGO_CHECKPOINT_USERNAME: { secret: mongodb, key: username }
   DB_MONGO_CHECKPOINT_PASSWORD: { secret: mongodb, key: password }
+  DB_POSTGRES_A2A_USERNAME: { secret: pg-role-agent-runtime, key: username }
+  DB_POSTGRES_A2A_PASSWORD: { secret: pg-role-agent-runtime, key: password }
 
 probes:
   startup:

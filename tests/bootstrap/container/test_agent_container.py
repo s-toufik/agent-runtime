@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import uvicorn
+from a2a.server.tasks.database_task_store import DatabaseTaskStore
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import McpConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
@@ -24,6 +25,7 @@ REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("OTEL_HOST", "")
     monkeypatch.setenv("OTEL_PORT", "4317")
+    monkeypatch.setenv("DB_POSTGRES_A2A_HOST", "")
     monkeypatch.setenv("USER_DB_HOST", str(tmp_path))
     monkeypatch.setenv("USER_DB_NAME", "users")
     monkeypatch.setenv("DB_SQLITE_CHECKPOINT_HOST", str(tmp_path))
@@ -101,11 +103,19 @@ def test_logging_and_application_configuration_expose_the_di_internals() -> None
     assert container.application_configuration is container._configuration
 
 
-def test_the_stream_controller_exists_only_once_booted() -> None:
+def test_the_boot_time_services_exist_only_once_booted() -> None:
     container = AgentContainer(make_settings())
 
-    with pytest.raises(RuntimeError, match="not booted"):
-        _ = container.stream_agent_controller
+    for service in ("stream_agent_controller", "run_a2a_task", "a2a_task_store"):
+        with pytest.raises(RuntimeError, match="not booted"):
+            getattr(container, service)
+
+
+def test_the_a2a_handler_and_card_exist_before_boot() -> None:
+    container = AgentContainer(make_settings())
+
+    assert container.a2a_request_handler is container.a2a_request_handler
+    assert container.a2a_agent_card.name == "agent-runtime"
 
 
 def test_the_actuator_reports_the_readiness_of_the_container() -> None:
@@ -126,11 +136,17 @@ async def test_boot_builds_the_stream_controller_and_becomes_ready(
 
     assert container.is_ready is True
     assert isinstance(container.stream_agent_controller, StreamAgentController)
+    assert isinstance(container.a2a_task_store, DatabaseTaskStore)
     assert (await container.list_models.handle()).models
+    assert {task.get_name() for task in container._background} == {
+        "mcp-tool-refresher",
+        "a2a-task-retention",
+    }
 
     await container.stop()
 
     assert container.is_ready is False
+    assert container._background == []
 
 
 async def test_stop_after_boot_does_not_raise(running_toolbox, monkeypatch) -> None:
@@ -149,13 +165,13 @@ async def test_a_toolbox_that_starts_after_the_agent_gives_it_its_tools_without_
     container = AgentContainer(make_settings())
     await container.boot()
     assert container.is_ready is True
-    assert container._tool_registry.specifications() == []
+    assert container._tools.registry.specifications() == []
 
     async with serving_toolbox(port):
-        container._tool_catalog_refresher.wake()
+        container._tools.refresher.wake()
         async with asyncio.timeout(15):
-            while not container._tool_registry.specifications():
+            while not container._tools.registry.specifications():
                 await asyncio.sleep(0.05)
 
-    assert [spec.name for spec in container._tool_registry.specifications()] == ["echo"]
+    assert [spec.name for spec in container._tools.registry.specifications()] == ["echo"]
     await container.stop()

@@ -10,6 +10,9 @@ FRAMEWORKS = {
     "blacksheep",
     "starlette",
     "msgspec",
+    "a2a",
+    "google.protobuf",
+    "sqlalchemy",
     "mcp",
     "langchain",
     "langchain_core",
@@ -68,6 +71,27 @@ def test_outbound_adapters_never_import_inbound_adapters() -> None:
     assert _violations(PACKAGE / "adapter" / "outbound", forbidden) == []
 
 
+INBOUND = PACKAGE / "adapter" / "inbound"
+SHARED_INBOUND = {"exception"}
+
+
+def test_inbound_adapters_never_import_each_other() -> None:
+    adapters = {
+        path.name
+        for path in INBOUND.iterdir()
+        if (path / "__init__.py").is_file() and path.name not in SHARED_INBOUND
+    }
+    violations = [
+        violation
+        for adapter in sorted(adapters)
+        for violation in _violations(
+            INBOUND / adapter,
+            {f"agent_runtime.adapter.inbound.{other}" for other in adapters - {adapter}},
+        )
+    ]
+    assert violations == []
+
+
 def test_the_agent_never_imports_a_toolbox_package_directly() -> None:
     assert _violations(PACKAGE, {"toolbox", "agent_toolbox"}) == []
 
@@ -83,16 +107,17 @@ def test_langgraph_nodes_only_delegate_to_the_application() -> None:
     assert _violations(PACKAGE / "adapter" / "outbound" / "langgraph", forbidden) == []
 
 
-WEB_FRAMEWORKS = {"fastapi", "litestar", "blacksheep", "starlette", "msgspec"}
-LITESTAR_APPLICATION = SOURCE / "bootstrap" / "application" / "litestar"
+WEB_FRAMEWORKS = {"fastapi", "litestar", "blacksheep", "starlette", "sse_starlette", "msgspec"}
+FASTAPI_APPLICATION = SOURCE / "bootstrap" / "application" / "fastapi"
+A2A_ADAPTER = PACKAGE / "adapter" / "inbound" / "a2a"
 
 
 def test_the_agent_imports_no_web_framework() -> None:
     assert _violations(PACKAGE, WEB_FRAMEWORKS) == []
 
 
-def test_only_the_litestar_application_imports_a_web_framework_in_bootstrap() -> None:
-    application = f"{LITESTAR_APPLICATION.relative_to(SOURCE)}/"
+def test_only_the_fastapi_application_imports_a_web_framework_in_bootstrap() -> None:
+    application = f"{FASTAPI_APPLICATION.relative_to(SOURCE)}/"
     outside = [
         violation
         for violation in _violations(SOURCE / "bootstrap", WEB_FRAMEWORKS)
@@ -101,5 +126,15 @@ def test_only_the_litestar_application_imports_a_web_framework_in_bootstrap() ->
     assert outside == []
 
 
-def test_the_litestar_application_imports_no_other_web_framework() -> None:
-    assert _violations(LITESTAR_APPLICATION, WEB_FRAMEWORKS - {"litestar", "msgspec"}) == []
+def test_the_fastapi_application_imports_no_other_web_framework() -> None:
+    assert _violations(FASTAPI_APPLICATION, WEB_FRAMEWORKS - {"fastapi"}) == []
+
+
+def test_only_the_a2a_adapter_imports_the_a2a_sdk_in_the_agent() -> None:
+    adapter = f"{A2A_ADAPTER.relative_to(SOURCE)}/"
+    outside = [
+        violation
+        for violation in _violations(PACKAGE, {"a2a", "google.protobuf"})
+        if not violation.startswith(adapter)
+    ]
+    assert outside == []

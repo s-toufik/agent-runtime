@@ -14,6 +14,8 @@ application_configuration:
     database:
       mongodb_checkpointer: ${connector.mongodb_checkpointer}
       sqlite_checkpointer: ${connector.sqlite_checkpointer}
+      postgres_a2a_tasks: ${connector.postgres_a2a_tasks}
+      sqlite_a2a_tasks: ${connector.sqlite_a2a_tasks}
     telemetry:
       open_telemetry: ${connector.telemetry}
     mcp:

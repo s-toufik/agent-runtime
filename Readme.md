@@ -37,7 +37,7 @@ You need:
 - Python 3.14 and [uv](https://docs.astral.sh/uv/)
 - one or two OpenAI-compatible model servers: the homelab's llama.cpp, NVIDIA's API, or both
 - optionally, an MCP server for tools (the agent starts without one)
-- optionally, MongoDB for conversations (a local SQLite file is used when MongoDB is unreachable)
+- optionally, MongoDB for conversations and PostgreSQL for A2A tasks (local SQLite files are used when they're unreachable)
 
 ```bash
 uv sync --group dev
@@ -49,6 +49,7 @@ make run
 |---|---|
 | Chat (SSE) | `POST http://<host>:<port>/v1/stream` |
 | Models | `GET http://<host>:<port>/v1/models` |
+| A2A (JSON-RPC, other agents) | `POST http://<host>:<port>/a2a`, card at `GET /.well-known/agent-card.json` |
 | Health | `GET http://<host>:<port>/actuator/health` (also `/health/liveness`, `/health/readiness`) |
 | Version | `GET http://<host>:<port>/actuator/info` |
 | API documentation | `http://<host>:<port>/docs` (Swagger UI) and `/docs/openapi.json`, with `WEB_DOCS=true` |
@@ -121,6 +122,48 @@ During a long model call, the stream sends a `: heartbeat` comment every 15 seco
 
 New events, fields and outcomes may be added: ignore the ones you don't know, and treat an unknown `outcome` like `answered`. Why a message gets a given outcome: see [Logic](#logic).
 
+### Talk to it as an A2A agent
+
+Other agents reach it with the [A2A protocol](https://a2a-protocol.org/latest/specification/) 1.0, JSON-RPC binding, served by the official [`a2a-sdk`](https://pypi.org/project/a2a-sdk/). The agent card says how:
+
+```bash
+curl http://<host>:<port>/.well-known/agent-card.json
+```
+
+Send a message (`SendMessage` waits for the answer; `SendStreamingMessage` streams the same as server-sent events):
+
+```bash
+curl http://<host>:<port>/a2a \
+  -H 'Content-Type: application/json' -H 'A2A-Version: 1.0' \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {"message": {
+        "messageId": "m1", "role": "ROLE_USER", "parts": [{"text": "how many users signed up today?"}]}}}'
+```
+
+The reply is a task. Its `contextId` is the conversation (it becomes `request_id`): send it again to continue the conversation in a new task.
+
+| Task state | The agent's `outcome` | What to do |
+|---|---|---|
+| `TASK_STATE_COMPLETED` | `answered`, `best_effort`, `budget_exhausted` without a paused plan | Read the `answer` artifact |
+| `TASK_STATE_INPUT_REQUIRED` | `awaiting_approval`, `clarification`, `budget_exhausted` with a paused plan | Read `status.message`, then reply in the same task (`message.taskId`): **yes**, **continue**, an answer, or a change |
+| `TASK_STATE_REJECTED` | `refused` | Change the request |
+| `TASK_STATE_FAILED` | an `error` | Read `status.message` |
+| `TASK_STATE_CANCELED` | | `CancelTask` was called |
+
+| Method | Supported |
+|---|---|
+| `SendMessage` | Yes. `configuration.returnImmediately: true` answers at once with the task; follow it with `GetTask` or `SubscribeToTask` |
+| `SendStreamingMessage` | Yes: the task, a `statusUpdate` per step, the `answer` `artifactUpdate`, the last `statusUpdate`. Closing the stream does not stop the task: it keeps running until it ends or `CancelTask` stops it |
+| `GetTask`, `CancelTask`, `ListTasks`, `SubscribeToTask` | Yes, for the tasks of the last `A2A_TASK_TTL` (a week), kept in PostgreSQL, or in SQLite when PostgreSQL is unreachable; they survive a restart |
+| Push notifications, extended card | No: `PushNotificationNotSupportedError` (`-32003`) or `UnsupportedOperationError` (`-32004`) |
+
+- Only text parts are read: a message without text is `TASK_STATE_REJECTED`. The answer is text or Markdown.
+- `message.metadata.model` (or the request's `metadata.model`) picks the model; otherwise `A2A_MODEL`, otherwise the first model of `GET /v1/models`.
+- `metadata.autoApprove: true` runs a plan without waiting, like `auto_approve`.
+- Send `A2A-Version: 1.0`. Without it the SDK takes the call as A2A 0.3 (`message/send`, `kind: "text"`), which it also understands.
+- A new task when `MAX_CONCURRENT_STREAMS` turns are already running ends `TASK_STATE_FAILED` with "Server is at capacity, please retry."
+- A task not updated for `A2A_TASK_TTL` is deleted (checked every hour) and then answers `TaskNotFoundError` (`-32001`). Its conversation is kept as long, so both expire together.
+- No authentication, like `/v1/stream`: keep the port on a private network.
+
 ### Configure it
 
 **Environment variables.** `.env.example` is the reference; the main ones:
@@ -136,16 +179,20 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 | `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/stream`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
 | `WEB_DOCS` | `false` | `true` serves the API documentation at `<base path>/docs` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review arrive as `token` events, then `final`. `whole`: only `final` |
+| `A2A_MODEL` | empty | The model A2A tasks use when the message names none; empty: the first listed model |
+| `A2A_URL` | empty | The A2A endpoint the agent card announces, e.g. behind a gateway; empty: the address the card was read from, plus `/a2a` (the SDK then logs a warning at start that the card has no URL) |
+| `A2A_TASK_TTL` | `604800` (a week) | How long an A2A task is kept after its last update, in seconds. Keep it equal to the conversation's TTL (`ttl` of `mongodb_checkpointer`) |
 | `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `NVIDIA_LLM_BASE_URL`, `NVIDIA_LLM_API_KEY` | one provider required | NVIDIA's API, `https://integrate.api.nvidia.com/v1`, and its `nvapi-…` key |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
 | `DB_MONGO_CHECKPOINT_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | required | Conversation storage in MongoDB |
-| `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name) |
+| `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name); A2A tasks fall back to `a2a_tasks.db` in the same folder |
+| `DB_POSTGRES_A2A_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | empty, `5432`, `agent_runtime` | A2A task storage in PostgreSQL; no host: SQLite |
 | `OTEL_HOST`, `OTEL_PORT` | required | OpenTelemetry collector (gRPC); an empty host turns telemetry off |
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS` and `AGENT_ANSWER_DELIVERY` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS`, `AGENT_ANSWER_DELIVERY`, `A2A_MODEL`, `A2A_URL` and `A2A_TASK_TTL` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
 
 **Configuration files.** `config/root.yml` lists what exists; `config/<APP_ENV>/` defines it:
 
@@ -153,7 +200,7 @@ New events, fields and outcomes may be added: ignore the ones you don't know, an
 |---|---|
 | `connector/api.yml` | The model providers, `homelab_llm_provider` and `nvidia_llm_provider`; per provider, `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
 | `connector/mcp.yml` | The MCP servers |
-| `connector/database.yml` | MongoDB, SQLite, and how long conversations are kept |
+| `connector/database.yml` | MongoDB and SQLite for conversations (kept a week), PostgreSQL and SQLite for A2A tasks |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
@@ -206,7 +253,7 @@ connector:
 
 ### Logs
 
-One format for every line; the third column is the request id (the conversation id on `/v1/stream`), `-` outside a request:
+One format for every line; the third column is the request id (the conversation id on `/v1/stream`, the `contextId` on `/a2a`), `-` outside a request:
 
 ```text
 2026-09-27 10:47:47.785 | INFO     | my-conversation | stream_agent_controller:execute:45 - stream request accepted
@@ -242,14 +289,14 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 ```text
   ┌─ bootstrap ──────────────────────────────────────────────────────────────┐
-  │  configuration, dependency wiring (AgentDI), the Litestar API            │
+  │  configuration, dependency wiring (bootstrap/di/), the FastAPI API       │
   │  ┌─ adapter ──────────────────────────────────────────────────────────┐  │
-  │  │  inbound:  SSE stream controller and presenter                     │  │
+  │  │  inbound:  SSE stream controller, A2A executor (a2a-sdk)           │  │
   │  │  outbound: LangChain models, MCP tools, LangGraph runtime, events  │  │
   │  │  ┌─ application ────────────────────────────────────────────────┐  │  │
-  │  │  │  HandleMessage use case, one handler per step, ports         │  │  │
+  │  │  │  HandleMessage, RunA2aTask, one handler per step, ports      │  │  │
   │  │  │  ┌─ domain ───────────────────────────────────────────────┐  │  │  │
-  │  │  │  │  Conversation, Turn, Plan, Answer, TurnPolicy          │  │  │  │
+  │  │  │  │  Conversation, Turn, Plan, Answer, TurnPolicy, a2a     │  │  │  │
   │  │  │  │  plain dataclasses, no framework                       │  │  │  │
   │  │  │  └────────────────────────────────────────────────────────┘  │  │  │
   │  │  └──────────────────────────────────────────────────────────────┘  │  │
@@ -264,11 +311,16 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
 | `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), `tool/` (`ToolRegistry`, `ToolCatalogRefresher`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `ToolProviderPort`, `WorkflowRunner`…) |
 | `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter`: one stream per request, whatever web framework serves it |
+| `src/agent_runtime/domain/a2a/` | `TaskState` (and the rule from an `Outcome` to a task state), `TaskUpdate`, `A2aTaskRequest`, `AgentProfile` (name, skills). Plain Python: the SDK never reaches the domain |
+| `src/agent_runtime/application/use_case/run_a2a_task.py` | `RunA2aTask`, behind `RunA2aTaskPort`: picks the model, runs `HandleMessage` in the task's conversation, and reports each event as a `TaskUpdate` |
+| `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes tasks older than `A2A_TASK_TTL`). The SDK does JSON-RPC, the task store, streaming and cancel |
+| `src/agent_runtime/adapter/inbound/exception/`, `turn_status.py` | What every inbound adapter shares: `ServerAtCapacityException` (503) and the step labels. Inbound adapters never import each other, and a test checks it |
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, the prompts, `ModelCatalog` |
 | `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (MCP sessions, discovery and calls) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, `AgentDI` (wiring only), the container, and `create_agent_application`, which Granian calls |
-| `src/bootstrap/application/litestar/` | The API: `router/` (routes), `schema/` (request and response bodies, msgspec), `litestar_api.py` (the app, built with `pycraftcore.web_litestar`) |
+| `src/bootstrap/` | Settings, the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
+| `src/bootstrap/di/` | One wiring class per kind, each given what it needs: `ToolsDI` (MCP tools), `ModelsDI` (model providers and clients), `StorageDI` (conversation checkpointer, A2A task database, each with its SQLite fallback), `WorkflowDI` (steps and graph), `A2aDI` (card, request handler, task store, cleanup). `AgentDI` composes them and builds the use cases |
+| `src/bootstrap/application/fastapi/` | The API: `router/` (`/v1` routes; the A2A card route and the SDK's JSON-RPC route), `schema/` (request and response bodies, pydantic), `fastapi_api.py` (the app, built with `pycraftcore.web_fastapi`, traced with the OpenTelemetry FastAPI instrumentation) |
 | `config/` | YAML configuration |
 | `src/agent_evaluation/` | The evaluation, a separate program that tests a running agent over HTTP |
 | `tests/` | Unit, scenario and architecture tests, and the evaluation's own tests |
@@ -315,10 +367,13 @@ With `GUARDRAIL_ENABLED=true`, `TurnPolicy(screen=True)` replaces the two `plan`
 | What a step does | Its handler in `application/step/` |
 | What a model is told | `adapter/outbound/llm/langchain/prompts/` |
 | What the client sees for a step | `adapter/inbound/web/stream/sse_presenter.py` |
+| Which task state an outcome gives | `TaskState.of` in `domain/a2a/task_state.py` |
+| What an A2A client sees for a task update | `adapter/inbound/a2a/a2a_task_presenter.py` |
+| What the agent card says | `AgentProfile` in `domain/a2a/agent_profile.py` |
 | A LangGraph-only feature for one step (interrupt, subgraph) | Override `work` in that step's node in `adapter/outbound/langgraph/node/` |
-| A new request option | `AgentRequestSchema` (`bootstrap/application/litestar/schema/`) → `AgentRequest` → `TurnOptions`, read in the domain |
-| A new route | A handler in `bootstrap/application/litestar/router/`, listed in `litestar_api.py`. A service it needs goes in `dependencies` there, provided by the container in `create_agent_application` |
-| A new step | A `Step` value, a handler in `application/step/`, a node class in `langgraph/node/` listed in `NODE_TYPES`, the handler in `AgentDI._steps`, and its rows in `TurnPolicy` |
+| A new request option | `AgentRequestSchema` (`bootstrap/application/fastapi/schema/`) → `AgentRequest` → `TurnOptions`, read in the domain |
+| A new route | A function in a router of `bootstrap/application/fastapi/router/`, listed in `fastapi_api.py`. A service it needs comes in as a provider (`Callable[[], Service]`) given by the container in `create_agent_application` |
+| A new step | A `Step` value, a handler in `application/step/`, a node class in `langgraph/node/` listed in `NODE_TYPES`, the handler in `WorkflowDI.steps`, and its rows in `TurnPolicy` |
 | A new model role | An `AgentRole` value, its entry in `operation/agent.yml` (and `root.yml`), and a LangChain adapter behind the step's port |
 | A new source of tools | A connector in `connector/mcp.yml` (see [More MCP servers](#configure-it)); a non-MCP source is a new adapter behind the `ToolCatalog` and `ToolExecutor` ports |
 
