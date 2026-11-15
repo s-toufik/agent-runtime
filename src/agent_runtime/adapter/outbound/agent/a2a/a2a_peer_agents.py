@@ -6,10 +6,9 @@ from a2a.client import A2ACardResolver, ClientConfig, create_client
 from a2a.helpers import new_text_message
 from a2a.types.a2a_pb2 import AgentCard, Role, SendMessageRequest, Task, TaskState
 from pycraftcore.application_configuration.model.connector import A2aConnector
-from pycraftcore.context.request_id_context import request_id_context
 from pycraftcore.logger.port import Logger
 
-from agent_runtime.domain.a2a.turn_options import AUTO_APPROVE_KEY
+from agent_runtime.domain.a2a.turn_options import AUTO_APPROVE_KEY, MODEL_KEY
 from agent_runtime.domain.agent.agent_skill import AgentSkill
 from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.agent.peer_reply import PeerOutcome, PeerReply, PeerRequest
@@ -79,10 +78,8 @@ class A2aPeerAgents:
         config = ClientConfig(httpx_client=self._client(request.agent), streaming=False)
         client = await create_client(card, client_config=config)
         message = new_text_message(request.message, role=Role.ROLE_USER)
-        conversation: str | None = request_id_context.get(None)
-        if conversation:
-            message.context_id = peer_context(conversation, request.agent)
-        message.metadata.update({AUTO_APPROVE_KEY: True})
+        message.context_id = peer_context(request.conversation, request.agent)
+        message.metadata.update({AUTO_APPROVE_KEY: True, MODEL_KEY: request.model})
         task: Task | None = None
         async for response in client.send_message(SendMessageRequest(message=message)):
             if response.HasField("task"):

@@ -6,6 +6,7 @@ from agent_runtime.application.port.outbound.tool_provider import ToolPort
 from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.agent.peer_reply import PeerOutcome, PeerReply, PeerRequest
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 
@@ -50,8 +51,8 @@ class AskAgentsTool:
             },
         )
 
-    async def invoke(self, call: ToolCall) -> ToolResult:
-        requests: list[PeerRequest] | None = _requests(call.arguments)
+    async def invoke(self, call: ToolCall, context: ToolContext) -> ToolResult:
+        requests: list[PeerRequest] | None = _requests(call.arguments, context)
         if not requests:
             return ToolResult.failure(
                 call.id, ASK_AGENTS, "Give 'requests': a list of {agent, message}."
@@ -87,7 +88,7 @@ class AskAgentsProvider:
         return [AskAgentsTool(peers, self._client)] if peers else []
 
 
-def _requests(arguments: dict) -> list[PeerRequest] | None:
+def _requests(arguments: dict, context: ToolContext) -> list[PeerRequest] | None:
     raw = arguments.get("requests")
     if not isinstance(raw, list):
         return None
@@ -98,5 +99,7 @@ def _requests(arguments: dict) -> list[PeerRequest] | None:
         agent, message = item.get("agent"), item.get("message")
         if not isinstance(agent, str) or not isinstance(message, str) or not message.strip():
             return None
-        requests.append(PeerRequest(agent.strip(), message.strip()))
+        requests.append(
+            PeerRequest(agent.strip(), message.strip(), context.conversation, context.model)
+        )
     return requests

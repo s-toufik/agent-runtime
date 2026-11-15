@@ -2,7 +2,6 @@ import httpx
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import A2aConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
-from pycraftcore.context.request_id_context import request_id_context
 
 from agent_runtime.adapter.inbound.a2a.a2a_agent_executor import A2aAgentExecutor
 from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents, peer_context
@@ -48,17 +47,19 @@ async def test_a_peer_is_described_from_its_card(logger) -> None:
     await peers.close()
 
 
-async def test_a_peer_answers_auto_approved_in_its_own_part_of_the_conversation(logger) -> None:
+async def test_a_peer_answers_auto_approved_with_the_model_in_its_own_part_of_the_conversation(
+    logger,
+) -> None:
     handle_message = ScriptedUseCase(ANSWERED)
     peers = _peers(logger, _peer_app(logger, handle_message))
-    request_id_context.set(CONVERSATION)
 
-    reply = await peers.ask(PeerRequest("chat", "meaning?"))
+    reply = await peers.ask(PeerRequest("chat", "meaning?", CONVERSATION, "m"))
 
     assert (reply.outcome, reply.text) == (PeerOutcome.ANSWERED, "42")
     [request] = handle_message.requests
     assert request.message == "meaning?"
     assert request.auto_approve is True
+    assert request.model_name == "m"
     assert request.request_id == peer_context(CONVERSATION, "chat")
     await peers.close()
 
@@ -77,7 +78,7 @@ def test_each_peer_has_its_own_part_of_the_conversation_within_the_a2a_id_size()
 async def test_a_peer_that_waits_for_input_says_what_it_waits_for(logger) -> None:
     peers = _peers(logger, _peer_app(logger, ScriptedUseCase(PLANNED)))
 
-    reply = await peers.ask(PeerRequest("chat", "do it"))
+    reply = await peers.ask(PeerRequest("chat", "do it", CONVERSATION, "m"))
 
     assert reply.outcome is PeerOutcome.NEEDS_INPUT
     assert "### Plan" in reply.text
@@ -93,7 +94,7 @@ async def test_a_peer_that_cannot_be_reached_is_reported_not_raised(logger) -> N
 
     peers = A2aPeerAgents({"chat": _connector()}, logger, http_client=refused)
 
-    reply = await peers.ask(PeerRequest("chat", "hello"))
+    reply = await peers.ask(PeerRequest("chat", "hello", CONVERSATION, "m"))
 
     assert reply.outcome is PeerOutcome.UNREACHABLE
     assert logger.messages("warning")

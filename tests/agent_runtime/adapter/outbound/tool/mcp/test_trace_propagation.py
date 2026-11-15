@@ -7,6 +7,7 @@ from opentelemetry import trace
 
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool import McpTool
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from tests.support.tracing import by_name
 
@@ -29,7 +30,10 @@ async def test_a_tool_call_joins_the_trace_of_the_step_that_made_it(spans) -> No
     tool = McpTool(InMemorySessions(), ToolSpecification(name="add", description="Add."))
 
     with trace.get_tracer("test").start_as_current_span("agent run_tools") as step:
-        result = await tool.invoke(ToolCall(id="c1", name="add", arguments={"a": 1, "b": 2}))
+        result = await tool.invoke(
+            ToolCall(id="c1", name="add", arguments={"a": 1, "b": 2}),
+            ToolContext(conversation="conversation-1", model="m"),
+        )
 
     assert result.error is None
     call = by_name(spans)["tools/call add"]

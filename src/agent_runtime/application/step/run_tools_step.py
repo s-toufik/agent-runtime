@@ -2,6 +2,7 @@ import asyncio
 
 from agent_runtime.application.port.outbound.tool_executor import ToolExecutor
 from agent_runtime.domain.conversation.conversation import Conversation
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.workflow.step import Step
 
@@ -15,4 +16,7 @@ class RunToolsStep:
     async def run(self, conversation: Conversation, turn: Turn) -> None:
         draft = turn.last_draft
         calls = draft.tool_calls if draft else ()
-        turn.observed(list(await asyncio.gather(*(self._executor.run(call) for call in calls))))
+        context = ToolContext(conversation=conversation.id, model=turn.model)
+        turn.observed(
+            list(await asyncio.gather(*(self._executor.run(call, context) for call in calls)))
+        )

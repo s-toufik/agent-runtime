@@ -3,6 +3,7 @@ from typing import Protocol, runtime_checkable
 
 from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 
@@ -12,7 +13,7 @@ class ToolPort(Protocol):
     @property
     def specification(self) -> ToolSpecification: ...
 
-    async def invoke(self, call: ToolCall) -> ToolResult: ...
+    async def invoke(self, call: ToolCall, context: ToolContext) -> ToolResult: ...
 
 
 @runtime_checkable

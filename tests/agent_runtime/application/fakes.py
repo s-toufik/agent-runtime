@@ -9,6 +9,7 @@ from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.exception.unknown_model_exception import UnknownModelException
 from agent_runtime.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.draft import Draft
@@ -96,9 +97,11 @@ class FakeCatalog:
 class EchoExecutor:
     def __init__(self) -> None:
         self.calls: list[ToolCall] = []
+        self.contexts: list[ToolContext] = []
 
-    async def run(self, call: ToolCall) -> ToolResult:
+    async def run(self, call: ToolCall, context: ToolContext) -> ToolResult:
         self.calls.append(call)
+        self.contexts.append(context)
         return ToolResult(call.id, call.name, f"{call.name}:{call.arguments.get('text', '')}")
 
 

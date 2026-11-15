@@ -16,12 +16,16 @@ from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory imp
     StreamableHttpSessionFactory,
 )
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from tests.support.mcp_test_server import build_mcp_asgi_app, build_mcp_server
 
 
 class Rows(BaseModel):
     rows: list[dict[str, int]]
+
+
+CONTEXT = ToolContext(conversation="conversation-1", model="m")
 
 
 def _free_port() -> int:
@@ -101,7 +105,7 @@ async def test_provider_carries_each_tools_input_and_output_schema(running_serve
 async def test_prefers_structured_content_when_present(running_server, logger) -> None:
     tool = _tool(running_server, "structured", logger)
 
-    result = await tool.invoke(ToolCall(id="1", name="structured"))
+    result = await tool.invoke(ToolCall(id="1", name="structured"), CONTEXT)
 
     assert not result.error
     assert result.output == '{"rows": [{"n": 1}]}'
@@ -110,7 +114,7 @@ async def test_prefers_structured_content_when_present(running_server, logger) -
 async def test_falls_back_to_text_when_no_structured_content(running_server, logger) -> None:
     tool = _tool(running_server, "unstructured", logger)
 
-    result = await tool.invoke(ToolCall(id="1", name="unstructured"))
+    result = await tool.invoke(ToolCall(id="1", name="unstructured"), CONTEXT)
 
     assert not result.error
     assert result.output == "plain text"
@@ -119,7 +123,7 @@ async def test_falls_back_to_text_when_no_structured_content(running_server, log
 async def test_failure_still_reads_the_text_error_message(running_server, logger) -> None:
     tool = _tool(running_server, "always_fails", logger)
 
-    result = await tool.invoke(ToolCall(id="1", name="always_fails"))
+    result = await tool.invoke(ToolCall(id="1", name="always_fails"), CONTEXT)
 
     assert result.error
     assert "boom" in result.error

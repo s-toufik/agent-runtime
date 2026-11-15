@@ -14,6 +14,8 @@ class PeerOutcome(StrEnum):
 class PeerRequest:
     agent: str
     message: str
+    conversation: str
+    model: str
 
 
 @dataclass(frozen=True, slots=True)

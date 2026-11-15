@@ -9,6 +9,7 @@ from agent_runtime.application.step.summarize_step import KEEP_LAST_MESSAGES, Su
 from agent_runtime.application.step.understand_step import UnderstandStep
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.conversation.message import Message, Speaker
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.turn.answer import NO_PLAN, Answer
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.outcome import Outcome
@@ -108,6 +109,7 @@ async def test_every_requested_tool_runs_and_its_result_is_kept() -> None:
 
     assert len(executor.calls) == 2
     assert [result.tool_name for result in current.evidence] == ["echo", "echo"]
+    assert executor.contexts == [ToolContext("c1", current.model)] * 2
 
 
 async def test_an_unreadable_review_accepts_the_draft(logger) -> None:

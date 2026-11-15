@@ -6,6 +6,7 @@ from mcp.types import CallToolResult, TextContent
 
 from agent_runtime.adapter.outbound.tool.mcp.mcp_session_factory import McpSessionFactory
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 
@@ -21,7 +22,7 @@ class McpTool:
     def specification(self) -> ToolSpecification:
         return self._specification
 
-    async def invoke(self, call: ToolCall) -> ToolResult:
+    async def invoke(self, call: ToolCall, context: ToolContext) -> ToolResult:
         try:
             async with self._session_factory.session() as session:
                 result: CallToolResult = await session.call_tool(
