@@ -10,6 +10,7 @@ from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.inbound.a2a.a2a_agent_executor import A2aAgentExecutor
 from agent_runtime.adapter.inbound.a2a.agent_card import agent_card
+from agent_runtime.adapter.inbound.a2a.database_task_store import database_task_store
 from agent_runtime.adapter.inbound.a2a.delegating_task_store import DelegatingTaskStore
 from agent_runtime.adapter.inbound.a2a.task_retention import TaskRetention
 from agent_runtime.application.port.inbound.run_a2a_task_port import RunA2aTaskPort
@@ -59,7 +60,7 @@ class A2aDI:
         )
 
     async def task_store(self, storage: A2aTaskStorage) -> DatabaseTaskStore:
-        store = DatabaseTaskStore(storage.engine, table_name=storage.operation.collection(TASKS))
+        store = database_task_store(storage.engine, storage.operation.collection(TASKS))
         await store.initialize()
         return store
 

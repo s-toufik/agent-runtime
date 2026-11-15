@@ -61,16 +61,14 @@ class WorkflowDI:
         logger: Logger,
         *,
         answer_delivery: AnswerDelivery,
-        screen: bool,
         prompts: PromptBook,
         shape: TurnShape,
     ) -> None:
         self._prompts = prompts
-        self._policy = TurnPolicy(shape, screen=screen)
+        self._policy = TurnPolicy(shape)
         self._models = models
         self._logger = logger
         self._answer_delivery = answer_delivery
-        self._screen = screen
 
     @cached_property
     def turn_events(self) -> TurnEventPublisher:
@@ -118,7 +116,7 @@ class WorkflowDI:
                 logger,
             ),
         ]
-        if self._screen:
+        if self._policy.shape.screen:
             steps.append(ScreenStep(LangChainGuard(models, logger, prompts=prompts), logger))
         reachable: set[Step] = set(self._policy.steps())
         return [handler for handler in steps if handler.step in reachable]

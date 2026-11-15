@@ -18,13 +18,10 @@ __all__ = [
     "turn_options_extension",
 ]
 
-LEGACY_MODEL_KEY: str = "model"
-LEGACY_AUTO_APPROVE_KEY: str = "autoApprove"
 DESCRIPTION: str = (
     f"Message metadata the agent reads. '{MODEL_KEY}': the model of the turn, one of "
     f"params.models (default: params.defaultModel). '{AUTO_APPROVE_KEY}': true runs a plan "
-    "without waiting for a 'yes' in the same task. The short keys 'model' and 'autoApprove' "
-    "are read too; the long ones win."
+    "without waiting for a 'yes' in the same task."
 )
 
 
@@ -41,8 +38,8 @@ def turn_options_extension(options: TurnOptions) -> AgentExtension:
 
 
 def requested_options(metadata: dict[str, Any]) -> RequestedOptions:
-    model: Any = metadata.get(MODEL_KEY, metadata.get(LEGACY_MODEL_KEY))
-    auto_approve: Any = metadata.get(AUTO_APPROVE_KEY, metadata.get(LEGACY_AUTO_APPROVE_KEY))
+    model: Any = metadata.get(MODEL_KEY)
+    auto_approve: Any = metadata.get(AUTO_APPROVE_KEY)
     return RequestedOptions(
         model=model.strip() if isinstance(model, str) else "",
         auto_approve=auto_approve is True,

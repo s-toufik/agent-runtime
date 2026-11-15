@@ -1,6 +1,6 @@
 connector:
   a2a_self:
-    name: agent-runtime
+    name: a2a_self
     type: a2a
     base_url: ${oc.env:A2A_URL,""}
     timeout: 300
@@ -8,73 +8,10 @@ connector:
     auth:
       type: none
 
-  agent_orchestration:
-    name: agent_orchestration
+  agent_peer:
+    name: agent_peer
     type: a2a
-    base_url: ${oc.env:AGENT_ORCHESTRATION_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_chat:
-    name: agent_chat
-    type: a2a
-    base_url: ${oc.env:AGENT_CHAT_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_observation:
-    name: agent_observation
-    type: a2a
-    base_url: ${oc.env:AGENT_OBSERVATION_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_analysis:
-    name: agent_analysis
-    type: a2a
-    base_url: ${oc.env:AGENT_ANALYSIS_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_coding:
-    name: agent_coding
-    type: a2a
-    base_url: ${oc.env:AGENT_CODING_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_security:
-    name: agent_security
-    type: a2a
-    base_url: ${oc.env:AGENT_SECURITY_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_kitchen:
-    name: agent_kitchen
-    type: a2a
-    base_url: ${oc.env:AGENT_KITCHEN_URL,""}
-    timeout: 600
-    binding: JSONRPC
-    auth:
-      type: none
-
-  agent_travel:
-    name: agent_travel
-    type: a2a
-    base_url: ${oc.env:AGENT_TRAVEL_URL,""}
+    base_url: ""
     timeout: 600
     binding: JSONRPC
     auth:

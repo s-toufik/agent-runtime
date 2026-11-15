@@ -5,10 +5,11 @@ from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.workflow import conditions
 from agent_runtime.domain.workflow.step import Step
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.domain.workflow.turn_shape import TurnShape
 from tests.agent_runtime.domain.builders import PLAN, answer, calling, retry, turn
 
 POLICY = TurnPolicy()
-SCREENING_POLICY = TurnPolicy(screen=True)
+SCREENING_POLICY = TurnPolicy(TurnShape(screen=True))
 
 
 def _steps(policy: TurnPolicy) -> set[Step]:

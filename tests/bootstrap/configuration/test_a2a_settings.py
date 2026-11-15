@@ -10,7 +10,7 @@ from bootstrap.configuration.a2a_settings import A2aSettings
 
 def operation(base_url: str = "", binding: str = "JSONRPC", **parameters) -> A2aOperation:
     connector = A2aConnector(
-        name="agent-runtime",
+        name="a2a_self",
         type=ConnectorType.a2a,
         auth=NoAuth(),
         base_url=base_url,
@@ -22,14 +22,14 @@ def operation(base_url: str = "", binding: str = "JSONRPC", **parameters) -> A2a
     )
 
 
-def test_the_url_comes_from_the_connector_and_the_model_from_the_operation() -> None:
-    settings = A2aSettings.of(operation(" https://agent.example/a2a ", model=" qwen3-8b "))
+def test_the_url_comes_from_the_connector() -> None:
+    settings = A2aSettings.of(operation(" https://agent.example/a2a "))
 
-    assert settings == A2aSettings("https://agent.example/a2a", "qwen3-8b")
+    assert settings == A2aSettings("https://agent.example/a2a")
 
 
-def test_nothing_set_means_the_request_address_and_the_first_model() -> None:
-    assert A2aSettings.of(operation()) == A2aSettings("", "")
+def test_no_url_means_the_address_the_card_was_read_from() -> None:
+    assert A2aSettings.of(operation()) == A2aSettings("")
 
 
 def test_only_json_rpc_is_served() -> None:

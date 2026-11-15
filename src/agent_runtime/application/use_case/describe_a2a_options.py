@@ -3,12 +3,10 @@ from agent_runtime.domain.a2a.turn_options import TurnOptions
 
 
 class DescribeA2aOptions:
-    def __init__(self, models: ListModelsPort, default_model: str = "") -> None:
+    def __init__(self, models: ListModelsPort) -> None:
         self._models = models
-        self._default_model = default_model
 
     async def handle(self) -> TurnOptions:
         listing = await self._models.handle()
         names: tuple[str, ...] = tuple(model.name for model in listing.models)
-        default: str = self._default_model or (names[0] if names else "")
-        return TurnOptions(names, default)
+        return TurnOptions(names, names[0] if names else "")

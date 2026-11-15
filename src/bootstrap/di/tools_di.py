@@ -1,9 +1,10 @@
+import os
 from collections.abc import Mapping
 from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model.connector import A2aConnector, McpConnector
 from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.logger.port import Logger
 
@@ -21,10 +22,10 @@ from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRef
 from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.domain.agent.tool_scope import ToolScope
 from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
+from bootstrap.configuration.peer_connectors import PEER_TEMPLATE, peer_connectors
 
 MCP_CONNECTOR_NAME: str = "toolbox"
 EXTERNAL_MCP_PREFIX: str = "external_mcp_"
-PEER_PREFIX: str = "agent_"
 PEER_SOURCE: str = "agents"
 
 
@@ -93,10 +94,8 @@ class ToolsDI:
 
     @cached_property
     def peer_agents(self) -> A2aPeerAgents:
-        return A2aPeerAgents(
-            {name: self._configuration.connector.a2a(PEER_PREFIX + name) for name in self._peers},
-            self._logger,
-        )
+        template: A2aConnector = self._configuration.connector.a2a(PEER_TEMPLATE)
+        return A2aPeerAgents(peer_connectors(template, self._peers, os.environ), self._logger)
 
     def _peer_sources(self) -> list[ToolSource]:
         if not self._peers:

@@ -28,7 +28,7 @@ async def _lifespan(container: AgentContainer) -> AsyncGenerator[None]:
 
 
 def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp:
-    process_settings = settings or ProcessSettings.for_role("agent-runtime")
+    process_settings = settings or ProcessSettings.from_environment()
     container = AgentContainer(process_settings)
     server = container.server
 

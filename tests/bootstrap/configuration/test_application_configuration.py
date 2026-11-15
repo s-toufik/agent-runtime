@@ -9,8 +9,8 @@ from bootstrap.configuration.settings import ProcessSettings
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 
-def make_settings(directory: Path, role: str = "agent-runtime") -> ProcessSettings:
-    return ProcessSettings(role=role, environment="debug", configuration_directory=directory)
+def make_settings(directory: Path) -> ProcessSettings:
+    return ProcessSettings(environment="debug", configuration_directory=directory)
 
 
 def test_loads_the_real_configuration_tree(logger) -> None:

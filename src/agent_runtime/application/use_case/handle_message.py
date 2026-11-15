@@ -33,10 +33,11 @@ class HandleMessage:
     async def handle(self, request: AgentRequest, events: TurnEventStream) -> None:
         started: float | int = time.monotonic()
         try:
+            model: str = self._models.model_for(request.model_name)
             turn = Turn(
                 request=request.message,
-                model=request.model_name,
-                settings=self._models.turn_settings(request.model_name),
+                model=model,
+                settings=self._models.turn_settings(model),
                 options=TurnOptions(auto_approve=request.auto_approve),
             )
             async for event in self._workflow.run(request.request_id, turn):

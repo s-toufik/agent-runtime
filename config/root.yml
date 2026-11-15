@@ -21,14 +21,7 @@ application_configuration:
       toolbox: ${connector.toolbox}
     a2a:
       a2a_self: ${connector.a2a_self}
-      agent_orchestration: ${connector.agent_orchestration}
-      agent_chat: ${connector.agent_chat}
-      agent_observation: ${connector.agent_observation}
-      agent_analysis: ${connector.agent_analysis}
-      agent_coding: ${connector.agent_coding}
-      agent_security: ${connector.agent_security}
-      agent_kitchen: ${connector.agent_kitchen}
-      agent_travel: ${connector.agent_travel}
+      agent_peer: ${connector.agent_peer}
 
   operation:
     conversation_mongodb: ${operation.conversation_mongodb}

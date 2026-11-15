@@ -2,6 +2,7 @@ agent:
   name: analysis
   description: the homelab's data analysis agent, which queries PostgreSQL and MongoDB and computes figures, tables and charts from the data
   tool_scope: analysis
+  guardrail: true
   turns: [direct, clarify, plan, review]
   skills:
     - id: analyse-data

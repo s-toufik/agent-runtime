@@ -26,9 +26,7 @@ def booted(monkeypatch) -> None:
 def create_app(monkeypatch, base_path: str = "", docs: bool = False) -> ASGIApp:
     monkeypatch.setenv("WEB_BASE_PATH", base_path)
     monkeypatch.setenv("WEB_DOCS", str(docs).lower())
-    settings = ProcessSettings(
-        role="agent-runtime", environment="debug", configuration_directory=REAL_CONFIG_DIR
-    )
+    settings = ProcessSettings(environment="debug", configuration_directory=REAL_CONFIG_DIR)
     return create_agent_application(settings=settings)
 
 

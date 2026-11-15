@@ -13,9 +13,5 @@ async def test_the_listed_models_with_the_first_as_default() -> None:
     assert await DescribeA2aOptions(Models()).handle() == TurnOptions(("m",), "m")
 
 
-async def test_the_configured_default_wins() -> None:
-    assert await DescribeA2aOptions(Models(), "big").handle() == TurnOptions(("m",), "big")
-
-
 async def test_no_model_means_no_default() -> None:
     assert await DescribeA2aOptions(NoModels()).handle() == TurnOptions((), "")

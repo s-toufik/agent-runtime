@@ -16,11 +16,10 @@ class RunA2aTask:
         handle_message: HandleMessagePort,
         stream_events: Callable[[], TurnEventStream],
         models: ListModelsPort,
-        default_model: str = "",
     ) -> None:
         self._handle_message = handle_message
         self._stream_events = stream_events
-        self._options = DescribeA2aOptions(models, default_model)
+        self._options = DescribeA2aOptions(models)
 
     async def run(self, request: A2aTaskRequest) -> AsyncGenerator[TaskUpdate]:
         message = AgentRequest(

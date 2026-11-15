@@ -3,5 +3,4 @@ operation:
     name: a2a
     type: a2a
     connector: ${connector.a2a_self}
-    parameters:
-      model: ${oc.env:A2A_MODEL,""}
+    parameters: {}

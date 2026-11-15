@@ -115,6 +115,9 @@ class FakeModels:
     def __init__(self, settings: TurnSettings | None = None) -> None:
         self._settings = settings or TurnSettings()
 
+    def model_for(self, requested: str) -> str:
+        return requested
+
     def turn_settings(self, model: str) -> TurnSettings:
         if model == "unknown":
             raise UnknownModelException(f"Unknown model '{model}'")

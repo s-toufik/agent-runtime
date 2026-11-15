@@ -2,6 +2,7 @@ from functools import cached_property
 
 from agent_runtime.adapter.outbound.llm.langchain.prompts.generic_prompts import prompt_book
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
+from agent_runtime.application.agent.agent_models import AgentModels
 from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.application.use_case.list_models import ListModels
 from agent_runtime.domain.agent.agent import Agent
@@ -34,12 +35,18 @@ class AgentDI(BaseDI):
         )
 
     @cached_property
+    def _agent_models(self) -> AgentModels:
+        return AgentModels(self._models.catalog, self._agent.model)
+
+    @cached_property
     def _models(self) -> ModelsDI:
         return ModelsDI(self._configuration, self._logging, self._telemetry_provider)
 
     @cached_property
     def _storage(self) -> StorageDI:
-        return StorageDI(self._configuration, self._logging, self._register_repository)
+        return StorageDI(
+            self._configuration, self._logging, self._register_repository, self._agent.name
+        )
 
     @cached_property
     def _workflow(self) -> WorkflowDI:
@@ -47,7 +54,6 @@ class AgentDI(BaseDI):
             self._models.chat_models,
             self._logging,
             answer_delivery=self._server_parameters.answer_delivery,
-            screen=self._settings.guardrail_enabled,
             prompts=self._prompts,
             shape=self._agent.turns,
         )
@@ -56,10 +62,10 @@ class AgentDI(BaseDI):
         runner = self._workflow.runner(
             await self._tools.toolbox(), await self._storage.checkpointer()
         )
-        return HandleMessage(runner, self._models.catalog, self._logging)
+        return HandleMessage(runner, self._agent_models, self._logging)
 
     def _list_models(self) -> ListModels:
-        return ListModels(self._models.catalog)
+        return ListModels(self._agent_models)
 
     async def close(self) -> None:
         await self._stop_factories()

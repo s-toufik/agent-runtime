@@ -2,6 +2,7 @@ agent:
   name: security
   description: the homelab's security agent, which checks accounts, access and suspicious activity without changing anything
   tool_scope: security
+  guardrail: true
   turns: [direct, clarify, plan, review]
   skills:
     - id: check-security

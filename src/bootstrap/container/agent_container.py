@@ -92,7 +92,7 @@ class AgentContainer(AgentDI):
 
     @cached_property
     def a2a_options(self) -> DescribeA2aOptionsPort:
-        return DescribeA2aOptions(self.list_models, self._a2a_settings.model)
+        return DescribeA2aOptions(self.list_models)
 
     @cached_property
     def actuator(self) -> Actuator:
@@ -135,9 +135,7 @@ class AgentContainer(AgentDI):
             self._logging,
             max_concurrent_streams=parameters.max_concurrent_streams,
         )
-        self._run_a2a_task = RunA2aTask(
-            handle_message, QueueTurnEventStream, self.list_models, self._a2a_settings.model
-        )
+        self._run_a2a_task = RunA2aTask(handle_message, QueueTurnEventStream, self.list_models)
         tasks = await self._storage.a2a_tasks()
         store = await self._a2a.task_store(tasks)
         self._a2a_task_store = store

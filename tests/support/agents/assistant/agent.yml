@@ -3,6 +3,7 @@ agent:
   description: the homelab test assistant
   tool_scope: all
   turns: [direct, clarify, plan, review]
+  guardrail: false
   skills:
     - id: answer
       name: Answer

@@ -1,0 +1,22 @@
+agent:
+  name: supervisor
+  description: the homelab's supervisor, which answers from general knowledge what needs no data, and hands the parts that need the homelab's data or tools to the specialist agents, then puts their answers together
+  tool_scope: none
+  guardrail: true
+  turns: [direct, clarify, plan, review]
+  peers: [observation, analysis, coding, security, kitchen, travel]
+  skills:
+    - id: answer
+      name: Answer and explain
+      description: Answers questions, explains concepts and compares options from general knowledge and the conversation, without calling any agent.
+      tags: [chat, explain]
+      examples:
+        - What is the difference between a liveness and a readiness probe?
+        - Explain how Kafka keeps messages in order.
+    - id: route-requests
+      name: Route requests to the right agents
+      description: Splits a request into parts, asks the agents that own them (several at once when the parts are independent, one after another when one needs another's answer) and combines what they say.
+      tags: [orchestration, routing]
+      examples:
+        - Which pods restarted in the last hour, and is anything in the logs worrying?
+        - Count the users who signed up this week and write a short report.

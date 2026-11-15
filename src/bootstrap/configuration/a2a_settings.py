@@ -8,7 +8,6 @@ SERVED_BINDING: str = "JSONRPC"
 @dataclass(frozen=True, slots=True)
 class A2aSettings:
     url: str = ""
-    model: str = ""
 
     @classmethod
     def of(cls, operation: A2aOperation) -> A2aSettings:
@@ -18,7 +17,4 @@ class A2aSettings:
                 f"A2A connector {operation.connector.name!r} asks for {binding}; "
                 f"only {SERVED_BINDING} is served"
             )
-        return cls(
-            url=operation.connector.base_url.strip(),
-            model=str(operation.parameters.get("model") or "").strip(),
-        )
+        return cls(url=operation.connector.base_url.strip())

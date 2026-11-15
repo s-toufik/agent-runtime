@@ -195,13 +195,13 @@ async def test_an_agent_without_a_tool_scope_says_so_instead_of_warning(logger) 
     assert any("tool scope is 'none'" in message for message in logger.messages("info"))
 
 
-def test_an_orchestrator_asks_the_agents_that_have_a_url(monkeypatch) -> None:
-    monkeypatch.setenv("AGENT_CHAT_URL", "http://agent-chat:8000")
-    di = AgentDI(replace(make_settings(), agent="orchestration", agents_directory=REAL_AGENTS))
+def test_the_supervisor_asks_the_agents_that_have_a_url(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_OBSERVATION_URL", "http://agent-observation:8000")
+    di = AgentDI(replace(make_settings(), agent="supervisor", agents_directory=REAL_AGENTS))
 
     tools = di._tools
 
-    assert tools.peer_agents.names == ("chat",)
+    assert tools.peer_agents.names == ("observation",)
     assert [source.name for source in tools.refresher._sources][-1] == "agents"
 
 

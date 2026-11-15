@@ -172,17 +172,6 @@ async def test_a_message_without_text_is_rejected(logger) -> None:
     assert _status_text(task) == TEXT_ONLY
 
 
-async def test_the_model_and_auto_approve_come_from_the_message_metadata(logger) -> None:
-    handle_message = ScriptedUseCase(ANSWERED)
-    metadata = {"model": "small", "autoApprove": True}
-
-    async with http_client(_app(logger, handle_message)) as client:
-        await _task(client, _send("hi", metadata=metadata))
-
-    [request] = handle_message.requests
-    assert (request.model_name, request.auto_approve) == ("small", True)
-
-
 async def test_the_extension_s_keys_choose_the_model_and_auto_approve(logger) -> None:
     handle_message = ScriptedUseCase(ANSWERED)
     metadata = {MODEL_KEY: "big", AUTO_APPROVE_KEY: True}

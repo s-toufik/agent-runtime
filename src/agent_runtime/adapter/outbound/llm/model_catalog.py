@@ -40,6 +40,9 @@ class ModelCatalog:
             return frozen
         return self._selectable(model)
 
+    def model_for(self, requested: str) -> str:
+        return requested
+
     def turn_settings(self, model: str) -> TurnSettings:
         self._selectable(model)
         _, parameters = self.settings_for(AgentRole.ACT, model)

@@ -20,6 +20,7 @@ class Agent:
     peers: tuple[str, ...] = ()
     routes: AgentRoutes = field(default_factory=AgentRoutes)
     prompts: AgentPrompts = field(default_factory=AgentPrompts)
+    model: str | None = None
 
     def __post_init__(self) -> None:
         if not _NAME.match(self.name):
@@ -30,3 +31,5 @@ class Agent:
             raise ValueError(f"agent {self.name!r} cannot be its own peer")
         if len(set(self.peers)) != len(self.peers):
             raise ValueError(f"agent {self.name!r} lists a peer twice")
+        if self.model is not None and not self.model.strip():
+            raise ValueError(f"agent {self.name!r} has an empty model")

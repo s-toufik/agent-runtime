@@ -6,14 +6,14 @@ An agent served over HTTP. You send it a message; it answers straight away when 
   <img src="docs/agent-runtime-harness.svg" alt="agent-runtime as a harnessed LLM agent: the harness (routing table, guard, plan approval, review and retry, step limit, summarizing, a span per step) around models, memory and protocols (SSE and REST to you, MCP to its tools, A2A to other agents, OTLP to the platform), and the route of one turn" width="900">
 </p>
 
-One runtime, many agents: a folder `agents/<name>/` (its name, skills, tool scope, the routes its turns may take, its system prompts) turns the runtime into that agent, and each agent runs in its own process (`AGENT=<name>`). The orchestration agent never answers itself: it hands each request to the others over A2A, several at once when the parts are independent. See [Agents](#agents).
+One runtime, many agents: a folder `agents/<name>/` (its name, skills, tool scope, the routes its turns may take, its system prompts) turns the runtime into that agent, and each agent runs in its own process (`AGENT=<name>`). The supervisor answers what needs no data itself, and hands the parts that need the homelab's data or tools to the others over A2A, several at once when the parts are independent. See [Agents](#agents).
 
 The model only answers. Everything around it is the harness: a routing table picks each step, a guard screens plans, you approve them, a reviewer checks the answer, a step limit pauses long runs, and every step is traced. It runs on six model roles, keeps a memory per conversation, and talks SSE to you, MCP to its tools, A2A to other agents and OTLP to the platform. The [Logic](#logic) section explains each part.
 
 | Section | For whom | What's in it |
 |---|---|---|
 | **[Users](#users)** | You run it or call it | Run, the agents, call, read the reply, configure, logs |
-| **[Developers](#developers)** | You change it | Architecture, layout, making changes, tests, evaluation, deploying |
+| **[Developers](#developers)** | You change it | Architecture, layout, making changes, tests, deploying |
 | **[Logic](#logic)** | Anyone who wants to know why it answered that way | Steps, routes, plans, typical journeys |
 
 ```text
@@ -65,7 +65,7 @@ With Docker, `make docker_build` builds the image (see [Deploying](#deploying)).
 
 ### Agents
 
-Every agent is this runtime started with `AGENT=<name>` (default `chat`); it reads `agents/<name>/` (`AGENTS_DIR`, default `./agents`) and becomes that agent:
+Every agent is this runtime started with `AGENT=<name>` (default `supervisor`); it reads `agents/<name>/` (`AGENTS_DIR`, default `./agents`) and becomes that agent:
 
 ```text
 agents/<name>/
@@ -82,19 +82,23 @@ agents/<name>/
 | `turns` | The routes its turns may take: `direct` (answer without a plan), `clarify` (ask back), `plan` (plan, then run tools), `review` (check the answer). At least `direct` or `plan` |
 | `peers` | The agents it may call (`ask_agents`), each reached through the connector `agent_<peer>` |
 | `routes` | Where its endpoints are: `a2a` (default `/a2a`) and `api2a` (default `/v1/api2a`) |
+| `model` | Optional: the model this agent always uses, a name from `GET /v1/models` (e.g. `nvidia/nemotron-3.5-lightning-30b-a3b`). Every turn runs on it whatever the request asks (the UI menu, A2A metadata, the supervisor's model), and `GET /v1/models` and the card list only it. The server's pinned steps still apply. A model no provider serves stops the agent at boot. Without it, the request chooses |
+| `guardrail` | `true` (the default) screens every plan before it runs and refuses unsafe ones; `false` runs approved plans unscreened. Every agent of the repository says it explicitly |
 
 | Agent | turns | tool_scope | Prompts of its own |
 |---|---|---|---|
-| `orchestration` | clarify, plan, review | `none`; `peers`: the seven others | `plan`, `act` |
-| `chat` | direct, clarify, review | `none` | `act` |
+| `supervisor` | direct, clarify, plan, review | `none`; `peers`: the six others | `plan`, `act` |
 | `observation`, `analysis`, `coding`, `security`, `kitchen`, `travel` | direct, clarify, plan, review | their own scope | none (the generic prompts, with their identity) |
 
-- **Prompts.** `adapter/outbound/llm/langchain/prompts/` keeps a generic system prompt per step; an agent's `prompts/<step>.md` replaces it for that step. At boot each one is checked: it may only use the step's `{placeholders}` (plus `{identity}`), and must use the ones the step can't work without (`{output_format}` where the answer is parsed, `{tools}` for plan, `{mode}` for act). Write a literal brace as `{{` or `}}`.
-- **Turns.** The routing table keeps only the rows of the allowed routes, and the graph only the steps they reach. Without `direct`, a direct question or a rework is planned (the orchestrator hands it to chat); without `plan`, a task is answered directly and the agent is never offered `request_plan`; without `clarify`, an ambiguous message takes the best reading; without `review`, an answer is final.
-- **Peers.** An agent with `peers` reads their cards at boot and every minute after (an agent that comes up joins without a restart) and gets one tool, `ask_agents`: a list of `{agent, message}` sent at once, every answer coming back marked `answered`, `needs_input`, `refused`, `failed` or `unreachable`. Its plan puts independent parts in one step (parallel) and dependent parts in later steps (serial). Your approval of its plan covers the agents it calls: they run with `autoApprove` and the model of your turn (the tool gets the turn's conversation and model, `ToolContext`), each in its own part of the conversation: a `contextId` that is a UUID made from the conversation and the peer's name, the same one every time, within the 36 characters the A2A task table allows.
-- **One agent per process.** Each has its own conversations and A2A tasks: give each its own MongoDB database (`DB_MONGO_CHECKPOINT_NAME`) and tasks table (`A2A_TASKS_TABLE`) when they share the servers.
+`kitchen` fixes its model: `model: nvidia/nemotron-3.5-lightning-30b-a3b`.
 
-To add an agent: a folder `agents/<name>/`, a connector `agent_<name>` in `config/debug/connector/a2a.yml` (listed in `config/root.yml`), and `<name>` in the orchestrator's `peers`.
+- **Prompts.** `adapter/outbound/llm/langchain/prompts/` keeps a generic system prompt per step; an agent's `prompts/<step>.md` replaces it for that step. At boot each one is checked: it may only use the step's `{placeholders}` (plus `{identity}`), and must use the ones the step can't work without (`{output_format}` where the answer is parsed, `{tools}` for plan, `{mode}` for act). Write a literal brace as `{{` or `}}`.
+- **Turns.** The routing table keeps only the rows of the allowed routes, and the graph only the steps they reach. Without `direct`, a direct question or a rework is planned; without `plan`, a task is answered directly and the agent is never offered `request_plan`; without `clarify`, an ambiguous message takes the best reading; without `review`, an answer is final.
+- **Peers.** An agent with `peers` reads their cards at boot and every minute after (an agent that comes up joins without a restart) and gets one tool, `ask_agents`: a list of `{agent, message}` sent at once, every answer coming back marked `answered`, `needs_input`, `refused`, `failed` or `unreachable`. Its plan puts independent parts in one step (parallel) and dependent parts in later steps (serial). Your approval of its plan covers the agents it calls: they run with `autoApprove` and the model of your turn (the tool gets the turn's conversation and model, `ToolContext`), each in its own part of the conversation: a `contextId` that is a UUID made from the conversation and the peer's name, the same one every time, within the 36 characters the A2A task table allows.
+- **Guardrail.** Each agent's `guardrail` decides whether its plans are screened. It matters most for the agents the supervisor calls: they run auto-approved, so their own screening is the only check of the concrete steps before they run.
+- **One agent per process, named once.** Everything per agent comes from its name: its MongoDB database `agent_<name>` and its A2A tasks table `tasks_<name>` (`{agent}` in `operation/database.yml`, a `-` becoming `_`), its service name `agent-<name>`, and the connector to each peer, built from `peers` and the template `agent_peer` in `connector/a2a.yml`, at the address in `AGENT_<PEER>_URL`.
+
+To add an agent: a folder `agents/<name>/`, and `<name>` in the supervisor's `peers` (it then reaches it at `AGENT_<NAME>_URL`). Nothing in `config/` changes.
 
 ### List the models
 
@@ -107,7 +111,9 @@ To add an agent: a folder `agents/<name>/`, a connector `agent_<name>` in `confi
 }
 ```
 
-Build your model picker from `models`. When `pinned_steps` covers every step, the choice has no effect.
+Build your model picker from `models`. When `pinned_steps` covers every step, the choice has no effect. An agent whose `agent.yml` sets `model` lists only that model.
+
+Which model a step uses, first match wins: the step's pinned model (server config, `agent_<role>`) → the agent's `model` (`agent.yml`) → the request's model (`model_name`, or the A2A `model` key) → the first listed model.
 
 ### Send a message
 
@@ -196,9 +202,9 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 
 - Only text parts are read: a message without text is `TASK_STATE_REJECTED`. The answer is text or Markdown.
 - The card's `capabilities.extensions` offers the agent's own options as the extension `https://github.com/s-toufik/agent-runtime/a2a/turn-options/v1` (not required). Its `params` list the `models` and the `defaultModel`. A client can name it in an `A2A-Extensions` header; the agent reads the options either way.
-- `message.metadata["<extension uri>/model"]` picks the model; otherwise `A2A_MODEL`, otherwise the first model of `GET /v1/models` (the card's `defaultModel`).
+- `message.metadata["<extension uri>/model"]` picks the model; otherwise the first model of `GET /v1/models` (the card's `defaultModel`). An agent with its own `model` runs on it whatever the message asks.
 - `message.metadata["<extension uri>/autoApprove"]: true` runs a plan without waiting, like `auto_approve`.
-- The short keys `model` and `autoApprove` work too; the extension's keys win. Both can also go in the request's `metadata`; the message's win. A value of the wrong type (a number for the model, `"true"` for autoApprove) is ignored.
+- Only the extension's keys are read (the short `model` and `autoApprove` of 1.x are gone). Both can also go in the request's `metadata`; the message's win. A value of the wrong type (a number for the model, `"true"` for autoApprove) is ignored.
 - Send `A2A-Version: 1.0`. Without it the SDK takes the call as A2A 0.3 (`message/send`, `kind: "text"`), which it also understands.
 - A new task when `MAX_CONCURRENT_STREAMS` turns are already running ends `TASK_STATE_FAILED` with "Server is at capacity, please retry."
 - A task not updated for `A2A_TASK_TTL` is deleted (checked every hour) and then answers `TaskNotFoundError` (`-32001`). Its conversation is kept as long, so both expire together.
@@ -214,16 +220,13 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
-| `AGENT` | `chat` | Which agent this process is: the folder `agents/<AGENT>/` |
+| `AGENT` | `supervisor` | Which agent this process is: the folder `agents/<AGENT>/` |
 | `AGENTS_DIR` | `./agents` | Where the agent folders are |
-| `AGENT_<NAME>_URL` | empty | Where the agent `<name>` answers (its root, e.g. `http://agent-chat:8000`), for an agent that calls it; empty: not called |
-| `A2A_TASKS_TABLE` | `tasks` | The table of A2A tasks; one per agent when agents share a database |
-| `GUARDRAIL_ENABLED` | `false` | `true` checks every plan before it runs and refuses unsafe ones |
+| `AGENT_<NAME>_URL` | empty | Where the agent `<name>` answers (its root, e.g. `http://agent-observation:8000`), for an agent that calls it; empty: not called |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
 | `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/api2a`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
 | `WEB_DOCS` | `false` | `true` serves the API documentation at `<base path>/docs` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review arrive as `token` events, then `final`. `whole`: only `final` |
-| `A2A_MODEL` | empty | The model A2A tasks use when the message names none; empty: the first listed model |
 | `A2A_URL` | empty | The A2A endpoint the agent card announces, e.g. behind a gateway; empty: the address the card was read from, plus `/a2a` (the SDK then logs a warning at start that the card has no URL) |
 | `A2A_TASK_TTL` | `604800` (a week) | How long an A2A task is kept after its last update, in seconds. Keep it equal to the conversation's TTL (`ttl` of the `conversation_mongodb` operation) |
 | `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
@@ -236,7 +239,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS`, `AGENT_ANSWER_DELIVERY`, `A2A_MODEL`, `A2A_URL` and `A2A_TASK_TTL` have their defaults in the YAML (`root.yml`, `server/asgi.yml`, `connector/a2a.yml`, `operation/a2a.yml`, `operation/database.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS`, `AGENT_ANSWER_DELIVERY`, `A2A_URL` and `A2A_TASK_TTL` have their defaults in the YAML (`root.yml`, `server/asgi.yml`, `connector/a2a.yml`, `operation/a2a.yml`, `operation/database.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
 
 **Configuration files.** `config/root.yml` lists what exists; `config/<APP_ENV>/` defines it:
 
@@ -245,9 +248,9 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `connector/api.yml` | The model providers, `homelab_llm_provider` and `nvidia_llm_provider`; per provider, `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
 | `connector/mcp.yml` | The MCP servers |
 | `connector/database.yml` | How to reach each database server: `mongodb`, `sqlite` (the folder) and `postgresql`, with their `timeout` and `pool`; nothing about what's stored |
-| `operation/database.yml` | What each use stores where: `conversation_mongodb` (database, `checkpoints` and `writes` collections, `ttl` a week), `conversation_sqlite` (file name), `a2a_tasks_postgresql` and `a2a_tasks_sqlite` (database or file, `tasks` table, `ttl` from `A2A_TASK_TTL`). At boot, the `ttl` of `conversation_mongodb` is applied to the MongoDB TTL indexes already there (pycraftcore's `MongoTtlIndex`), so changing it needs no manual step; the MongoDB user needs `collMod` (`dbAdmin` or root). An operation without `ttl` keeps its data |
-| `connector/a2a.yml` | `a2a_self`, the A2A endpoint the card announces (`base_url` from `A2A_URL`; empty: the address the card was read from) and its binding, `JSONRPC`, the only one served; `agent_<name>`, one per agent it may call (`base_url` from `AGENT_<NAME>_URL`) |
-| `operation/a2a.yml` | `a2a`: the default model of A2A tasks (`parameters.model` from `A2A_MODEL`) |
+| `operation/database.yml` | What each use stores where: `conversation_mongodb` (database `agent_{agent}`, `checkpoints` and `writes` collections, `ttl` a week), `conversation_sqlite` (file name), `a2a_tasks_postgresql` and `a2a_tasks_sqlite` (database or file, table `tasks_{agent}`, `ttl` from `A2A_TASK_TTL`). `{agent}` is replaced by the agent's name. At boot, the `ttl` of `conversation_mongodb` is applied to the MongoDB TTL indexes already there (pycraftcore's `MongoTtlIndex`), so changing it needs no manual step; the MongoDB user needs `collMod` (`dbAdmin` or root). An operation without `ttl` keeps its data |
+| `connector/a2a.yml` | `a2a_self`, the A2A endpoint the card announces (`base_url` from `A2A_URL`; empty: the address the card was read from) and its binding, `JSONRPC`, the only one served; `agent_peer`, the template of the connector to each agent in `peers` (timeout, binding, auth), whose address comes from `AGENT_<PEER>_URL` |
+| `operation/a2a.yml` | `a2a`: the A2A endpoint this agent serves (`a2a_self`) |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
@@ -373,8 +376,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/bootstrap/di/` | One wiring class per kind, each given what it needs: `ToolsDI` (MCP tools), `ModelsDI` (model providers and clients), `StorageDI` (conversation checkpointer, A2A task database, each with its SQLite fallback), `WorkflowDI` (steps and graph), `A2aDI` (card, request handler, task store, cleanup). `AgentDI` composes them and builds the use cases |
 | `src/bootstrap/application/fastapi/` | The API: `router/` (`/v1` routes; the A2A card route and the SDK's JSON-RPC route), `schema/` (request and response bodies, pydantic), `fastapi_api.py` (the app, built with `pycraftcore.web_fastapi`, traced with the OpenTelemetry FastAPI instrumentation) |
 | `config/` | YAML configuration |
-| `src/agent_evaluation/` | The evaluation, a separate program that tests a running agent over HTTP |
-| `tests/` | Unit, scenario and architecture tests, and the evaluation's own tests |
+| `tests/` | Unit, scenario and architecture tests |
 
 ### A turn in the code
 
@@ -408,7 +410,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | finish | always | summarize |
 | summarize | always | end |
 
-With `GUARDRAIL_ENABLED=true`, `TurnPolicy(screen=True)` replaces the two `plan` rows: plan → screen (always), screen → act (`has_approved_plan`), screen → finish (always).
+With `guardrail: true` in the agent's `agent.yml`, `TurnPolicy(screen=True)` replaces the two `plan` rows: plan → screen (always), screen → act (`has_approved_plan`), screen → finish (always).
 
 ### Making changes
 
@@ -446,15 +448,7 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 
 ### Evaluating the agent
 
-The evaluation in `src/agent_evaluation/` tests a **running** agent from the outside, over the same HTTP endpoint a client uses. Start the toolbox and the agent, point the evaluation's control panel at them, and run:
-
-```bash
-make evaluate                                  # every enabled kind
-make evaluate KINDS=SECURITY,MEMORY RUNS=1     # a few kinds, one run per case
-make evaluate DRY_RUN=1                        # what would run, without calling the agent
-```
-
-It checks several kinds of behaviour (today: tool selection, security, guardrail, task completion, memory, relevance, planning, routing and quality), runs each case several times, and writes a JSON, a Markdown and a log file per kind plus an overall report. Configuring it, reading its reports and adding cases: [src/agent_evaluation/Readme.md](src/agent_evaluation/Readme.md).
+The evaluation lives in its own repository, [agent-evaluation](https://github.com/s-toufik/agent-evaluation): it tests a **running** agent from the outside, over `/v1/api2a`, the endpoint a client uses, and grades the answers with a judge model. Start the toolbox and the agent, point its control panel at the agent, and run `make evaluate` there.
 
 ### Deploying
 
@@ -505,7 +499,7 @@ kubectl -n homelab get deploy agent-runtime -o jsonpath='{.spec.template.spec.co
 3. **Actions**: PUBLISH and CHART are green.
 4. In homelab-infra: `apps.agentRuntime: X.Y.Z` in `environments/versions.yaml`, commit, push.
 5. On the server, in homelab-infra: `git pull`, `make diff G=apps`, `make apply G=apps` (raw: `helmfile -l group=apps apply`): every agent, `agent-<name>`, gets the new version.
-6. Check: the `helm list` above shows `X.Y.Z` for each `agent-<name>`; `make logs R=agent-orchestration`.
+6. Check: the `helm list` above shows `X.Y.Z` for each `agent-<name>`; `make logs R=agent-supervisor`.
 
 Roll back: set the previous version in `versions.yaml` and `make apply G=apps`, or right away, one agent at a time, `make rollback R=agent-<name>` (raw: `helm -n homelab rollback agent-<name>`). The step-by-step version is homelab-infra's DevOps guide, **Release an app** and **Roll back**.
 
@@ -545,7 +539,7 @@ Every step, and every way between them:
                                                                     ▼
                                                                  FINISH ──► SUMMARIZE ──► reply
 
-  ¹ only with GUARDRAIL_ENABLED=true; without it, PLAN goes straight on and nothing is blocked.
+  ¹ only with guardrail: true in agent.yml; without it, PLAN goes straight on and nothing is blocked.
 ```
 
 | Step | What it does |
@@ -587,7 +581,7 @@ Each fork is read top to bottom: the first branch that holds is taken.
 
   FINISH ──► SUMMARIZE: folds old messages away when the history is long ──► reply sent
 
-  ¹ only with GUARDRAIL_ENABLED=true; without it, PLAN goes straight on and nothing is blocked.
+  ¹ only with guardrail: true in agent.yml; without it, PLAN goes straight on and nothing is blocked.
 ```
 
 "No steps left" means `max_iterations` is used up; "can retry" means rewrites (`max_reflection_retries`) and steps are both left.
@@ -643,4 +637,4 @@ A paused plan remembers its last 20 tool calls, and how many ran before them. Re
 | A request no plan can be written for | understand → plan → finish | `best_effort`: "I could not write a plan…" |
 | An answer the review rejects | … → act → review → feedback → act → review → finish | `answered`, or `best_effort` when the rewrites run out |
 
-With `GUARDRAIL_ENABLED=true`, screen comes right after plan in each of these routes.
+With `guardrail: true` (in `agent.yml`), screen comes right after plan in each of these routes.
