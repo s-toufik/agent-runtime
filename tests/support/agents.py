@@ -18,3 +18,4 @@ PROMPTS: PromptBook = prompt_book(IDENTITY)
 
 TEST_AGENTS: Path = Path(__file__).resolve().parent / "agents"
 TEST_AGENT: str = "assistant"
+GUARDED_TEST_AGENT: str = "guarded"

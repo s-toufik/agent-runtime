@@ -48,6 +48,8 @@ class AgentSchema(_Strict):
     turns: list[Route]
     peers: list[str] = Field(default_factory=list)
     routes: AgentRoutesSchema = Field(default_factory=AgentRoutesSchema)
+    guardrail: bool = True
+    model: str | None = None
 
     def skill_list(self) -> list[AgentSkillSchema]:
         return list(self.skills.values()) if isinstance(self.skills, dict) else self.skills
@@ -71,10 +73,11 @@ class LoadAgentDefinition:
             description=schema.description,
             skills=tuple(skill.to_domain() for skill in schema.skill_list()),
             tool_scope=ToolScope(schema.tool_scope),
-            turns=TurnShape.of(schema.turns),
+            turns=TurnShape.of(schema.turns, screen=schema.guardrail),
             peers=tuple(schema.peers),
             routes=AgentRoutes(schema.routes.a2a, schema.routes.api2a),
             prompts=_prompts(folder / PROMPTS_FOLDER),
+            model=schema.model,
         )
 
     def _folder(self) -> Path:

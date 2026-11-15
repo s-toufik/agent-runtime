@@ -24,7 +24,6 @@ REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 def make_settings() -> ProcessSettings:
     return ProcessSettings(
-        role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
         agent=TEST_AGENT,

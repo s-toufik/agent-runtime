@@ -17,6 +17,8 @@ from bootstrap.configuration.application_configuration import SetApplicationConf
 from bootstrap.configuration.application_logger import create_logger
 from bootstrap.configuration.settings import ProcessSettings
 
+SERVER_NAME: str = "agent-runtime"
+
 
 class BaseDI:
     def __init__(self, settings: ProcessSettings) -> None:
@@ -37,7 +39,7 @@ class BaseDI:
 
     @cached_property
     def _server(self) -> AsgiServer:
-        return self._configuration.server.asgi(self._settings.role)
+        return self._configuration.server.asgi(SERVER_NAME)
 
     @cached_property
     def _telemetry_provider(self) -> TelemetryProvider:

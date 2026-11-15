@@ -1,0 +1,10 @@
+agent:
+  name: guarded
+  description: the homelab test assistant, its plans screened
+  tool_scope: all
+  turns: [direct, clarify, plan, review]
+  guardrail: true
+  skills:
+    - id: answer
+      name: Answer
+      description: Answers questions about the homelab.

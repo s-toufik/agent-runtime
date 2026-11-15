@@ -14,14 +14,11 @@ def test_the_extension_s_keys_are_read() -> None:
     )
 
 
-def test_the_short_keys_are_still_read() -> None:
-    assert requested_options({"model": "big", "autoApprove": True}) == RequestedOptions("big", True)
-
-
-def test_the_extension_s_keys_win_over_the_short_ones() -> None:
-    metadata = {MODEL_KEY: "big", "model": "small", AUTO_APPROVE_KEY: False, "autoApprove": True}
-
-    assert requested_options(metadata) == RequestedOptions("big", False)
+def test_only_the_extension_s_keys_are_read() -> None:
+    assert requested_options({MODEL_KEY: "big", AUTO_APPROVE_KEY: True}) == RequestedOptions(
+        "big", True
+    )
+    assert requested_options({"model": "big", "autoApprove": True}) == RequestedOptions("", False)
 
 
 def test_nothing_asked_means_the_defaults() -> None:

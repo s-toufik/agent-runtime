@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from agent_runtime.domain.turn.draft import Draft
@@ -156,7 +158,7 @@ VALID_SHAPES = [
 @pytest.mark.parametrize("screen", [False, True], ids=["no_screen", "screen"])
 @pytest.mark.parametrize("shape", VALID_SHAPES, ids=lambda shape: "-".join(shape.routes))
 def test_every_step_a_shape_reaches_always_has_a_way_out(shape: TurnShape, screen: bool) -> None:
-    policy = TurnPolicy(shape, screen=screen)
+    policy = TurnPolicy(replace(shape, screen=screen))
 
     for step in policy.steps():
         rows = [row for row in policy.TRANSITIONS if row.source is step]
@@ -202,7 +204,7 @@ def test_without_review_an_answer_is_final() -> None:
 
 def test_the_full_shape_reaches_every_step_but_screen() -> None:
     assert set(TurnPolicy().steps()) == set(Step) - {Step.END, Step.SCREEN}
-    assert Step.SCREEN in TurnPolicy(screen=True).steps()
+    assert Step.SCREEN in TurnPolicy(TurnShape(screen=True)).steps()
 
 
 def _answered(intent: Intent) -> Turn:

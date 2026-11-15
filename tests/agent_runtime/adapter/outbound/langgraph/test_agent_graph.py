@@ -22,6 +22,7 @@ from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.turn.understanding import Understanding
 from agent_runtime.domain.workflow.step import Step
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.domain.workflow.turn_shape import TurnShape
 from tests.agent_runtime.application.fakes import RecordingEvents
 
 CODEC = TurnStateCodec()
@@ -93,7 +94,9 @@ def _edges(policy: TurnPolicy = POLICY) -> dict[str, set[str]]:
     return edges
 
 
-@pytest.mark.parametrize("policy", [POLICY, TurnPolicy(screen=True)], ids=["no_screen", "screen"])
+@pytest.mark.parametrize(
+    "policy", [POLICY, TurnPolicy(TurnShape(screen=True))], ids=["no_screen", "screen"]
+)
 def test_the_graph_edges_are_exactly_the_policy_transitions(policy: TurnPolicy) -> None:
     edges = _edges(policy)
 

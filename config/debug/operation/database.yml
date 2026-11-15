@@ -3,7 +3,7 @@ operation:
     name: conversation_mongodb
     type: database
     connector: ${connector.mongodb}
-    database: ${oc.env:DB_MONGO_CHECKPOINT_NAME}
+    database: agent_{agent}
     collections:
       checkpoints: checkpoints
       writes: checkpoint_writes
@@ -21,7 +21,7 @@ operation:
     connector: ${connector.postgresql}
     database: ${oc.env:DB_POSTGRES_A2A_NAME,agent_runtime}
     collections:
-      tasks: ${oc.env:A2A_TASKS_TABLE,tasks}
+      tasks: tasks_{agent}
     ttl: ${oc.env:A2A_TASK_TTL,604800}
 
   a2a_tasks_sqlite:
@@ -30,5 +30,5 @@ operation:
     connector: ${connector.sqlite}
     database: a2a_tasks
     collections:
-      tasks: ${oc.env:A2A_TASKS_TABLE,tasks}
+      tasks: tasks_{agent}
     ttl: ${oc.env:A2A_TASK_TTL,604800}

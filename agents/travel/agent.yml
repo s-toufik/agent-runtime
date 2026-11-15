@@ -2,6 +2,7 @@ agent:
   name: travel
   description: the homelab's travel agent, which plans trips, routes and budgets
   tool_scope: travel
+  guardrail: true
   turns: [direct, clarify, plan, review]
   skills:
     - id: plan-trips

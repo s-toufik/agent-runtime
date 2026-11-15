@@ -25,9 +25,7 @@ class SetApplicationConfiguration:
         environment = RunTypeEnvironment(self._settings.environment)
         directory: Path = self._settings.configuration_directory
 
-        self._logger.info(
-            f"Loading '{self._settings.role}' configuration ({environment.value}) from {directory}"
-        )
+        self._logger.info(f"Loading the configuration ({environment.value}) from {directory}")
 
         if not directory.exists():
             exception = FileNotFoundError(f"Configuration directory not found: {directory}")

@@ -2,6 +2,7 @@ agent:
   name: observation
   description: the homelab's observation agent, which reads metrics, logs, traces and dashboards to tell what is running and what is wrong; in Loki each service's logs are under its service_name, the agents' as agent-<name> (agent-orchestration, agent-chat…), and when a name matches nothing it lists the service_name values and takes the closest
   tool_scope: observation
+  guardrail: true
   turns: [direct, clarify, plan, review]
   skills:
     - id: observe

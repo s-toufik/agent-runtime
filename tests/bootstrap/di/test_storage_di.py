@@ -15,7 +15,7 @@ WEEK = 604800
 
 @pytest.fixture
 def storage(di: AgentDI, logger) -> StorageDI:
-    return StorageDI(di._configuration, logger, di._register_repository)
+    return StorageDI(di._configuration, logger, di._register_repository, "assistant")
 
 
 async def test_without_mongodb_the_conversation_goes_to_sqlite(di, storage, logger) -> None:
@@ -39,7 +39,7 @@ async def test_a_reachable_mongodb_keeps_the_conversation_for_the_configured_ttl
     checkpointer = await storage.checkpointer()
 
     assert isinstance(checkpointer, MongoDBSaver)
-    database = mongodb["checkpoint"]
+    database = mongodb["agent_assistant"]
     assert database["checkpoints"].ttl() == WEEK
     assert database["checkpoint_writes"].ttl() == WEEK
     await di._stop_factories()
@@ -48,7 +48,7 @@ async def test_a_reachable_mongodb_keeps_the_conversation_for_the_configured_ttl
 async def test_a_ttl_changed_since_the_indexes_were_created_no_longer_stops_the_boot(
     di, storage, mongodb
 ) -> None:
-    database = mongodb["checkpoint"]
+    database = mongodb["agent_assistant"]
     for name in ("checkpoints", "checkpoint_writes"):
         database[name].create_index([("created_at", 1)], expireAfterSeconds=HOUR)
 
@@ -76,7 +76,7 @@ async def test_without_a_postgresql_host_a2a_tasks_go_to_sqlite(
     assert tasks.engine.url.drivername == "sqlite+aiosqlite"
     assert tasks.engine.url.database == str(tmp_path / "a2a_tasks.db")
     assert tasks.operation.name == "a2a_tasks_sqlite"
-    assert (tasks.operation.collection("tasks"), tasks.operation.ttl) == ("tasks", 604800)
+    assert (tasks.operation.collection("tasks"), tasks.operation.ttl) == ("tasks_assistant", 604800)
     assert any("has no host" in message for message in logger.messages("info"))
     await di._stop_factories()
 
@@ -85,7 +85,7 @@ async def test_an_unreachable_postgresql_falls_back_to_sqlite(monkeypatch, logge
     monkeypatch.setenv("DB_POSTGRES_A2A_HOST", "127.0.0.1")
     monkeypatch.setenv("DB_POSTGRES_A2A_PORT", "1")
     di = AgentDI(make_settings())
-    storage = StorageDI(di._configuration, logger, di._register_repository)
+    storage = StorageDI(di._configuration, logger, di._register_repository, "assistant")
 
     tasks = await storage.a2a_tasks()
 
@@ -99,7 +99,7 @@ async def test_an_unreachable_postgresql_falls_back_to_sqlite(monkeypatch, logge
 async def test_the_a2a_task_ttl_comes_from_the_environment(monkeypatch, logger) -> None:
     monkeypatch.setenv("A2A_TASK_TTL", "3600")
     di = AgentDI(make_settings())
-    storage = StorageDI(di._configuration, logger, di._register_repository)
+    storage = StorageDI(di._configuration, logger, di._register_repository, "assistant")
 
     tasks = await storage.a2a_tasks()
 
@@ -107,14 +107,16 @@ async def test_the_a2a_task_ttl_comes_from_the_environment(monkeypatch, logger) 
     await di._stop_factories()
 
 
-async def test_each_agent_can_keep_its_tasks_in_its_own_table(monkeypatch, logger) -> None:
-    monkeypatch.setenv("A2A_TASKS_TABLE", "tasks_chat")
-    di = AgentDI(make_settings())
-    storage = StorageDI(di._configuration, logger, di._register_repository)
+async def test_each_agent_keeps_its_conversations_and_tasks_under_its_own_name(
+    di, logger, mongodb
+) -> None:
+    storage = StorageDI(di._configuration, logger, di._register_repository, "my-agent")
 
     tasks = await storage.a2a_tasks()
+    await storage.checkpointer()
 
-    assert tasks.operation.collection("tasks") == "tasks_chat"
+    assert tasks.operation.collection("tasks") == "tasks_my_agent"
+    assert "agent_my_agent" in mongodb.databases
     await di._stop_factories()
 
 

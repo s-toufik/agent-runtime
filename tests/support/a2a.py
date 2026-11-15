@@ -1,6 +1,7 @@
 import asyncio
 
 from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
+from agent_runtime.domain.llm_model.model_listing import ModelListing, SelectableModel
 from agent_runtime.domain.request.agent_request import AgentRequest
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.outcome import Outcome
@@ -51,5 +52,17 @@ class HangingUseCase:
 
 
 class Models:
+    def __init__(self, listing: ModelListing = LISTING) -> None:
+        self._listing = listing
+
     async def handle(self):
-        return LISTING
+        return self._listing
+
+
+def listing_of(*names: str) -> ModelListing:
+    return ModelListing(
+        models=tuple(
+            SelectableModel(name, context_tokens=8_000, max_output_tokens=1_000, thinking=False)
+            for name in names
+        )
+    )

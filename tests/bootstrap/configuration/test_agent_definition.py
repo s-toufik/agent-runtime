@@ -31,15 +31,14 @@ def agent_yml(name: str = "chat", **extra: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def test_the_repository_holds_the_eight_agents() -> None:
+def test_the_repository_holds_the_seven_agents() -> None:
     assert NAMES == [
         "analysis",
-        "chat",
         "coding",
         "kitchen",
         "observation",
-        "orchestration",
         "security",
+        "supervisor",
         "travel",
     ]
 
@@ -53,13 +52,43 @@ def test_every_agent_folder_loads_and_its_prompts_fit_their_steps(name) -> None:
     prompt_book(agent.description, agent.prompts)
 
 
-def test_the_orchestrator_never_answers_directly_and_knows_the_other_agents() -> None:
-    orchestration = LoadAgentDefinition(AGENTS, "orchestration")()
+def test_an_agent_screens_its_plans_unless_its_folder_turns_the_guardrail_off(tmp_path) -> None:
+    write(tmp_path / "chat" / "agent.yml", agent_yml())
+    write(tmp_path / "talk" / "agent.yml", agent_yml(name="talk", guardrail="false"))
 
-    assert orchestration.turns.direct is False
-    assert orchestration.tool_scope == ToolScope("none")
-    assert set(orchestration.peers) == set(NAMES) - {"orchestration"}
-    assert orchestration.prompts.for_step(Step.PLAN)
+    assert LoadAgentDefinition(tmp_path, "chat")().turns.screen is True
+    assert LoadAgentDefinition(tmp_path, "talk")().turns.screen is False
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_agent_of_the_repository_says_whether_it_screens_its_plans(name) -> None:
+    text = (AGENTS / name / "agent.yml").read_text()
+
+    assert "guardrail:" in text
+
+
+def test_an_agent_may_fix_its_model_and_otherwise_takes_the_requested_one(tmp_path) -> None:
+    write(tmp_path / "chat" / "agent.yml", agent_yml())
+    write(tmp_path / "talk" / "agent.yml", agent_yml(name="talk", model="nvidia/some-model"))
+
+    assert LoadAgentDefinition(tmp_path, "chat")().model is None
+    assert LoadAgentDefinition(tmp_path, "talk")().model == "nvidia/some-model"
+
+
+def test_the_kitchen_agent_runs_on_nemotron_lightning() -> None:
+    kitchen = LoadAgentDefinition(AGENTS, "kitchen")()
+
+    assert kitchen.model == "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+
+def test_the_supervisor_answers_directly_or_plans_for_the_other_agents() -> None:
+    supervisor = LoadAgentDefinition(AGENTS, "supervisor")()
+
+    assert (supervisor.turns.direct, supervisor.turns.plan) == (True, True)
+    assert supervisor.tool_scope == ToolScope("none")
+    assert set(supervisor.peers) == set(NAMES) - {"supervisor"}
+    assert supervisor.prompts.for_step(Step.PLAN)
+    assert supervisor.prompts.for_step(Step.ACT)
 
 
 def test_a_folder_becomes_an_agent(tmp_path) -> None:
@@ -68,7 +97,9 @@ def test_a_folder_becomes_an_agent(tmp_path) -> None:
 
     agent = LoadAgentDefinition(tmp_path, "chat")()
 
-    assert agent.turns == TurnShape(direct=True, clarify=False, plan=False, review=True)
+    assert agent.turns == TurnShape(
+        direct=True, clarify=False, plan=False, review=True, screen=True
+    )
     assert agent.routes.a2a == "/agents/chat/a2a"
     assert agent.routes.api2a == "/v1/api2a"
     assert agent.prompts.for_step(Step.ACT) == "You are {identity}. {mode}"

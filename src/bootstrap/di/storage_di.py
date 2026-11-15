@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import aiosqlite
 from langgraph.checkpoint.mongodb import MongoDBSaver
@@ -30,6 +30,7 @@ A2A_TASKS_SQLITE: str = "a2a_tasks_sqlite"
 CHECKPOINTS: str = "checkpoints"
 WRITES: str = "writes"
 CHECKPOINT_TTL_FIELD: str = "created_at"
+AGENT_PLACEHOLDER: str = "{agent}"
 
 Checkpointer = AsyncSqliteSaver | MongoDBSaver
 Register = Callable[[AsyncRepositoryFactory], AsyncRepositoryFactory]
@@ -47,10 +48,12 @@ class StorageDI:
         configuration: ApplicationConfiguration,
         logger: Logger,
         register: Register,
+        agent: str,
     ) -> None:
         self._configuration = configuration
         self._logger = logger
         self._register = register
+        self._agent = agent.replace("-", "_")
 
     async def checkpointer(self) -> Checkpointer:
         mongo_saver: MongoDBSaver | None = await self._mongodb_checkpointer()
@@ -127,4 +130,12 @@ class StorageDI:
         return await factory.connection()
 
     def _operation(self, name: str) -> DatabaseOperation:
-        return self._configuration.operation.database(name)
+        operation: DatabaseOperation = self._configuration.operation.database(name)
+        return replace(
+            operation,
+            database=self._named(operation.database),
+            collections={role: self._named(name) for role, name in operation.collections.items()},
+        )
+
+    def _named(self, name: str) -> str:
+        return name.replace(AGENT_PLACEHOLDER, self._agent)

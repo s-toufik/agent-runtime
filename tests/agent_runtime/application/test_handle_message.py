@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
+from agent_runtime.application.agent.agent_models import AgentModels
 from agent_runtime.application.port.inbound.handle_message_port import (
     AGENT_UNAVAILABLE_MESSAGE,
     MODEL_REJECTED_MESSAGE,
@@ -45,6 +46,17 @@ async def test_the_turn_is_run_on_the_conversation_and_its_events_published(logg
     assert (turn.request, turn.model, turn.settings) == ("hello", "m", settings)
     assert [event.kind for event in events.events] == [TurnEventKind.FINISHED]
     assert events.completed
+
+
+async def test_an_agent_with_its_own_model_runs_the_turn_on_it(logger) -> None:
+    runner = RecordingRunner()
+    request = AgentRequest(message="hello", model_name="chosen in the menu", request_id="c1")
+
+    await HandleMessage(runner, AgentModels(FakeModels(), "m"), logger).handle(
+        request, ListEventStream()
+    )
+
+    assert runner.turns[0][1].model == "m"
 
 
 async def test_an_unavailable_agent_reports_a_friendly_error(logger) -> None:

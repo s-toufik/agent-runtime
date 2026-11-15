@@ -7,13 +7,13 @@ from agent_runtime.domain.a2a.a2a_task_request import A2aTaskRequest
 from agent_runtime.domain.a2a.task_state import TaskState
 from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.workflow.step import Step
-from tests.support.a2a import ANSWERED, HangingUseCase, Models, ScriptedUseCase
+from tests.support.a2a import ANSWERED, HangingUseCase, Models, ScriptedUseCase, listing_of
 
 REQUEST = A2aTaskRequest(text="meaning?", context_id="c7")
 
 
-def _use_case(handle_message, default_model: str = "") -> RunA2aTask:
-    return RunA2aTask(handle_message, QueueTurnEventStream, Models(), default_model)
+def _use_case(handle_message) -> RunA2aTask:
+    return RunA2aTask(handle_message, QueueTurnEventStream, Models(listing_of("m", "big")))
 
 
 async def test_a_turn_is_reported_as_task_updates_in_the_task_s_conversation() -> None:
@@ -35,18 +35,14 @@ async def test_a_turn_that_ends_without_an_answer_fails_the_task() -> None:
     assert updates[-1].event is None
 
 
-async def test_the_model_comes_from_the_request_then_the_setting_then_the_listing() -> None:
-    handle_message = ScriptedUseCase(ANSWERED, ANSWERED, ANSWERED)
+async def test_the_model_comes_from_the_request_else_the_first_listed() -> None:
+    handle_message = ScriptedUseCase(ANSWERED, ANSWERED)
     chosen = A2aTaskRequest(text="hi", context_id="c", model_name="small")
 
-    for use_case, request in [
-        (_use_case(handle_message), REQUEST),
-        (_use_case(handle_message, "big"), REQUEST),
-        (_use_case(handle_message, "big"), chosen),
-    ]:
-        [_ async for _ in use_case.run(request)]
+    for request in (REQUEST, chosen):
+        [_ async for _ in _use_case(handle_message).run(request)]
 
-    assert [request.model_name for request in handle_message.requests] == ["m", "big", "small"]
+    assert [request.model_name for request in handle_message.requests] == ["m", "small"]
 
 
 async def test_auto_approve_is_passed_on() -> None:

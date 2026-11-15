@@ -2,6 +2,7 @@ agent:
   name: coding
   description: the homelab's coding agent, which reads and writes files and runs Python to build, fix and explain code
   tool_scope: coding
+  guardrail: true
   turns: [direct, clarify, plan, review]
   skills:
     - id: code

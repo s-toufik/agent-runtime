@@ -21,15 +21,15 @@ FIRST_STEP: Step = Step.UNDERSTAND
 
 
 class TurnPolicy:
-    def __init__(self, shape: TurnShape | None = None, screen: bool = False) -> None:
+    def __init__(self, shape: TurnShape | None = None) -> None:
         self.shape: TurnShape = shape or TurnShape()
-        self.TRANSITIONS: tuple[Transition, ...] = self._transitions(self.shape, screen)
+        self.TRANSITIONS: tuple[Transition, ...] = self._transitions(self.shape)
 
     @staticmethod
-    def _transitions(shape: TurnShape, screen: bool) -> tuple[Transition, ...]:
+    def _transitions(shape: TurnShape) -> tuple[Transition, ...]:
         return (
             *_understanding(shape),
-            *(_planning(screen) if shape.plan else ()),
+            *(_planning(shape.screen) if shape.plan else ()),
             *((Transition(Step.CLARIFY, Step.FINISH),) if shape.clarify else ()),
             *_acting(shape),
             *(

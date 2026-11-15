@@ -18,7 +18,7 @@ from bootstrap.di.storage_di import A2aTaskStorage
 from tests.support.agents import AGENT
 
 PARAMETERS = ServerParameters(max_concurrent_streams=3, answer_delivery=AnswerDelivery.STREAM)
-SETTINGS = A2aSettings(url="https://agent.example/a2a", model="qwen3-8b")
+SETTINGS = A2aSettings(url="https://agent.example/a2a")
 
 
 def _a2a(logger) -> A2aDI:

@@ -10,9 +10,8 @@ from tests.support.null_telemetry import NullTelemetryProvider
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 
-def make_settings(role: str = "agent-runtime", agent: str = "chat") -> ProcessSettings:
+def make_settings(agent: str = "chat") -> ProcessSettings:
     return ProcessSettings(
-        role=role,
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
         agent=agent,
