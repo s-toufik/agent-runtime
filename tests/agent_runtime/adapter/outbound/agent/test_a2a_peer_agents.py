@@ -5,12 +5,15 @@ from pycraftcore.authentication.model.no_auth import NoAuth
 from pycraftcore.context.request_id_context import request_id_context
 
 from agent_runtime.adapter.inbound.a2a.a2a_agent_executor import A2aAgentExecutor
-from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents
+from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents, peer_context
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
 from agent_runtime.application.use_case.run_a2a_task import RunA2aTask
 from agent_runtime.domain.agent.peer_reply import PeerOutcome, PeerRequest
 from tests.bootstrap.application.fastapi.support import a2a_handler, fastapi_api
 from tests.support.a2a import ANSWERED, PLANNED, Models, ScriptedUseCase
+
+CONVERSATION = "0f6c2a8e-3b1d-4c55-9a77-2e4b8d1f6a90"
+A2A_ID_SIZE = 36
 
 
 def _peer_app(logger, handle_message):
@@ -48,7 +51,7 @@ async def test_a_peer_is_described_from_its_card(logger) -> None:
 async def test_a_peer_answers_auto_approved_in_its_own_part_of_the_conversation(logger) -> None:
     handle_message = ScriptedUseCase(ANSWERED)
     peers = _peers(logger, _peer_app(logger, handle_message))
-    request_id_context.set("conversation-7")
+    request_id_context.set(CONVERSATION)
 
     reply = await peers.ask(PeerRequest("chat", "meaning?"))
 
@@ -56,8 +59,19 @@ async def test_a_peer_answers_auto_approved_in_its_own_part_of_the_conversation(
     [request] = handle_message.requests
     assert request.message == "meaning?"
     assert request.auto_approve is True
-    assert request.request_id == "conversation-7:chat"
+    assert request.request_id == peer_context(CONVERSATION, "chat")
     await peers.close()
+
+
+def test_each_peer_has_its_own_part_of_the_conversation_within_the_a2a_id_size() -> None:
+    chat, observation = (
+        peer_context(CONVERSATION, "chat"),
+        peer_context(CONVERSATION, "observation"),
+    )
+
+    assert chat == peer_context(CONVERSATION, "chat")
+    assert chat != observation
+    assert len(chat) == len(observation) == A2A_ID_SIZE
 
 
 async def test_a_peer_that_waits_for_input_says_what_it_waits_for(logger) -> None:

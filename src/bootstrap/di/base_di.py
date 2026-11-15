@@ -43,7 +43,7 @@ class BaseDI:
     def _telemetry_provider(self) -> TelemetryProvider:
         connector: TelemetryConnector = self._configuration.connector.telemetry("open_telemetry")
         provider = OpenTelemetryProvider(
-            service_name=f"{self._settings.role}-service",
+            service_name=self._settings.service_name,
             environment=self._configuration.env,
             otlp_endpoint=f"{connector.host}:{connector.port}"
             if all([connector.host, connector.port])

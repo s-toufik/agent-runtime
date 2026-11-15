@@ -10,11 +10,12 @@ from tests.support.null_telemetry import NullTelemetryProvider
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 
-def make_settings(role: str = "agent-runtime") -> ProcessSettings:
+def make_settings(role: str = "agent-runtime", agent: str = "chat") -> ProcessSettings:
     return ProcessSettings(
         role=role,
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
+        agent=agent,
     )
 
 
@@ -144,13 +145,13 @@ def test_the_server_defaults_to_the_root_without_docs_and_info_logs(monkeypatch)
     assert di._server.cors_origins == ["*"]
 
 
-def test_telemetry_provider_service_name_is_derived_from_the_role() -> None:
-    di = BaseDI(make_settings(role="worker"))
+def test_each_agent_sends_its_telemetry_under_its_own_service_name() -> None:
+    di = BaseDI(make_settings(agent="observation"))
 
     provider = di._telemetry_provider
 
     assert isinstance(provider, NullTelemetryProvider)
-    assert provider.service_name == "worker-service"
+    assert provider.service_name == "agent-observation"
 
 
 async def test_shutdown_telemetry_is_a_no_op_when_never_constructed() -> None:

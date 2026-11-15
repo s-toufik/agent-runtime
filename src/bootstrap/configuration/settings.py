@@ -17,6 +17,10 @@ class ProcessSettings:
     agent: str = DEFAULT_AGENT
     agents_directory: Path = DEFAULT_AGENTS_DIRECTORY
 
+    @property
+    def service_name(self) -> str:
+        return f"agent-{self.agent}"
+
     @classmethod
     def for_role(cls, role: str) -> ProcessSettings:
         dotenv.load_dotenv()

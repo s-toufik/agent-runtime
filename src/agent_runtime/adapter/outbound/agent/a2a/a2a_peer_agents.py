@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Callable, Mapping
 
 import httpx
@@ -20,6 +21,8 @@ OUTCOMES: dict[int, PeerOutcome] = {
     TaskState.TASK_STATE_FAILED: PeerOutcome.FAILED,
     TaskState.TASK_STATE_CANCELED: PeerOutcome.FAILED,
 }
+
+PEER_CONTEXTS: uuid.UUID = uuid.uuid5(uuid.NAMESPACE_URL, "urn:agent-runtime:peer-context")
 
 
 class A2aPeerAgents:
@@ -78,7 +81,7 @@ class A2aPeerAgents:
         message = new_text_message(request.message, role=Role.ROLE_USER)
         conversation: str | None = request_id_context.get(None)
         if conversation:
-            message.context_id = f"{conversation}:{request.agent}"
+            message.context_id = peer_context(conversation, request.agent)
         message.metadata.update({AUTO_APPROVE_KEY: True})
         task: Task | None = None
         async for response in client.send_message(SendMessageRequest(message=message)):
@@ -94,6 +97,10 @@ class A2aPeerAgents:
         if name not in self._clients:
             self._clients[name] = self._http_client(self._connectors[name])
         return self._clients[name]
+
+
+def peer_context(conversation: str, agent: str) -> str:
+    return str(uuid.uuid5(PEER_CONTEXTS, f"{conversation}:{agent}"))
 
 
 def _http_client(connector: A2aConnector) -> httpx.AsyncClient:
