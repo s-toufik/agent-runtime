@@ -14,13 +14,18 @@ from agent_runtime.adapter.inbound.a2a.agent_card import agent_card
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
     StreamAgentController,
 )
+from agent_runtime.application.agent.peer_directory import PeerDirectory
+from agent_runtime.application.port.inbound.list_agents_port import ListAgentsPort
 from agent_runtime.application.port.inbound.list_models_port import ListModelsPort
-from agent_runtime.domain.a2a.agent_profile import AgentProfile
+from agent_runtime.application.use_case.describe_a2a_options import DescribeA2aOptions
+from agent_runtime.application.use_case.list_agents import ListAgents
+from agent_runtime.domain.agent.agent_routes import AgentRoutes
 from bootstrap.application.fastapi.fastapi_api import create_fastapi_api
+from tests.support.agents import AGENT
 from tests.support.web import nothing
 
 ACTUATOR = Actuator("agent-runtime", "1.0.0", "test", "team@example.com", lambda: True)
-CARD: AgentCard = agent_card(AgentProfile("agent-runtime", "1.2.3"))
+CARD: AgentCard = agent_card(AGENT, "1.2.3")
 
 
 class IdleExecutor(AgentExecutor):
@@ -42,14 +47,19 @@ def fastapi_api(
     models: Callable[[], ListModelsPort],
     a2a: RequestHandler | None = None,
     card: AgentCard = CARD,
+    routes: AgentRoutes | None = None,
+    agents: Callable[[], ListAgentsPort] | None = None,
 ) -> FastAPI:
     return create_fastapi_api(
         ApiSettings(title="agent-runtime"),
         lifespan=nothing,
         agent=agent,
         models=models,
+        agents=agents or (lambda: ListAgents(AGENT, PeerDirectory())),
         a2a_handler=a2a or a2a_handler(IdleExecutor(), card),
         agent_card=card,
+        a2a_options=lambda: DescribeA2aOptions(models()),
+        routes=routes or AgentRoutes(),
         actuator=ACTUATOR,
         logger=logger,
     )

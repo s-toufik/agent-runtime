@@ -1,3 +1,9 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
+from agent_runtime.domain.workflow.step import Step
+
 _SYSTEM = """\
 You check if an assistant's answer is right for what the user wants.
 
@@ -55,9 +61,16 @@ _WITHOUT_EVIDENCE = """\
   conversation does not give."""
 
 
-def reflection_system_prompt(output_format: object, has_evidence: bool) -> str:
+SYSTEM: SystemTemplate = SystemTemplate(
+    _SYSTEM,
+    known=frozenset({"output_format", "grounding"}),
+    required=frozenset({"output_format"}),
+)
+
+
+def reflection_system_prompt(book: PromptBook, output_format: object, has_evidence: bool) -> str:
     grounding = _WITH_EVIDENCE if has_evidence else _WITHOUT_EVIDENCE
-    return _SYSTEM.format(output_format=output_format, grounding=grounding)
+    return book.system(Step.REVIEW, output_format=output_format, grounding=grounding)
 
 
 def reflection_request(

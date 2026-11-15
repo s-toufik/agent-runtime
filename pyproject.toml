@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-runtime"
-version = "1.2.0"
+version = "2.0.0"
 authors = [
     { name = "Toufik Saouchi", email = "toufik.saouchi@gmail.com" },
 ]
@@ -34,7 +34,7 @@ dependencies = [
     "httpx2",
     "aiosqlite",
     "mcp",
-    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_fastapi]>=5.2.0",
+    "pycraftcore[application_configuration,authentication,circuit_breaker,http,logger,repository,resilient_http,retry,telemetry,web_fastapi]>=6.0.0",
     "pydantic>=2",
     "python-dotenv",
     "langchain",

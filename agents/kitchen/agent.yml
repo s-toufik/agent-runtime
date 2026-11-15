@@ -1,0 +1,13 @@
+agent:
+  name: kitchen
+  description: the homelab's kitchen agent, which plans meals, adapts recipes and computes quantities
+  tool_scope: kitchen
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: cook
+      name: Plan meals and recipes
+      description: Suggests meals, adapts recipes to the people and the ingredients at hand, and computes quantities and shopping lists.
+      tags: [kitchen, recipes, meals]
+      examples:
+        - Scale this recipe from 4 to 7 people.
+        - Plan five dinners with what is left in the fridge.

@@ -3,14 +3,16 @@
 An agent served over HTTP. You send it a message; it answers straight away when it can, proposes a plan when the request needs tools, runs the tools once you approve, checks its own answer, and streams the reply back as server-sent events.
 
 <p align="center">
-  <img src="docs/agent-runtime-harness.svg" alt="agent-runtime as a harnessed LLM agent: the harness (routing table, guard, plan approval, review and retry, step limit, summarizing, a span per step) around models, memory and protocols, and the route of one turn" width="900">
+  <img src="docs/agent-runtime-harness.svg" alt="agent-runtime as a harnessed LLM agent: the harness (routing table, guard, plan approval, review and retry, step limit, summarizing, a span per step) around models, memory and protocols (SSE and REST to you, MCP to its tools, A2A to other agents, OTLP to the platform), and the route of one turn" width="900">
 </p>
 
-The model only answers. Everything around it is the harness: a routing table picks each step, a guard screens plans, you approve them, a reviewer checks the answer, a step limit pauses long runs, and every step is traced. It runs on six model roles, keeps a memory per conversation, and talks SSE to you, MCP to its tools and OTLP to the platform. The [Logic](#logic) section explains each part.
+One runtime, many agents: a folder `agents/<name>/` (its name, skills, tool scope, the routes its turns may take, its system prompts) turns the runtime into that agent, and each agent runs in its own process (`AGENT=<name>`). The orchestration agent never answers itself: it hands each request to the others over A2A, several at once when the parts are independent. See [Agents](#agents).
+
+The model only answers. Everything around it is the harness: a routing table picks each step, a guard screens plans, you approve them, a reviewer checks the answer, a step limit pauses long runs, and every step is traced. It runs on six model roles, keeps a memory per conversation, and talks SSE to you, MCP to its tools, A2A to other agents and OTLP to the platform. The [Logic](#logic) section explains each part.
 
 | Section | For whom | What's in it |
 |---|---|---|
-| **[Users](#users)** | You run it or call it | Run, call, read the reply, configure, logs |
+| **[Users](#users)** | You run it or call it | Run, the agents, call, read the reply, configure, logs |
 | **[Developers](#developers)** | You change it | Architecture, layout, making changes, tests, evaluation, deploying |
 | **[Logic](#logic)** | Anyone who wants to know why it answered that way | Steps, routes, plans, typical journeys |
 
@@ -23,6 +25,8 @@ The model only answers. Everything around it is the harness: a routing table pic
        │        │                         └─► run tools ───│──── MCP ──────────► agent-toolbox
        │        │                                          │                    (or any MCP server)
        └────────│  SSE: status · token · final · complete  │──── storage ──────► MongoDB / SQLite
+                │                                          │
+  other agents◄►│  A2A: card · tasks · ask_agents          │──── agents/<name>/ ► which agent it is
                 └──────────────────────────────────────────┘
 ```
 
@@ -47,7 +51,8 @@ make run
 
 | | Endpoint |
 |---|---|
-| Chat (SSE) | `POST http://<host>:<port>/v1/stream` |
+| Chat (SSE) | `POST http://<host>:<port>/v1/api2a` (the agent's `routes.api2a`) |
+| Agents | `GET http://<host>:<port>/v1/agents`: this agent and the agents it can call |
 | Models | `GET http://<host>:<port>/v1/models` |
 | A2A (JSON-RPC, other agents) | `POST http://<host>:<port>/a2a`, card at `GET /.well-known/agent-card.json` |
 | Health | `GET http://<host>:<port>/actuator/health` (also `/health/liveness`, `/health/readiness`) |
@@ -57,6 +62,39 @@ make run
 `/health/readiness` answers `503` until the agent has booted, then `200`; it doesn't wait for the MCP servers. The boot log lists the tools found on each MCP server. A server that is down at boot, or goes down later, is retried in the background (after 5 s, then 10, 20, 40, and every 60 s), and its tools join as soon as it answers, with no restart. Servers that work are re-read every 60 s, so new tools of a new toolbox appear within a minute; a model that asks for a tool the agent doesn't know makes it re-read at once. Each server has its own loop and its own numbers: the `refresh` block of its connector in `config/<APP_ENV>/connector/mcp.yml` (`interval`, `retry_delay`, `max_retry_delay`), which `MCP_REFRESH_INTERVAL`, `MCP_RETRY_DELAY` and `MCP_MAX_RETRY_DELAY` override. Leave a variable unset rather than empty, or the configuration fails to load.
 
 With Docker, `make docker_build` builds the image (see [Deploying](#deploying)).
+
+### Agents
+
+Every agent is this runtime started with `AGENT=<name>` (default `chat`); it reads `agents/<name>/` (`AGENTS_DIR`, default `./agents`) and becomes that agent:
+
+```text
+agents/<name>/
+  agent.yml           the agent (root file; ${oc.env:…} works, like config/)
+  skills/*.yml        optional: skills merged in, referenced from agent.yml as ${skills}
+  prompts/<step>.md   optional: its system prompt for a step (understand, plan, act, review, screen, summarize)
+```
+
+| Field of `agent.yml` | Meaning |
+|---|---|
+| `name`, `description` | The agent card's name and description; the description is also `{identity}` in the prompts |
+| `skills` | The A2A skills its card advertises (`id`, `name`, `description`, `tags`, `examples`) |
+| `tool_scope` | The toolbox scope it connects to (`TOOLBOX_URL` + `/<scope>`); `all` for every tool, `none` for no toolbox |
+| `turns` | The routes its turns may take: `direct` (answer without a plan), `clarify` (ask back), `plan` (plan, then run tools), `review` (check the answer). At least `direct` or `plan` |
+| `peers` | The agents it may call (`ask_agents`), each reached through the connector `agent_<peer>` |
+| `routes` | Where its endpoints are: `a2a` (default `/a2a`) and `api2a` (default `/v1/api2a`) |
+
+| Agent | turns | tool_scope | Prompts of its own |
+|---|---|---|---|
+| `orchestration` | clarify, plan, review | `none`; `peers`: the seven others | `plan`, `act` |
+| `chat` | direct, clarify, review | `none` | `act` |
+| `observation`, `analysis`, `coding`, `security`, `kitchen`, `travel` | direct, clarify, plan, review | their own scope | none (the generic prompts, with their identity) |
+
+- **Prompts.** `adapter/outbound/llm/langchain/prompts/` keeps a generic system prompt per step; an agent's `prompts/<step>.md` replaces it for that step. At boot each one is checked: it may only use the step's `{placeholders}` (plus `{identity}`), and must use the ones the step can't work without (`{output_format}` where the answer is parsed, `{tools}` for plan, `{mode}` for act). Write a literal brace as `{{` or `}}`.
+- **Turns.** The routing table keeps only the rows of the allowed routes, and the graph only the steps they reach. Without `direct`, a direct question or a rework is planned (the orchestrator hands it to chat); without `plan`, a task is answered directly and the agent is never offered `request_plan`; without `clarify`, an ambiguous message takes the best reading; without `review`, an answer is final.
+- **Peers.** An agent with `peers` reads their cards at boot and every minute after (an agent that comes up joins without a restart) and gets one tool, `ask_agents`: a list of `{agent, message}` sent at once, every answer coming back marked `answered`, `needs_input`, `refused`, `failed` or `unreachable`. Its plan puts independent parts in one step (parallel) and dependent parts in later steps (serial). Your approval of its plan covers the agents it calls: they run with `autoApprove`, each in its own part of the conversation (`<conversation>:<peer>`).
+- **One agent per process.** Each has its own conversations and A2A tasks: give each its own MongoDB database (`DB_MONGO_CHECKPOINT_NAME`) and tasks table (`A2A_TASKS_TABLE`) when they share the servers.
+
+To add an agent: a folder `agents/<name>/`, a connector `agent_<name>` in `config/debug/connector/a2a.yml` (listed in `config/root.yml`), and `<name>` in the orchestrator's `peers`.
 
 ### List the models
 
@@ -74,7 +112,7 @@ Build your model picker from `models`. When `pinned_steps` covers every step, th
 ### Send a message
 
 ```bash
-curl -N http://<host>:<port>/v1/stream \
+curl -N http://<host>:<port>/v1/api2a \
   -H 'Content-Type: application/json' \
   -d '{"message": "how many users signed up today?", "model_name": "qwen3-8b", "request_id": "my-conversation"}'
 ```
@@ -157,12 +195,14 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | Push notifications, extended card | No: `PushNotificationNotSupportedError` (`-32003`) or `UnsupportedOperationError` (`-32004`) |
 
 - Only text parts are read: a message without text is `TASK_STATE_REJECTED`. The answer is text or Markdown.
-- `message.metadata.model` (or the request's `metadata.model`) picks the model; otherwise `A2A_MODEL`, otherwise the first model of `GET /v1/models`.
-- `metadata.autoApprove: true` runs a plan without waiting, like `auto_approve`.
+- The card's `capabilities.extensions` offers the agent's own options as the extension `https://github.com/s-toufik/agent-runtime/a2a/turn-options/v1` (not required). Its `params` list the `models` and the `defaultModel`. A client can name it in an `A2A-Extensions` header; the agent reads the options either way.
+- `message.metadata["<extension uri>/model"]` picks the model; otherwise `A2A_MODEL`, otherwise the first model of `GET /v1/models` (the card's `defaultModel`).
+- `message.metadata["<extension uri>/autoApprove"]: true` runs a plan without waiting, like `auto_approve`.
+- The short keys `model` and `autoApprove` work too; the extension's keys win. Both can also go in the request's `metadata`; the message's win. A value of the wrong type (a number for the model, `"true"` for autoApprove) is ignored.
 - Send `A2A-Version: 1.0`. Without it the SDK takes the call as A2A 0.3 (`message/send`, `kind: "text"`), which it also understands.
 - A new task when `MAX_CONCURRENT_STREAMS` turns are already running ends `TASK_STATE_FAILED` with "Server is at capacity, please retry."
 - A task not updated for `A2A_TASK_TTL` is deleted (checked every hour) and then answers `TaskNotFoundError` (`-32001`). Its conversation is kept as long, so both expire together.
-- No authentication, like `/v1/stream`: keep the port on a private network.
+- No authentication, like `/v1/api2a`: keep the port on a private network.
 
 ### Configure it
 
@@ -174,14 +214,18 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
 | `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
+| `AGENT` | `chat` | Which agent this process is: the folder `agents/<AGENT>/` |
+| `AGENTS_DIR` | `./agents` | Where the agent folders are |
+| `AGENT_<NAME>_URL` | empty | Where the agent `<name>` answers (its root, e.g. `http://agent-chat:8000`), for an agent that calls it; empty: not called |
+| `A2A_TASKS_TABLE` | `tasks` | The table of A2A tasks; one per agent when agents share a database |
 | `GUARDRAIL_ENABLED` | `false` | `true` checks every plan before it runs and refuses unsafe ones |
 | `MAX_CONCURRENT_STREAMS` | `200` | Open streams accepted at once; above it the API answers `503` |
-| `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/stream`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
+| `WEB_BASE_PATH` | empty | A prefix for every route, e.g. `/agent-runtime` → `/agent-runtime/v1/api2a`. Use it when the gateway keeps the prefix. Starts with `/`, no trailing `/` |
 | `WEB_DOCS` | `false` | `true` serves the API documentation at `<base path>/docs` |
 | `AGENT_ANSWER_DELIVERY` | `stream` | `stream`: answers that need no review arrive as `token` events, then `final`. `whole`: only `final` |
 | `A2A_MODEL` | empty | The model A2A tasks use when the message names none; empty: the first listed model |
 | `A2A_URL` | empty | The A2A endpoint the agent card announces, e.g. behind a gateway; empty: the address the card was read from, plus `/a2a` (the SDK then logs a warning at start that the card has no URL) |
-| `A2A_TASK_TTL` | `604800` (a week) | How long an A2A task is kept after its last update, in seconds. Keep it equal to the conversation's TTL (`ttl` of `mongodb_checkpointer`) |
+| `A2A_TASK_TTL` | `604800` (a week) | How long an A2A task is kept after its last update, in seconds. Keep it equal to the conversation's TTL (`ttl` of the `conversation_mongodb` operation) |
 | `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `NVIDIA_LLM_BASE_URL`, `NVIDIA_LLM_API_KEY` | one provider required | NVIDIA's API, `https://integrate.api.nvidia.com/v1`, and its `nvapi-…` key |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
@@ -192,7 +236,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 
 "Required" variables must exist; an empty value is fine when the feature is unused.
 
-`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS`, `AGENT_ANSWER_DELIVERY`, `A2A_MODEL`, `A2A_URL` and `A2A_TASK_TTL` have their defaults in the YAML (`root.yml`, `server/asgi.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
+`LOG_LEVEL`, `WEB_BASE_PATH`, `WEB_DOCS`, `MAX_CONCURRENT_STREAMS`, `AGENT_ANSWER_DELIVERY`, `A2A_MODEL`, `A2A_URL` and `A2A_TASK_TTL` have their defaults in the YAML (`root.yml`, `server/asgi.yml`, `connector/a2a.yml`, `operation/a2a.yml`, `operation/database.yml`). In a deployment, never pass one empty (e.g. Compose's `${WEB_DOCS}` with nothing set): an empty variable overrides the YAML default, and the agent refuses to start.
 
 **Configuration files.** `config/root.yml` lists what exists; `config/<APP_ENV>/` defines it:
 
@@ -200,7 +244,10 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 |---|---|
 | `connector/api.yml` | The model providers, `homelab_llm_provider` and `nvidia_llm_provider`; per provider, `timeout` (seconds one model call may wait) and `retry` (retries after a 5xx, a 429 or a connection failure; a silent model is not retried) |
 | `connector/mcp.yml` | The MCP servers |
-| `connector/database.yml` | MongoDB and SQLite for conversations (kept a week), PostgreSQL and SQLite for A2A tasks |
+| `connector/database.yml` | How to reach each database server: `mongodb`, `sqlite` (the folder) and `postgresql`, with their `timeout` and `pool`; nothing about what's stored |
+| `operation/database.yml` | What each use stores where: `conversation_mongodb` (database, `checkpoints` and `writes` collections, `ttl` a week), `conversation_sqlite` (file name), `a2a_tasks_postgresql` and `a2a_tasks_sqlite` (database or file, `tasks` table, `ttl` from `A2A_TASK_TTL`). At boot, the `ttl` of `conversation_mongodb` is applied to the MongoDB TTL indexes already there (pycraftcore's `MongoTtlIndex`), so changing it needs no manual step; the MongoDB user needs `collMod` (`dbAdmin` or root). An operation without `ttl` keeps its data |
+| `connector/a2a.yml` | `a2a_self`, the A2A endpoint the card announces (`base_url` from `A2A_URL`; empty: the address the card was read from) and its binding, `JSONRPC`, the only one served; `agent_<name>`, one per agent it may call (`base_url` from `AGENT_<NAME>_URL`) |
+| `operation/a2a.yml` | `a2a`: the default model of A2A tasks (`parameters.model` from `A2A_MODEL`) |
 | `connector/telemetry.yml` | The OpenTelemetry collector |
 | `operation/llm.yml` | The models users can pick, and their parameters |
 | `operation/agent.yml` | Which model each step uses |
@@ -253,7 +300,7 @@ connector:
 
 ### Logs
 
-One format for every line; the third column is the request id (the conversation id on `/v1/stream`, the `contextId` on `/a2a`), `-` outside a request:
+One format for every line; the third column is the request id (the conversation id on `/v1/api2a`, the `contextId` on `/a2a`), `-` outside a request:
 
 ```text
 2026-09-27 10:47:47.785 | INFO     | my-conversation | stream_agent_controller:execute:45 - stream request accepted
@@ -267,7 +314,7 @@ Every message ends with a `turn finished` line (outcome, steps, duration), or a 
 With `OTEL_HOST` set, each message is one trace:
 
 ```text
-POST /v1/stream                      the request, until the stream ends (continues the caller's traceparent)
+POST /v1/api2a                      the request, until the stream ends (continues the caller's traceparent)
 ├─ agent understand                  one span per step, with agent.step and agent.steps_taken
 │  └─ http.request                   the model call
 ├─ agent plan …
@@ -311,14 +358,18 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/domain/` | `Conversation` (history, summary, pending plan), `Turn` (one message and its work), value objects, `TurnPolicy` (the routing table) |
 | `src/agent_runtime/application/` | `HandleMessage`, the step handlers (`*_step.py`), `tool/` (`ToolRegistry`, `ToolCatalogRefresher`), and the ports they call (`Actor`, `Planner`, `ToolExecutor`, `ToolProviderPort`, `WorkflowRunner`…) |
 | `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter`: one stream per request, whatever web framework serves it |
-| `src/agent_runtime/domain/a2a/` | `TaskState` (and the rule from an `Outcome` to a task state), `TaskUpdate`, `A2aTaskRequest`, `AgentProfile` (name, skills). Plain Python: the SDK never reaches the domain |
+| `src/agent_runtime/domain/agent/` | `Agent` (name, description, `AgentSkill`s, `ToolScope`, `TurnShape`, peers, `AgentRoutes`, `AgentPrompts`), `PeerAgent`, `PeerRequest`, `PeerReply` |
+| `src/agent_runtime/domain/a2a/` | `TaskState` (and the rule from an `Outcome` to a task state), `TaskUpdate`, `A2aTaskRequest`, `TurnOptions` and the turn-options extension's keys. Plain Python: the SDK never reaches the domain |
+| `src/agent_runtime/application/agent/` | `AskAgentsTool` (the `ask_agents` tool: one call, several agents at once) and its provider, `PeerDirectory` (the agents last found); `ListAgents` is in `use_case/` |
+| `src/agent_runtime/adapter/outbound/agent/a2a/` | `A2aPeerAgents`: reads peers' cards and sends them messages with the SDK's client (the only client-side SDK code) |
 | `src/agent_runtime/application/use_case/run_a2a_task.py` | `RunA2aTask`, behind `RunA2aTaskPort`: picks the model, runs `HandleMessage` in the task's conversation, and reports each event as a `TaskUpdate` |
-| `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes tasks older than `A2A_TASK_TTL`). The SDK does JSON-RPC, the task store, streaming and cancel |
+| `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`; the served card adds the `TurnOptions` from `DescribeA2aOptions` as the turn-options extension), `turn_options_extension` (the extension's URI, its card entry, and reading its metadata keys), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes the tasks of the store's table older than the `ttl` of the chosen operation). The SDK does JSON-RPC, the task store, streaming and cancel |
 | `src/agent_runtime/adapter/inbound/exception/`, `turn_status.py` | What every inbound adapter shares: `ServerAtCapacityException` (503) and the step labels. Inbound adapters never import each other, and a test checks it |
-| `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, the prompts, `ModelCatalog` |
+| `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, `ModelCatalog`, and `langchain/prompts/`: the generic system prompts and `PromptBook` (each step's prompt: the agent's, else the generic one, checked at boot) |
 | `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (MCP sessions, discovery and calls) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
+| `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
+| `agents/` | One folder per agent (see [Agents](#agents)) |
 | `src/bootstrap/di/` | One wiring class per kind, each given what it needs: `ToolsDI` (MCP tools), `ModelsDI` (model providers and clients), `StorageDI` (conversation checkpointer, A2A task database, each with its SQLite fallback), `WorkflowDI` (steps and graph), `A2aDI` (card, request handler, task store, cleanup). `AgentDI` composes them and builds the use cases |
 | `src/bootstrap/application/fastapi/` | The API: `router/` (`/v1` routes; the A2A card route and the SDK's JSON-RPC route), `schema/` (request and response bodies, pydantic), `fastapi_api.py` (the app, built with `pycraftcore.web_fastapi`, traced with the OpenTelemetry FastAPI instrumentation) |
 | `config/` | YAML configuration |
@@ -335,7 +386,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 
 ### The routing table
 
-`domain/workflow/turn_policy.py` is an ordered list of transitions: after a step, the first row whose condition holds wins. The LangGraph edges are generated from it, and `test_agent_graph.py` checks they match. What each route means for a user: [Logic](#logic).
+`domain/workflow/turn_policy.py` is an ordered list of transitions: after a step, the first row whose condition holds wins. The table below is the full shape (every route allowed); an agent's `turns` keeps only its rows (see [Agents](#agents)), and a test checks every shape leaves no step without a way out. The LangGraph edges are generated from it, and `test_agent_graph.py` checks they match. What each route means for a user: [Logic](#logic).
 
 | After | Condition | Next |
 |---|---|---|
@@ -453,10 +504,10 @@ kubectl -n homelab get deploy agent-runtime -o jsonpath='{.spec.template.spec.co
    ```
 3. **Actions**: PUBLISH and CHART are green.
 4. In homelab-infra: `apps.agentRuntime: X.Y.Z` in `environments/versions.yaml`, commit, push.
-5. On the server, in homelab-infra: `git pull`, `make diff R=agent-runtime`, `make apply R=agent-runtime` (raw: `helmfile -l name=agent-runtime apply`).
-6. Check: the `helm list` above shows `X.Y.Z`; `make logs R=agent-runtime`.
+5. On the server, in homelab-infra: `git pull`, `make diff G=apps`, `make apply G=apps` (raw: `helmfile -l group=apps apply`): every agent, `agent-<name>`, gets the new version.
+6. Check: the `helm list` above shows `X.Y.Z` for each `agent-<name>`; `make logs R=agent-orchestration`.
 
-Roll back: set the previous version in `versions.yaml` and `make apply R=agent-runtime`, or right away `make rollback R=agent-runtime` (raw: `helm -n homelab rollback agent-runtime`). The step-by-step version is homelab-infra's DevOps guide, **Release an app** and **Roll back**.
+Roll back: set the previous version in `versions.yaml` and `make apply G=apps`, or right away, one agent at a time, `make rollback R=agent-<name>` (raw: `helm -n homelab rollback agent-<name>`). The step-by-step version is homelab-infra's DevOps guide, **Release an app** and **Roll back**.
 
 It is served by [Granian](https://github.com/emmett-framework/granian), configured with `GRANIAN_*` variables in `devops/docker/Dockerfile`. Set any other Granian option the same way in your deployment, without rebuilding:
 

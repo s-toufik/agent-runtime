@@ -1,0 +1,34 @@
+operation:
+  conversation_mongodb:
+    name: conversation_mongodb
+    type: database
+    connector: ${connector.mongodb}
+    database: ${oc.env:DB_MONGO_CHECKPOINT_NAME}
+    collections:
+      checkpoints: checkpoints
+      writes: checkpoint_writes
+    ttl: ${oc.env:CONVERSATION_TTL,604800}
+
+  conversation_sqlite:
+    name: conversation_sqlite
+    type: database
+    connector: ${connector.sqlite}
+    database: ${oc.env:DB_SQLITE_CHECKPOINT_NAME}
+
+  a2a_tasks_postgresql:
+    name: a2a_tasks_postgresql
+    type: database
+    connector: ${connector.postgresql}
+    database: ${oc.env:DB_POSTGRES_A2A_NAME,agent_runtime}
+    collections:
+      tasks: ${oc.env:A2A_TASKS_TABLE,tasks}
+    ttl: ${oc.env:A2A_TASK_TTL,604800}
+
+  a2a_tasks_sqlite:
+    name: a2a_tasks_sqlite
+    type: database
+    connector: ${connector.sqlite}
+    database: a2a_tasks
+    collections:
+      tasks: ${oc.env:A2A_TASKS_TABLE,tasks}
+    ttl: ${oc.env:A2A_TASK_TTL,604800}

@@ -32,7 +32,7 @@ A separate program that tests a **running** agent from the outside, over the sam
 1. **Start the toolbox and the agent** the way you normally do, and leave them running. For the GUARDRAIL cases, start the agent with `GUARDRAIL_ENABLED=true`.
 2. **Point the control panel at them**: edit `src/agent_evaluation/control_panel.json`, at least `agent.base_url`, `agent.model_name` and the `judge` section.
    ```json
-   "agent": { "base_url": "http://<agent-host>:<port>", "endpoint": "/v1/stream", "model_name": "<a name GET /v1/models lists>" }
+   "agent": { "base_url": "http://<agent-host>:<port>", "endpoint": "/v1/api2a", "model_name": "<a name GET /v1/models lists>" }
    ```
 3. **Say what the agent can reach**, in `capabilities` (see [Capabilities](#capabilities)).
 4. **Check what will run**, without calling anything:

@@ -4,6 +4,7 @@ from pycraftcore.logger.port import Logger
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
 from agent_runtime.adapter.outbound.llm.langchain.messages import from_history, render
 from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.prompts.summary import (
     summary_request,
     summary_system_prompt,
@@ -14,13 +15,14 @@ from agent_runtime.domain.turn.turn import Turn
 
 
 class LangChainSummarizer:
-    def __init__(self, models: ChatModels, logger: Logger) -> None:
+    def __init__(self, models: ChatModels, logger: Logger, *, prompts: PromptBook) -> None:
+        self._prompts = prompts
         self._models = models
         self._logger = logger
 
     async def summarize(self, turn: Turn, summary: str, messages: list[Message]) -> str:
         prompt = [
-            SystemMessage(content=summary_system_prompt()),
+            SystemMessage(content=summary_system_prompt(self._prompts)),
             HumanMessage(content=summary_request(summary, render(from_history(messages)))),
         ]
         self._logger.debug("Calling the summary model")

@@ -14,6 +14,17 @@ def needs_plan(turn: Turn) -> bool:
     return turn.intent is None or turn.intent.needs_plan
 
 
+def answers_directly(turn: Turn) -> bool:
+    return turn.intent in (Intent.DIRECT, Intent.REWORK)
+
+
+def any_of(*conditions: Condition) -> Condition:
+    def holds(turn: Turn) -> bool:
+        return any(condition(turn) for condition in conditions)
+
+    return holds
+
+
 def has_approved_plan(turn: Turn) -> bool:
     return turn.plan is not None
 

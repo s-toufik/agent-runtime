@@ -14,6 +14,7 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.context import (
     context_request,
     context_system_prompt,
 )
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.token_counter import count_tokens
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.domain.conversation.conversation import Conversation
@@ -22,7 +23,10 @@ from agent_runtime.domain.turn.understanding import Understanding
 
 
 class LangChainIntentClassifier:
-    def __init__(self, models: ChatModels, window: ContextWindow, logger: Logger) -> None:
+    def __init__(
+        self, models: ChatModels, window: ContextWindow, logger: Logger, *, prompts: PromptBook
+    ) -> None:
+        self._prompts = prompts
         self._models = models
         self._window = window
         self._logger = logger
@@ -30,7 +34,7 @@ class LangChainIntentClassifier:
     async def understand(self, conversation: Conversation, turn: Turn) -> Understanding | None:
         pending = conversation.pending
         schema: dict = UnderstandingDto.model_json_schema()
-        system = SystemMessage(content=context_system_prompt(schema))
+        system = SystemMessage(content=context_system_prompt(self._prompts, schema))
         budget: int = input_budget(
             turn.settings.context_tokens, turn.settings.output_tokens, [schema]
         )

@@ -13,6 +13,11 @@ from agent_runtime.adapter.inbound.a2a.a2a_agent_executor import (
     A2aAgentExecutor,
 )
 from agent_runtime.adapter.inbound.a2a.a2a_task_presenter import APPROVAL_PROMPT
+from agent_runtime.adapter.inbound.a2a.turn_options_extension import (
+    AUTO_APPROVE_KEY,
+    MODEL_KEY,
+    TURN_OPTIONS_URI,
+)
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
 from agent_runtime.application.use_case.run_a2a_task import RunA2aTask
 from tests.bootstrap.application.fastapi.support import a2a_handler, fastapi_api
@@ -78,6 +83,9 @@ async def test_the_agent_card_is_served_at_the_well_known_path(logger) -> None:
     card = response.json()
     assert card["name"] == "agent-runtime"
     assert card["supportedInterfaces"][0]["url"] == "http://test/a2a"
+    [extension] = card["capabilities"]["extensions"]
+    assert extension["uri"] == TURN_OPTIONS_URI
+    assert extension["params"] == {"models": ["m"], "defaultModel": "m"}
 
 
 async def test_a_message_is_answered_as_a_completed_task_in_its_conversation(logger) -> None:
@@ -173,6 +181,17 @@ async def test_the_model_and_auto_approve_come_from_the_message_metadata(logger)
 
     [request] = handle_message.requests
     assert (request.model_name, request.auto_approve) == ("small", True)
+
+
+async def test_the_extension_s_keys_choose_the_model_and_auto_approve(logger) -> None:
+    handle_message = ScriptedUseCase(ANSWERED)
+    metadata = {MODEL_KEY: "big", AUTO_APPROVE_KEY: True}
+
+    async with http_client(_app(logger, handle_message)) as client:
+        await _task(client, _send("hi", metadata=metadata))
+
+    [request] = handle_message.requests
+    assert (request.model_name, request.auto_approve) == ("big", True)
 
 
 async def test_an_unknown_task_is_a_task_not_found_error(logger) -> None:

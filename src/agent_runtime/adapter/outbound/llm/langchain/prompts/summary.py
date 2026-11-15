@@ -1,3 +1,9 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
+from agent_runtime.domain.workflow.step import Step
+
 _SYSTEM = """\
 You keep a running summary of a conversation between a user and an assistant.
 Merge the existing summary with the new messages.
@@ -12,8 +18,11 @@ New messages:
 {messages}"""
 
 
-def summary_system_prompt() -> str:
-    return _SYSTEM
+SYSTEM: SystemTemplate = SystemTemplate(_SYSTEM, known=frozenset())
+
+
+def summary_system_prompt(book: PromptBook) -> str:
+    return book.system(Step.SUMMARIZE)
 
 
 def summary_request(summary: str, messages: str) -> str:

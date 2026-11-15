@@ -1,0 +1,13 @@
+agent:
+  name: security
+  description: the homelab's security agent, which checks accounts, access and suspicious activity without changing anything
+  tool_scope: security
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: check-security
+      name: Check security
+      description: Reviews sign-in accounts, access and logs for suspicious activity, and explains good practices. Reads only.
+      tags: [security, audit]
+      examples:
+        - Were there failed sign-ins today?
+        - Which accounts have the admin role?

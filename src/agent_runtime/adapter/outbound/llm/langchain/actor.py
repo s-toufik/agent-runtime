@@ -12,6 +12,7 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.act import (
     act_system_prompt,
     next_step_request,
 )
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.domain.conversation.conversation import Conversation
@@ -29,7 +30,12 @@ class LangChainActor:
         logger: Logger,
         reply: ReplyReader,
         final_reply: ReplyReader,
+        *,
+        prompts: PromptBook,
+        can_plan: bool = True,
     ) -> None:
+        self._prompts = prompts
+        self._can_plan = can_plan
         self._models = models
         self._window = window
         self._logger = logger
@@ -40,13 +46,15 @@ class LangChainActor:
         self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
     ) -> Draft:
         progress = turn.progress
-        system = act_system_prompt(turn.query, progress, tools, turn.prior)
+        system = act_system_prompt(
+            self._prompts, turn.query, progress, tools, turn.prior, can_plan=self._can_plan
+        )
         tail = [HumanMessage(content=turn.request), *from_work(turn.work)]
         next_step = next_step_request(progress) if progress else None
         if next_step:
             tail.append(HumanMessage(content=next_step))
         bound: list[dict] = (
-            [REQUEST_PLAN_TOOL] if progress is None else _plan_tools(progress, tools)
+            self._direct_tools() if progress is None else _plan_tools(progress, tools)
         )
         settings = turn.settings
         budget: int = input_budget(settings.context_tokens, settings.output_tokens, bound)
@@ -55,11 +63,14 @@ class LangChainActor:
         self._logger.debug(f"Calling the act model (step {turn.steps_taken + 1})")
         if progress is None:
             reader = self._final_reply if turn.is_plain_direct_answer else self._reply
-            reply = await reader.read(model.bind_tools(bound), messages)
+            reply = await reader.read(model.bind_tools(bound) if bound else model, messages)
             return direct_draft(to_draft(reply))
         if bound:
             model = model.bind_tools(bound)
         return to_draft(await self._reply.read(model, messages))
+
+    def _direct_tools(self) -> list[dict]:
+        return [REQUEST_PLAN_TOOL] if self._can_plan else []
 
 
 def _plan_tools(progress: PlanProgress, tools: list[ToolSpecification]) -> list[dict]:

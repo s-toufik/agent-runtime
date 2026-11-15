@@ -8,6 +8,7 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.guard import (
     guard_request,
     guard_system_prompt,
 )
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.turn.plan import Plan
@@ -16,13 +17,16 @@ from agent_runtime.domain.turn.turn import Turn
 
 
 class LangChainGuard:
-    def __init__(self, model: ChatModels, logger: Logger):
+    def __init__(self, model: ChatModels, logger: Logger, *, prompts: PromptBook) -> None:
+        self._prompts = prompts
         self._model = model
         self._logger = logger
 
     async def screen(self, conversation: Conversation, turn: Turn, plan: Plan) -> Screening | None:
         messages = [
-            SystemMessage(content=guard_system_prompt(ScreeningDto.model_json_schema())),
+            SystemMessage(
+                content=guard_system_prompt(self._prompts, ScreeningDto.model_json_schema())
+            ),
             HumanMessage(content=guard_request(request=turn.query, plan=plan.render())),
         ]
         self._logger.debug("Calling the guard model")

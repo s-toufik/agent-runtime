@@ -1,5 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
+from pathlib import Path
 
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.enum import ConnectorType, RunTypeEnvironment
@@ -15,8 +17,13 @@ from pycraftcore.application_configuration.model.server import ServerRegistry
 from pycraftcore.authentication.model.no_auth import NoAuth
 from pycraftcore.logger.enum import LogLevel
 
+from agent_runtime.domain.agent.tool_scope import ToolScope
 from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
+from bootstrap.di.agent_di import AgentDI
 from bootstrap.di.tools_di import EXTERNAL_MCP_PREFIX, MCP_CONNECTOR_NAME, ToolsDI
+from tests.bootstrap.di.conftest import make_settings
+
+REAL_AGENTS = Path(__file__).resolve().parents[3] / "agents"
 
 
 def _connector(name: str, base_url: str) -> McpConnector:
@@ -30,7 +37,7 @@ def _connector(name: str, base_url: str) -> McpConnector:
     )
 
 
-def _tools(logger, **mcp_connectors: McpConnector) -> ToolsDI:
+def _tools(logger, scope: ToolScope | None = None, **mcp_connectors: McpConnector) -> ToolsDI:
     by_type: dict[str, ConnectorTyping] = dict(mcp_connectors)
     configuration = ApplicationConfiguration(
         env=RunTypeEnvironment.debug,
@@ -40,7 +47,7 @@ def _tools(logger, **mcp_connectors: McpConnector) -> ToolsDI:
         connector=ConnectorRegistry({ConnectorType.mcp: by_type}),
         operation=OperationRegistry({}),
     )
-    return ToolsDI(configuration, logger)
+    return ToolsDI(configuration, logger, scope)
 
 
 TOOLBOX = {MCP_CONNECTOR_NAME: _connector("toolbox", "http://localhost:8001/mcp")}
@@ -156,3 +163,47 @@ async def test_the_toolbox_is_empty_but_usable_when_no_server_answers(logger) ->
 
     assert toolbox.tools() == []
     assert any("No MCP tools available yet" in line for line in logger.messages("warning"))
+
+
+def test_an_agent_reaches_the_toolbox_endpoint_of_its_scope(logger) -> None:
+    observation = _tools(logger, ToolScope("observation"), **TOOLBOX)
+    everything = _tools(logger, ToolScope("all"), **TOOLBOX)
+
+    assert observation.connectors["toolbox"].base_url == "http://localhost:8001/mcp/observation"
+    assert everything.connectors["toolbox"].base_url == "http://localhost:8001/mcp"
+
+
+def test_an_agent_without_a_tool_scope_skips_the_toolbox_but_keeps_other_mcp_servers(
+    logger,
+) -> None:
+    tools = _tools(
+        logger,
+        ToolScope("none"),
+        **TOOLBOX,
+        **{f"{EXTERNAL_MCP_PREFIX}billing": _connector("billing", "http://localhost:9002/mcp")},
+    )
+
+    assert set(tools.connectors) == {f"{EXTERNAL_MCP_PREFIX}billing"}
+
+
+async def test_an_agent_without_a_tool_scope_says_so_instead_of_warning(logger) -> None:
+    tools = _tools(logger, ToolScope("none"), **TOOLBOX)
+
+    await tools.toolbox()
+
+    assert logger.messages("warning") == []
+    assert any("tool scope is 'none'" in message for message in logger.messages("info"))
+
+
+def test_an_orchestrator_asks_the_agents_that_have_a_url(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_CHAT_URL", "http://agent-chat:8000")
+    di = AgentDI(replace(make_settings(), agent="orchestration", agents_directory=REAL_AGENTS))
+
+    tools = di._tools
+
+    assert tools.peer_agents.names == ("chat",)
+    assert [source.name for source in tools.refresher._sources][-1] == "agents"
+
+
+def test_an_agent_without_peers_asks_nobody(logger) -> None:
+    assert _tools(logger, **TOOLBOX)._peer_sources() == []

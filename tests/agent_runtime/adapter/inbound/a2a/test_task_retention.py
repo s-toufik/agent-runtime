@@ -32,7 +32,7 @@ async def test_tasks_older_than_the_ttl_are_removed_and_newer_ones_kept(logger) 
         _task("old", timedelta(days=8)), _task("recent", timedelta(days=1))
     )
 
-    removed = await TaskRetention(engine, timedelta(days=7), logger).purge()
+    removed = await TaskRetention(engine, store.task_model, timedelta(days=7), logger).purge()
 
     assert removed == 1
     assert await store.get("old", CONTEXT) is None
@@ -42,7 +42,13 @@ async def test_tasks_older_than_the_ttl_are_removed_and_newer_ones_kept(logger) 
 
 async def test_the_cleanup_keeps_running_after_a_failure(logger) -> None:
     engine = create_async_engine("sqlite+aiosqlite://")
-    retention = TaskRetention(engine, timedelta(days=7), logger, interval=timedelta(0))
+    retention = TaskRetention(
+        engine,
+        DatabaseTaskStore(engine).task_model,
+        timedelta(days=7),
+        logger,
+        interval=timedelta(0),
+    )
 
     running = asyncio.create_task(retention.run())
     while len(logger.messages("warning")) < 2:

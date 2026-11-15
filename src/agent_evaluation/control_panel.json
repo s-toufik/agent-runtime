@@ -4,7 +4,7 @@
   "agent": {
     "_help": "The running agent under test. model_name must be one of the names GET <models_endpoint> lists.",
     "base_url": "http://sirius:8000",
-    "endpoint": "/v1/stream",
+    "endpoint": "/v1/api2a",
     "models_endpoint": "/v1/models",
     "model_name": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "timeout_seconds": 900,

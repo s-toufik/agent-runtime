@@ -25,6 +25,7 @@ from agent_runtime.adapter.outbound.llm.langchain.intent_classifier import (
     LangChainIntentClassifier,
 )
 from agent_runtime.adapter.outbound.llm.langchain.planner import LangChainPlanner
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
 from agent_runtime.adapter.outbound.llm.langchain.reply.streamed_reply import StreamedReply
 from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import WholeReply
@@ -48,7 +49,9 @@ from agent_runtime.application.step.screen_step import ScreenStep
 from agent_runtime.application.step.step_handler import StepHandler
 from agent_runtime.application.step.summarize_step import SummarizeStep
 from agent_runtime.application.step.understand_step import UnderstandStep
+from agent_runtime.domain.workflow.step import Step
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.domain.workflow.turn_shape import TurnShape
 
 
 class WorkflowDI:
@@ -59,7 +62,11 @@ class WorkflowDI:
         *,
         answer_delivery: AnswerDelivery,
         screen: bool,
+        prompts: PromptBook,
+        shape: TurnShape,
     ) -> None:
+        self._prompts = prompts
+        self._policy = TurnPolicy(shape, screen=screen)
         self._models = models
         self._logger = logger
         self._answer_delivery = answer_delivery
@@ -76,28 +83,45 @@ class WorkflowDI:
 
     def graph(self, toolbox: Toolbox, checkpointer: Any) -> Any:
         codec: TurnStateCodec = TurnStateCodec()
-        policy: TurnPolicy = TurnPolicy(screen=self._screen)
+        policy: TurnPolicy = self._policy
         nodes: list[AgentNode] = agent_nodes(self.steps(toolbox), codec, self.turn_events)
         return AgentGraphBuilder(nodes, policy, PolicyRouter(policy, codec)).build(checkpointer)
 
     def steps(self, toolbox: Toolbox) -> list[StepHandler]:
         models, window, logger = self._models, ContextWindow(), self._logger
+        prompts = self._prompts
         steps: list[StepHandler] = [
-            UnderstandStep(LangChainIntentClassifier(models, window, logger), logger),
-            PlanStep(LangChainPlanner(models, window, logger), toolbox),
+            UnderstandStep(
+                LangChainIntentClassifier(models, window, logger, prompts=prompts), logger
+            ),
+            PlanStep(LangChainPlanner(models, window, logger, prompts=prompts), toolbox),
             ClarifyStep(),
             ActStep(
-                LangChainActor(models, window, logger, WholeReply(), self.final_reply()), toolbox
+                LangChainActor(
+                    models,
+                    window,
+                    logger,
+                    WholeReply(),
+                    self.final_reply(),
+                    prompts=prompts,
+                    can_plan=self._policy.shape.plan,
+                ),
+                toolbox,
             ),
             RunToolsStep(toolbox),
-            ReviewStep(LangChainReviewer(models, logger), logger),
+            ReviewStep(LangChainReviewer(models, logger, prompts=prompts), logger),
             FeedbackStep(logger),
             FinishStep(),
-            SummarizeStep(LangChainSummarizer(models, logger), EstimatedTokenCounter(), logger),
+            SummarizeStep(
+                LangChainSummarizer(models, logger, prompts=prompts),
+                EstimatedTokenCounter(),
+                logger,
+            ),
         ]
         if self._screen:
-            steps.append(ScreenStep(LangChainGuard(models, logger), logger))
-        return steps
+            steps.append(ScreenStep(LangChainGuard(models, logger, prompts=prompts), logger))
+        reachable: set[Step] = set(self._policy.steps())
+        return [handler for handler in steps if handler.step in reachable]
 
     def final_reply(self) -> ReplyReader:
         match self._answer_delivery:

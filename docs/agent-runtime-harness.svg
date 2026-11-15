@@ -40,7 +40,7 @@
 <circle cx="138.7" cy="1004.5" r="48" fill="#0f172a" stroke="#60a5fa" stroke-width="2"/>
 <g transform="translate(138.7 1004.5)"><path d="M-18 -24 H8 L18 -14 V24 H-18 Z" stroke="#60a5fa" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 -24 V-14 H18" stroke="#60a5fa" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-10 -4 L-4 2 L-10 8 M0 8 H10" stroke="#60a5fa" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
 <text x="138.7" y="1074.5" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="600" fill="#60a5fa" text-anchor="middle" dominant-baseline="middle">prompts</text>
-<text x="138.7" y="1096.6" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="middle" dominant-baseline="middle">per step</text>
+<text x="138.7" y="1096.6" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="middle" dominant-baseline="middle">agent · step</text>
 <circle cx="268.2" cy="1113.2" r="58" fill="#60a5fa" opacity="0.10"/>
 <circle cx="268.2" cy="1113.2" r="48" fill="#0f172a" stroke="#60a5fa" stroke-width="2"/>
 <g transform="translate(268.2 1113.2)"><path d="M18 -6 A19 19 0 1 0 14 13" stroke="#60a5fa" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 -20 L18 -5 L4 -9" stroke="#60a5fa" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
@@ -103,6 +103,11 @@
 <g transform="translate(1315.0 1593.2)"><path d="M-24 8 L-12 8 L-6 -12 L2 20 L8 0 L24 0" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="0" r="3.5" fill="#fbbf24"/></g>
 <text x="1379.0" y="1582.2" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="600" fill="#fbbf24" text-anchor="start" dominant-baseline="middle">agent ↔ platform</text>
 <text x="1379.0" y="1604.3" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="start" dominant-baseline="middle">otlp traces · logs</text>
+<circle cx="1115.0" cy="1593.2" r="58" fill="#fbbf24" opacity="0.10"/>
+<circle cx="1115.0" cy="1593.2" r="48" fill="#0f172a" stroke="#fbbf24" stroke-width="2"/>
+<g transform="translate(1115.0 1593.2)"><circle cx="-14" cy="-12" r="7" stroke="#fbbf24" stroke-width="3" fill="none"/><circle cx="16" cy="-12" r="7" stroke="#fbbf24" stroke-width="3" fill="none"/><circle cx="1" cy="15" r="7" stroke="#fbbf24" stroke-width="3" fill="none"/><path d="M-7 -12 H9 M-10 -6 L-3 9 M12 -6 L5 9" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="1051.0" y="1582.2" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="600" fill="#fbbf24" text-anchor="end" dominant-baseline="middle">agent ↔ agents</text>
+<text x="1051.0" y="1604.3" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="end" dominant-baseline="middle">a2a · ask_agents</text>
 <circle cx="790" cy="960" r="250" fill="#34d399" fill-opacity="0.045" stroke="#34d399" stroke-opacity="0.45" stroke-width="2" stroke-dasharray="6 9"/>
 <circle cx="790" cy="960" r="188.5" fill="url(#gGreen)"/>
 <circle cx="790" cy="960" r="130" fill="#34d399"/>
@@ -173,6 +178,6 @@
 <text x="800.0" y="1768.0" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" font-weight="500" fill="#8b95a7" text-anchor="middle" dominant-baseline="middle">loop</text>
 <text x="894.3" y="1654.0" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" font-weight="500" fill="#8b95a7" text-anchor="middle" dominant-baseline="middle">feedback</text>
 <line x1="40" y1="1780" x2="1560" y2="1780" stroke="#1e293b" stroke-width="2"/>
-<text x="56.0" y="1810.0" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="start" dominant-baseline="middle">10 steps · 6 model roles · 4 protocols</text>
+<text x="56.0" y="1810.0" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="start" dominant-baseline="middle">10 steps · 6 model roles · 5 protocols · one folder per agent</text>
 <text x="1544.0" y="1810.0" font-family="'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" font-weight="500" fill="#8b95a7" text-anchor="end" dominant-baseline="middle">s-toufik/agent-runtime</text>
 </svg>

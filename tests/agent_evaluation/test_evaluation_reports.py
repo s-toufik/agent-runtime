@@ -36,7 +36,7 @@ NEEDS_JIRA = Case("jira", "Needs Jira", (Say("?"),), requires=("jira",))
 def _evaluation(tmp_path: Path, agent: ScriptedAgent) -> Evaluation:
     clock = RecordingClock()
     paths = ReportPaths(tmp_path, STARTED)
-    header = ReportHeader(STARTED, "http://agent/v1/stream", "m", "judge", 0.7, "panel.json")
+    header = ReportHeader(STARTED, "http://agent/v1/api2a", "m", "judge", 0.7, "panel.json")
     return Evaluation(
         agent,
         evaluator(agent, clock, FixedJudge(0.4, "too vague")),

@@ -1,12 +1,17 @@
 from agent_runtime.adapter.outbound.llm.langchain.plan_request import REQUEST_PLAN
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import tool_catalog
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.plan_progress import PlanProgress
 from agent_runtime.domain.turn.prior_run import PriorRun
+from agent_runtime.domain.workflow.step import Step
 
 _SYSTEM = """\
-You are BlueAI, an assistant for the Blue homelab platform.
+You are {identity}.
 Be brief. Use only facts from tool results or from this conversation. Never invent data.
 The earlier messages in this chat are your past exchanges with this user: rely on them
 when the user refers to what was said before (their name, a previous question, whether
@@ -97,6 +102,11 @@ You cannot run tools in this reply. Answer from the conversation and general kno
 Questions about your tools or what you can do are answered from the list above.
 Only if the answer needs to run one of your tools, call {REQUEST_PLAN} instead of answering."""
 
+_DIRECT_ONLY = """\
+You cannot run tools in this reply, and you do not write plans. Answer from the conversation
+and general knowledge. When the answer needs data or actions you cannot reach, say so plainly
+and say what would be needed."""
+
 _FEEDBACK = """\
 A reviewer rejected your last answer.
 
@@ -106,16 +116,26 @@ Critique:
 Write the corrected answer. Fix only what the critique flags."""
 
 
+SYSTEM: SystemTemplate = SystemTemplate(
+    _SYSTEM,
+    known=frozenset({"request", "tools", "mode", "diagrams", "now"}),
+    required=frozenset({"mode"}),
+)
+
+
 def act_system_prompt(
+    book: PromptBook,
     request: str,
     progress: PlanProgress | None,
     tools: list[ToolSpecification],
     prior: PriorRun | None = None,
+    can_plan: bool = True,
 ) -> str:
-    return _SYSTEM.format(
+    return book.system(
+        Step.ACT,
         request=request,
         tools=tool_catalog(tools),
-        mode=_mode(progress, prior),
+        mode=_mode(progress, prior, can_plan),
         diagrams=_DIAGRAMS,
         now=utc_now(),
     )
@@ -132,9 +152,9 @@ def next_step_request(progress: PlanProgress) -> str | None:
     return _NEXT_STEP.format(number=progress.number, action=step.action, tool=step.tool)
 
 
-def _mode(progress: PlanProgress | None, prior: PriorRun | None) -> str:
+def _mode(progress: PlanProgress | None, prior: PriorRun | None, can_plan: bool) -> str:
     if progress is None:
-        return _DIRECT
+        return _DIRECT if can_plan else _DIRECT_ONLY
     return _template(progress, prior).format(progress=progress.render(), prior=_prior(prior))
 
 

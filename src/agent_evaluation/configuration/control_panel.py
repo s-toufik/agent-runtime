@@ -14,7 +14,7 @@ class _Section(BaseModel):
 
 class AgentSection(_Section):
     base_url: str
-    endpoint: str = "/v1/stream"
+    endpoint: str = "/v1/api2a"
     models_endpoint: str | None = "/v1/models"
     model_name: str
     timeout_seconds: float = Field(default=900.0, gt=0)

@@ -1,0 +1,13 @@
+agent:
+  name: coding
+  description: the homelab's coding agent, which reads and writes files and runs Python to build, fix and explain code
+  tool_scope: coding
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: code
+      name: Write and run code
+      description: Reads and writes files in the working directory and runs Python to build scripts, fix code and explain it.
+      tags: [code, python, files]
+      examples:
+        - Write a script that converts positions.csv to JSON.
+        - Why does this function return None?
