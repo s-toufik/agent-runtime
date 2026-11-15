@@ -11,17 +11,19 @@ from a2a.types.a2a_pb2 import (
 )
 from a2a.utils.constants import PROTOCOL_VERSION_CURRENT, TransportProtocol
 
-from agent_runtime.domain.a2a.agent_profile import AgentProfile
+from agent_runtime.adapter.inbound.a2a.turn_options_extension import turn_options_extension
+from agent_runtime.domain.a2a.turn_options import TurnOptions
+from agent_runtime.domain.agent.agent import Agent
 
 INPUT_MODES: tuple[str, ...] = ("text/plain",)
 OUTPUT_MODES: tuple[str, ...] = ("text/plain", "text/markdown")
 
 
-def agent_card(profile: AgentProfile, url: str = "") -> AgentCard:
+def agent_card(agent: Agent, version: str, url: str = "") -> AgentCard:
     return AgentCard(
-        name=profile.name,
-        description=profile.description,
-        version=profile.version,
+        name=agent.name,
+        description=agent.description,
+        version=version,
         supported_interfaces=[
             AgentInterface(
                 url=url,
@@ -40,15 +42,15 @@ def agent_card(profile: AgentProfile, url: str = "") -> AgentCard:
                 tags=list(skill.tags),
                 examples=list(skill.examples),
             )
-            for skill in profile.skills
+            for skill in agent.skills
         ],
     )
 
 
-def served_card(card: AgentCard, endpoint: str) -> dict[str, Any]:
-    if card.supported_interfaces and card.supported_interfaces[0].url:
-        return agent_card_to_dict(card)
+def served_card(card: AgentCard, endpoint: str, options: TurnOptions) -> dict[str, Any]:
     served = AgentCard()
     served.CopyFrom(card)
-    served.supported_interfaces[0].url = endpoint
+    if not served.supported_interfaces[0].url:
+        served.supported_interfaces[0].url = endpoint
+    served.capabilities.extensions.append(turn_options_extension(options))
     return agent_card_to_dict(served)

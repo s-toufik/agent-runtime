@@ -7,6 +7,8 @@ def test_for_role_uses_explicit_env_overrides(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.setenv("CONFIGURATION_DIR", "/custom/config")
     monkeypatch.setenv("GUARDRAIL_ENABLED", "true")
+    monkeypatch.setenv("AGENT", "observation")
+    monkeypatch.setenv("AGENTS_DIR", "/custom/agents")
 
     settings = ProcessSettings.for_role("agent-runtime")
 
@@ -14,11 +16,12 @@ def test_for_role_uses_explicit_env_overrides(monkeypatch) -> None:
     assert settings.environment == "prod"
     assert str(settings.configuration_directory) == "/custom/config"
     assert settings.guardrail_enabled is True
+    assert (settings.agent, str(settings.agents_directory)) == ("observation", "/custom/agents")
 
 
 def test_for_role_falls_back_to_defaults_when_nothing_is_set(monkeypatch) -> None:
     monkeypatch.setattr(settings_module.dotenv, "load_dotenv", lambda: None)
-    for key in ("APP_ENV", "CONFIGURATION_DIR", "GUARDRAIL_ENABLED"):
+    for key in ("APP_ENV", "CONFIGURATION_DIR", "GUARDRAIL_ENABLED", "AGENT", "AGENTS_DIR"):
         monkeypatch.delenv(key, raising=False)
 
     settings = ProcessSettings.for_role("toolbox")
@@ -26,3 +29,4 @@ def test_for_role_falls_back_to_defaults_when_nothing_is_set(monkeypatch) -> Non
     assert settings.environment == "debug"
     assert str(settings.configuration_directory) == "config"
     assert settings.guardrail_enabled is False
+    assert (settings.agent, str(settings.agents_directory)) == ("chat", "agents")

@@ -1,53 +1,37 @@
 connector:
-  sqlite_checkpointer:
-    name: conversation_checkpointer
-    type: database
-    engine: sqlite
-    host: ${oc.env:DB_SQLITE_CHECKPOINT_HOST}
-    port: 0
-    default_name: ${oc.env:DB_SQLITE_CHECKPOINT_NAME}
-    pool:
-      ttl: 3600
-    auth:
-      type: none
-
-  mongodb_checkpointer:
-    name: conversation_checkpointer
+  mongodb:
+    name: mongodb
     type: database
     engine: mongodb
     host: ${oc.env:DB_MONGO_CHECKPOINT_HOST}
     port: ${oc.env:DB_MONGO_CHECKPOINT_PORT}
-    default_name: ${oc.env:DB_MONGO_CHECKPOINT_NAME}
-    pool:
-      timeout_ms: 3000
-      ttl: 604800
+    timeout: 3
     auth:
       type: basic
       username: ${oc.env:DB_MONGO_CHECKPOINT_USERNAME}
       password: ${oc.env:DB_MONGO_CHECKPOINT_PASSWORD}
 
-  postgres_a2a_tasks:
-    name: a2a_tasks
+  sqlite:
+    name: sqlite
+    type: database
+    engine: sqlite
+    host: ${oc.env:DB_SQLITE_CHECKPOINT_HOST}
+    port: 0
+    pool:
+      max: 5
+    auth:
+      type: none
+
+  postgresql:
+    name: postgresql
     type: database
     engine: postgresql
     host: ${oc.env:DB_POSTGRES_A2A_HOST,""}
     port: ${oc.env:DB_POSTGRES_A2A_PORT,5432}
-    default_name: ${oc.env:DB_POSTGRES_A2A_NAME,agent_runtime}
+    timeout: 5
     pool:
       max: 5
     auth:
       type: basic
       username: ${oc.env:DB_POSTGRES_A2A_USERNAME,""}
       password: ${oc.env:DB_POSTGRES_A2A_PASSWORD,""}
-
-  sqlite_a2a_tasks:
-    name: a2a_tasks
-    type: database
-    engine: sqlite
-    host: ${oc.env:DB_SQLITE_CHECKPOINT_HOST}
-    port: 0
-    default_name: a2a_tasks
-    pool:
-      max: 5
-    auth:
-      type: none

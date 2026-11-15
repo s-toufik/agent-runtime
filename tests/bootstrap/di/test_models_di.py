@@ -1,3 +1,5 @@
+from pycraftcore.application_configuration.model.operation import ApiOperation
+
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call
 from bootstrap.di.agent_di import AgentDI
@@ -73,7 +75,7 @@ def test_every_model_of_llm_yml_is_selectable_by_its_server_name(di) -> None:
     expected = {
         str(operation.parameters.get("model") or name)
         for name, operation in operations.items()
-        if name not in roles
+        if name not in roles and isinstance(operation, ApiOperation)
     }
 
     assert set(di._models.catalog.models) == expected

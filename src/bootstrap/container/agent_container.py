@@ -16,10 +16,17 @@ from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
     StreamAgentController,
 )
 from agent_runtime.adapter.outbound.event.queue_turn_event_stream import QueueTurnEventStream
+from agent_runtime.application.port.inbound.describe_a2a_options_port import (
+    DescribeA2aOptionsPort,
+)
+from agent_runtime.application.port.inbound.list_agents_port import ListAgentsPort
 from agent_runtime.application.port.inbound.list_models_port import ListModelsPort
 from agent_runtime.application.port.inbound.run_a2a_task_port import RunA2aTaskPort
+from agent_runtime.application.use_case.describe_a2a_options import DescribeA2aOptions
+from agent_runtime.application.use_case.list_agents import ListAgents
 from agent_runtime.application.use_case.run_a2a_task import RunA2aTask
-from agent_runtime.domain.a2a.agent_profile import AgentProfile
+from agent_runtime.domain.agent.agent import Agent
+from bootstrap.configuration.a2a_settings import A2aSettings
 from bootstrap.di.a2a_di import A2aDI
 from bootstrap.di.agent_di import AgentDI
 from src import (
@@ -30,6 +37,7 @@ from src import (
 )
 
 NOT_BOOTED: str = "The agent container is not booted"
+A2A_OPERATION: str = "a2a"
 
 
 class AgentContainer(AgentDI):
@@ -49,6 +57,10 @@ class AgentContainer(AgentDI):
     @property
     def server(self) -> AsgiServer:
         return self._server
+
+    @property
+    def agent(self) -> Agent:
+        return self._agent
 
     @property
     def stream_agent_controller(self) -> StreamAgentController:
@@ -75,6 +87,14 @@ class AgentContainer(AgentDI):
         return self._list_models()
 
     @cached_property
+    def list_agents(self) -> ListAgentsPort:
+        return ListAgents(self._agent, self._tools.peer_directory)
+
+    @cached_property
+    def a2a_options(self) -> DescribeA2aOptionsPort:
+        return DescribeA2aOptions(self.list_models, self._a2a_settings.model)
+
+    @cached_property
     def actuator(self) -> Actuator:
         return Actuator(
             name=APPLICATION_NAME,
@@ -85,10 +105,16 @@ class AgentContainer(AgentDI):
         )
 
     @cached_property
+    def _a2a_settings(self) -> A2aSettings:
+        return A2aSettings.of(self._configuration.operation.a2a(A2A_OPERATION))
+
+    @cached_property
     def _a2a(self) -> A2aDI:
         return A2aDI(
-            AgentProfile(APPLICATION_NAME, APPLICATION_VERSION),
+            self._agent,
+            APPLICATION_VERSION,
             self._server_parameters,
+            self._a2a_settings,
             self._logging,
             run_task=lambda: self.run_a2a_task,
             task_store=lambda: self.a2a_task_store,
@@ -110,13 +136,16 @@ class AgentContainer(AgentDI):
             max_concurrent_streams=parameters.max_concurrent_streams,
         )
         self._run_a2a_task = RunA2aTask(
-            handle_message, QueueTurnEventStream, self.list_models, parameters.a2a_model
+            handle_message, QueueTurnEventStream, self.list_models, self._a2a_settings.model
         )
-        tasks_engine = await self._storage.a2a_tasks_engine()
-        self._a2a_task_store = await self._a2a.task_store(tasks_engine)
+        tasks = await self._storage.a2a_tasks()
+        store = await self._a2a.task_store(tasks)
+        self._a2a_task_store = store
         if not self._background:
             self._start("mcp-tool-refresher", self._tools.refresher.run())
-            self._start("a2a-task-retention", self._a2a.retention(tasks_engine).run())
+            retention = self._a2a.retention(store, tasks)
+            if retention is not None:
+                self._start("a2a-task-retention", retention.run())
         self._ready = True
         self.logging.info("Agent container booted")
 

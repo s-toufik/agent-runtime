@@ -12,16 +12,30 @@ application_configuration:
       nvidia_llm: ${connector.nvidia_llm_provider}
       homelab_llm: ${connector.homelab_llm_provider}
     database:
-      mongodb_checkpointer: ${connector.mongodb_checkpointer}
-      sqlite_checkpointer: ${connector.sqlite_checkpointer}
-      postgres_a2a_tasks: ${connector.postgres_a2a_tasks}
-      sqlite_a2a_tasks: ${connector.sqlite_a2a_tasks}
+      mongodb: ${connector.mongodb}
+      sqlite: ${connector.sqlite}
+      postgresql: ${connector.postgresql}
     telemetry:
       open_telemetry: ${connector.telemetry}
     mcp:
       toolbox: ${connector.toolbox}
+    a2a:
+      a2a_self: ${connector.a2a_self}
+      agent_orchestration: ${connector.agent_orchestration}
+      agent_chat: ${connector.agent_chat}
+      agent_observation: ${connector.agent_observation}
+      agent_analysis: ${connector.agent_analysis}
+      agent_coding: ${connector.agent_coding}
+      agent_security: ${connector.agent_security}
+      agent_kitchen: ${connector.agent_kitchen}
+      agent_travel: ${connector.agent_travel}
 
   operation:
+    conversation_mongodb: ${operation.conversation_mongodb}
+    conversation_sqlite: ${operation.conversation_sqlite}
+    a2a_tasks_postgresql: ${operation.a2a_tasks_postgresql}
+    a2a_tasks_sqlite: ${operation.a2a_tasks_sqlite}
+    a2a: ${operation.a2a}
     qwen3_5-0_8b: ${operation.qwen3_5-0_8b}
     qwen3_5-2b: ${operation.qwen3_5-2b}
     qwen3-1_7b: ${operation.qwen3-1_7b}

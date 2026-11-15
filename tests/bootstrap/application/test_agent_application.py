@@ -64,7 +64,7 @@ async def test_the_api_documentation_is_off_unless_web_docs_is_true(monkeypatch,
     assert hidden.status_code == 404
     assert ui.status_code == 200
     assert schema.json()["info"]["title"] == "agent-runtime"
-    assert {"/v1/stream", "/v1/models", "/actuator/health"} <= set(schema.json()["paths"])
+    assert {"/v1/api2a", "/v1/models", "/actuator/health"} <= set(schema.json()["paths"])
 
 
 async def test_the_api_documentation_follows_the_base_path(monkeypatch, booted) -> None:
@@ -73,14 +73,14 @@ async def test_the_api_documentation_follows_the_base_path(monkeypatch, booted) 
     async with http_client(app) as client:
         schema = await client.get("/agent-runtime/docs/openapi.json")
 
-    assert "/agent-runtime/v1/stream" in schema.json()["paths"]
+    assert "/agent-runtime/v1/api2a" in schema.json()["paths"]
 
 
 async def test_each_route_is_logged_at_startup(monkeypatch, booted, caplog) -> None:
     async with http_client(create_app(monkeypatch)):
         pass
 
-    assert "Route POST /v1/stream included" in caplog.text
+    assert "Route POST /v1/api2a included" in caplog.text
     assert "Route GET /v1/models included" in caplog.text
 
 

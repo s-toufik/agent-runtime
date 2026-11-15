@@ -1,7 +1,11 @@
 from functools import cached_property
 
+from agent_runtime.adapter.outbound.llm.langchain.prompts.generic_prompts import prompt_book
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.application.use_case.handle_message import HandleMessage
 from agent_runtime.application.use_case.list_models import ListModels
+from agent_runtime.domain.agent.agent import Agent
+from bootstrap.configuration.agent_definition import LoadAgentDefinition
 from bootstrap.configuration.server_parameters import ServerParameters
 from bootstrap.di.base_di import BaseDI
 from bootstrap.di.models_di import ModelsDI
@@ -12,12 +16,22 @@ from bootstrap.di.workflow_di import WorkflowDI
 
 class AgentDI(BaseDI):
     @cached_property
+    def _agent(self) -> Agent:
+        return LoadAgentDefinition(self._settings.agents_directory, self._settings.agent)()
+
+    @cached_property
+    def _prompts(self) -> PromptBook:
+        return prompt_book(self._agent.description, self._agent.prompts)
+
+    @cached_property
     def _server_parameters(self) -> ServerParameters:
         return ServerParameters.of(self._server)
 
     @cached_property
     def _tools(self) -> ToolsDI:
-        return ToolsDI(self._configuration, self._logging)
+        return ToolsDI(
+            self._configuration, self._logging, self._agent.tool_scope, self._agent.peers
+        )
 
     @cached_property
     def _models(self) -> ModelsDI:
@@ -34,6 +48,8 @@ class AgentDI(BaseDI):
             self._logging,
             answer_delivery=self._server_parameters.answer_delivery,
             screen=self._settings.guardrail_enabled,
+            prompts=self._prompts,
+            shape=self._agent.turns,
         )
 
     async def _handle_message(self) -> HandleMessage:

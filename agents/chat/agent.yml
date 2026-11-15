@@ -1,0 +1,13 @@
+agent:
+  name: chat
+  description: the homelab's conversation agent, which explains, discusses and answers from general knowledge without running any tool
+  tool_scope: none
+  turns: [direct, clarify, review]
+  skills:
+    - id: answer
+      name: Answer and explain
+      description: Answers questions, explains concepts and compares options from general knowledge and the conversation. Runs no tool.
+      tags: [chat, explain]
+      examples:
+        - What is the difference between a liveness and a readiness probe?
+        - Explain how Kafka keeps messages in order.

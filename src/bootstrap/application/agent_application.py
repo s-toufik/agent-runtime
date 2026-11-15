@@ -44,8 +44,11 @@ def create_agent_application(settings: ProcessSettings | None = None) -> ASGIApp
         lifespan=lambda: _lifespan(container),
         agent=lambda: container.stream_agent_controller,
         models=lambda: container.list_models,
+        agents=lambda: container.list_agents,
         a2a_handler=container.a2a_request_handler,
         agent_card=container.a2a_agent_card,
+        a2a_options=lambda: container.a2a_options,
+        routes=container.agent.routes,
         actuator=container.actuator,
         logger=container.logging,
     )

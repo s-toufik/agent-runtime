@@ -1,10 +1,15 @@
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import planning_catalog
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.pending_plan import PendingPlan
+from agent_runtime.domain.workflow.step import Step
 
 _SYSTEM = """\
-You are BlueAI, an assistant for the Blue homelab platform.
+You are {identity}.
 Right now your only job is to write a plan. Do not run anything and do not answer the task.
 
 Task:
@@ -44,13 +49,22 @@ The steps marked ✓ have run: plan only the work that is left, and reuse their 
 """
 
 
+SYSTEM: SystemTemplate = SystemTemplate(
+    _SYSTEM,
+    known=frozenset({"task", "revision", "tools", "output_format", "now"}),
+    required=frozenset({"tools", "output_format"}),
+)
+
+
 def plan_system_prompt(
+    book: PromptBook,
     task: str,
     tools: list[ToolSpecification],
     output_format: object,
     previous: PendingPlan | None = None,
 ) -> str:
-    return _SYSTEM.format(
+    return book.system(
+        Step.PLAN,
         task=task,
         revision=_revision(previous),
         tools=planning_catalog(tools),

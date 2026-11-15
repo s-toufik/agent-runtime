@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator, Callable
 from agent_runtime.application.port.inbound.handle_message_port import HandleMessagePort
 from agent_runtime.application.port.inbound.list_models_port import ListModelsPort
 from agent_runtime.application.port.outbound.turn_event_stream import TurnEventStream
+from agent_runtime.application.use_case.describe_a2a_options import DescribeA2aOptions
 from agent_runtime.domain.a2a.a2a_task_request import A2aTaskRequest
 from agent_runtime.domain.a2a.task_update import TaskUpdate
 from agent_runtime.domain.request.agent_request import AgentRequest
@@ -19,8 +20,7 @@ class RunA2aTask:
     ) -> None:
         self._handle_message = handle_message
         self._stream_events = stream_events
-        self._models = models
-        self._default_model = default_model
+        self._options = DescribeA2aOptions(models, default_model)
 
     async def run(self, request: A2aTaskRequest) -> AsyncGenerator[TaskUpdate]:
         message = AgentRequest(
@@ -42,10 +42,8 @@ class RunA2aTask:
     async def _model_for(self, request: A2aTaskRequest) -> str:
         if request.model_name:
             return request.model_name
-        if self._default_model:
-            return self._default_model
-        listing = await self._models.handle()
-        return listing.models[0].name if listing.models else ""
+        options = await self._options.handle()
+        return options.default_model
 
 
 async def _cancel(task: asyncio.Task[None]) -> None:

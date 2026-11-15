@@ -18,8 +18,14 @@ def test_loads_the_real_configuration_tree(logger) -> None:
     configuration = SetApplicationConfiguration(make_settings(REAL_CONFIG_DIR), logger)()
 
     assert configuration.connector.mcp("toolbox").transport == "streamable_http"
-    assert configuration.connector.database("sqlite_checkpointer").engine == "sqlite"
-    assert configuration.connector.database("mongodb_checkpointer").engine == "mongodb"
+    assert configuration.connector.database("sqlite").engine == "sqlite"
+    assert configuration.connector.database("mongodb").engine == "mongodb"
+    conversation = configuration.operation.database("conversation_mongodb")
+    assert conversation.connector == configuration.connector.database("mongodb")
+    assert conversation.collection("writes") == "checkpoint_writes"
+    for name in ("conversation_sqlite", "a2a_tasks_postgresql", "a2a_tasks_sqlite"):
+        assert configuration.operation.database(name).database
+    assert configuration.operation.a2a("a2a").connector.binding == "JSONRPC"
 
 
 def test_raises_when_the_configuration_directory_does_not_exist(logger, tmp_path) -> None:

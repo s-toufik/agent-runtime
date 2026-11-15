@@ -16,6 +16,7 @@ from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
 )
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
+from tests.support.agents import TEST_AGENT, TEST_AGENTS
 from tests.support.mcp_test_server import build_mcp_asgi_app, build_mcp_server
 
 REAL_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
@@ -26,6 +27,8 @@ def make_settings() -> ProcessSettings:
         role="agent-runtime",
         environment="debug",
         configuration_directory=REAL_CONFIG_DIR,
+        agent=TEST_AGENT,
+        agents_directory=TEST_AGENTS,
     )
 
 
@@ -96,7 +99,7 @@ def test_the_a2a_handler_and_card_exist_before_boot() -> None:
     container = AgentContainer(make_settings())
 
     assert container.a2a_request_handler is container.a2a_request_handler
-    assert container.a2a_agent_card.name == "agent-runtime"
+    assert container.a2a_agent_card.name == container.agent.name == "assistant"
 
 
 def test_the_actuator_reports_the_readiness_of_the_container() -> None:

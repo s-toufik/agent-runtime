@@ -29,7 +29,7 @@ fastapi = [
 
 [[package]]
 name = "agent-runtime"
-version = "1.2.0"
+version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "a2a-sdk", extra = ["fastapi"] },
@@ -85,7 +85,7 @@ requires-dist = [
     { name = "langgraph-checkpoint-sqlite" },
     { name = "mcp" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.66b2" },
-    { name = "pycraftcore", extras = ["application-configuration", "authentication", "circuit-breaker", "http", "logger", "repository", "resilient-http", "retry", "telemetry", "web-fastapi"], specifier = ">=5.2.0" },
+    { name = "pycraftcore", extras = ["application-configuration", "authentication", "circuit-breaker", "http", "logger", "repository", "resilient-http", "retry", "telemetry", "web-fastapi"], specifier = ">=6.0.0" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pymongo", specifier = ">=4.9,<4.18" },
     { name = "python-dotenv" },
@@ -687,7 +687,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.163.0"
+version = "0.163.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -698,9 +698,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/98/5411252e1c08bdd919c5d55774cebe9da0bebfb174c4e4ffa1a5821935ff/fastapi-0.163.0.tar.gz", hash = "sha256:ef55fa066d74b922aac7231af7869c4469b88ca00cac5d0421e42ceee213a902", size = 543109, upload-time = "2026-11-14T16:53:16.356Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/62/19000d0f3699cacaeffe8a3c4cc7046d87aac3291163ffeb2ef08b82d859/fastapi-0.163.1.tar.gz", hash = "sha256:3d364b02a68b67292e833ff2dfed3b8dc3aeadf73e271c15316c6c166668792f", size = 544796, upload-time = "2026-11-15T09:51:31.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/b0/2d68e967b2fc6012ef1e7e91253c8222a2a895a45dee3677562deb93987e/fastapi-0.163.0-py3-none-any.whl", hash = "sha256:7572550ab4935e3ff373dc0191aea410d6c48127cc5477bc290b992fe539e345", size = 154381, upload-time = "2026-11-14T16:53:14.67Z" },
+    { url = "https://files.pythonhosted.org/packages/20/b6/2424da1e40825d3fc54539621811f34e21472499677c9490e4967270e38e/fastapi-0.163.1-py3-none-any.whl", hash = "sha256:68f2d8050f5c3583121c0d203046cc7def5c16a7d6c43a0e7707a8ea610fe2d3", size = 154541, upload-time = "2026-11-15T09:51:29.726Z" },
 ]
 
 [[package]]
@@ -2175,11 +2175,11 @@ wheels = [
 
 [[package]]
 name = "pycraftcore"
-version = "5.2.0"
+version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8a/cb/08ae0d11463a798b1db002d689ec0c3b24610ae00070ede2d1984c6ef810/pycraftcore-5.2.0.tar.gz", hash = "sha256:81842774026c2785db9db8a1dd26e8b3551ab38b23e9f978a8c808f2607fa5f1", size = 73274, upload-time = "2026-11-14T22:31:27.489Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/db/111e7fd8a143afd31e539aba412ca592721e1e533faa1f6b84eb660f3ff8/pycraftcore-6.0.0.tar.gz", hash = "sha256:b28dd70c452d025e8650eff34f25716cc8a3015f03f81559c84da3396d71df7c", size = 89318, upload-time = "2026-11-15T10:25:06.99Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/76/7a1ffa3968959cc7559c2790738d3e1623105f3ee068b4bc724af287a4e7/pycraftcore-5.2.0-py3-none-any.whl", hash = "sha256:399b934936043b5821d3298bd366d2e629caa5767a0a7d1802b6b1d92564ac92", size = 121961, upload-time = "2026-11-14T22:31:26.089Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/d8/6e62286699fa253788b5bd48394a252257e9202d3dfb57c06704ef2d1526/pycraftcore-6.0.0-py3-none-any.whl", hash = "sha256:a4f5ed83e41e6ee600eb9689629bb50d69c3dba9c353825d176543d5f6d3ee4b", size = 126152, upload-time = "2026-11-15T10:25:05.806Z" },
 ]
 
 [package.optional-dependencies]

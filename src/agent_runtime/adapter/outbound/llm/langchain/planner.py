@@ -6,6 +6,7 @@ from agent_runtime.adapter.outbound.llm.langchain.context_window import ContextW
 from agent_runtime.adapter.outbound.llm.langchain.dto import PlanDto
 from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke_structured
 from agent_runtime.adapter.outbound.llm.langchain.prompts.plan import plan_system_prompt
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
@@ -14,7 +15,10 @@ from agent_runtime.domain.turn.turn import Turn
 
 
 class LangChainPlanner:
-    def __init__(self, models: ChatModels, window: ContextWindow, logger: Logger) -> None:
+    def __init__(
+        self, models: ChatModels, window: ContextWindow, logger: Logger, *, prompts: PromptBook
+    ) -> None:
+        self._prompts = prompts
         self._models = models
         self._window = window
         self._logger = logger
@@ -23,7 +27,7 @@ class LangChainPlanner:
         self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
     ) -> Plan | None:
         system = plan_system_prompt(
-            turn.query, tools, PlanDto.model_json_schema(), conversation.pending
+            self._prompts, turn.query, tools, PlanDto.model_json_schema(), conversation.pending
         )
         settings = turn.settings
         budget: int = input_budget(

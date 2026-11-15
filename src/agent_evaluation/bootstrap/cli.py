@@ -73,7 +73,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs", type=int, help="runs per case, forced for every case")
     parser.add_argument("--pause", type=float, help="seconds between runs, forced for every case")
     parser.add_argument("--agent-url", help="agent base URL, e.g. http://localhost:8001")
-    parser.add_argument("--endpoint", help="agent streaming endpoint, e.g. /v1/stream")
+    parser.add_argument("--endpoint", help="agent streaming endpoint, e.g. /v1/api2a")
     parser.add_argument("--model", help="model_name sent to the agent")
     parser.add_argument("--output-dir", help="directory for the reports")
     parser.add_argument("--dry-run", action="store_true", help="show what would run and stop")

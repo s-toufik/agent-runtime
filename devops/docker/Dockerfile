@@ -17,11 +17,13 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY src ./src
 COPY config ./config
+COPY agents ./agents
 RUN cp -r config/debug config/deploy
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     CONFIGURATION_DIR="/app/config" \
+    AGENTS_DIR="/app/agents" \
     GRANIAN_INTERFACE=asgi \
     GRANIAN_FACTORY=true \
     GRANIAN_HOST=0.0.0.0 \

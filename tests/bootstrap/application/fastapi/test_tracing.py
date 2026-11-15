@@ -37,7 +37,7 @@ def app(logger):
 
 async def test_a_message_is_one_trace_with_the_agent_s_work_inside_it(logger, spans) -> None:
     async with http_client(app(logger)) as client:
-        await client.post("/v1/stream", json=BODY)
+        await client.post("/v1/api2a", json=BODY)
 
     recorded = by_name(spans)
     [server] = [span for name, span in recorded.items() if name.startswith("POST")]
@@ -49,7 +49,7 @@ async def test_a_caller_s_traceparent_makes_the_request_part_of_its_trace(logger
     headers = {"traceparent": f"00-{CALLER_TRACE}-{CALLER_SPAN}-01"}
 
     async with http_client(app(logger)) as client:
-        await client.post("/v1/stream", json=BODY, headers=headers)
+        await client.post("/v1/api2a", json=BODY, headers=headers)
 
     [server] = [span for span in spans.get_finished_spans() if span.name.startswith("POST")]
     assert server.context is not None

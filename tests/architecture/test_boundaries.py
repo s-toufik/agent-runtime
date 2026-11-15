@@ -109,7 +109,10 @@ def test_langgraph_nodes_only_delegate_to_the_application() -> None:
 
 WEB_FRAMEWORKS = {"fastapi", "litestar", "blacksheep", "starlette", "sse_starlette", "msgspec"}
 FASTAPI_APPLICATION = SOURCE / "bootstrap" / "application" / "fastapi"
-A2A_ADAPTER = PACKAGE / "adapter" / "inbound" / "a2a"
+A2A_ADAPTERS = (
+    PACKAGE / "adapter" / "inbound" / "a2a",
+    PACKAGE / "adapter" / "outbound" / "agent" / "a2a",
+)
 
 
 def test_the_agent_imports_no_web_framework() -> None:
@@ -130,11 +133,11 @@ def test_the_fastapi_application_imports_no_other_web_framework() -> None:
     assert _violations(FASTAPI_APPLICATION, WEB_FRAMEWORKS - {"fastapi"}) == []
 
 
-def test_only_the_a2a_adapter_imports_the_a2a_sdk_in_the_agent() -> None:
-    adapter = f"{A2A_ADAPTER.relative_to(SOURCE)}/"
+def test_only_the_a2a_adapters_import_the_a2a_sdk_in_the_agent() -> None:
+    adapters = tuple(f"{adapter.relative_to(SOURCE)}/" for adapter in A2A_ADAPTERS)
     outside = [
         violation
         for violation in _violations(PACKAGE, {"a2a", "google.protobuf"})
-        if not violation.startswith(adapter)
+        if not violation.startswith(adapters)
     ]
     assert outside == []

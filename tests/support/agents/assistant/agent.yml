@@ -1,0 +1,9 @@
+agent:
+  name: assistant
+  description: the homelab test assistant
+  tool_scope: all
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: answer
+      name: Answer
+      description: Answers questions about the homelab.

@@ -1,0 +1,13 @@
+agent:
+  name: analysis
+  description: the homelab's data analysis agent, which queries PostgreSQL and MongoDB and computes figures, tables and charts from the data
+  tool_scope: analysis
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: analyse-data
+      name: Analyse data
+      description: Queries the homelab's databases and computes statistics, tables and charts from the results.
+      tags: [data, sql, mongodb, statistics]
+      examples:
+        - How many users signed up each day this month?
+        - How many documents does each MongoDB database hold?

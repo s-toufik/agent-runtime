@@ -1,5 +1,11 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
+from agent_runtime.domain.workflow.step import Step
+
 _SYSTEM = """\
-You classify the user's latest message for an assistant. You never answer it.
+You classify the user's latest message for {identity}. You never answer it.
 
 Read the message together with the conversation: a short or vague message ("and for the
 other one?", "shorter", "yes") continues what was being discussed.
@@ -57,8 +63,13 @@ Latest user message:
 {message}"""
 
 
-def context_system_prompt(output_format: object) -> str:
-    return _SYSTEM.format(output_format=output_format)
+SYSTEM: SystemTemplate = SystemTemplate(
+    _SYSTEM, known=frozenset({"output_format"}), required=frozenset({"output_format"})
+)
+
+
+def context_system_prompt(book: PromptBook, output_format: object) -> str:
+    return book.system(Step.UNDERSTAND, output_format=output_format)
 
 
 def context_request(history: str, pending_plan: str | None, message: str) -> str:

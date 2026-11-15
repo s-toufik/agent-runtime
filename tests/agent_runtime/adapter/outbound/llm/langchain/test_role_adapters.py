@@ -52,6 +52,7 @@ from tests.agent_runtime.domain.builders import (
     stopped_after_the_count,
     turn,
 )
+from tests.support.agents import PROMPTS
 
 ECHO = ToolSpecification("echo", "Echoes.", {"type": "object"})
 WINDOW = ContextWindow()
@@ -64,7 +65,7 @@ def _models(llm: FakeLLM) -> tuple[FakeChatModels, ChatModels]:
 
 def _actor(llm: FakeLLM, logger, final_reply: ReplyReader | None = None) -> LangChainActor:
     return LangChainActor(
-        _models(llm)[1], WINDOW, logger, WholeReply(), final_reply or WholeReply()
+        _models(llm)[1], WINDOW, logger, WholeReply(), final_reply or WholeReply(), prompts=PROMPTS
     )
 
 
@@ -81,9 +82,9 @@ async def test_the_classifier_reads_the_history_the_pending_plan_and_the_message
     conversation = _talked()
     conversation.propose(PLAN)
 
-    understood = await LangChainIntentClassifier(models, WINDOW, logger).understand(
-        conversation, turn(None)
-    )
+    understood = await LangChainIntentClassifier(
+        models, WINDOW, logger, prompts=PROMPTS
+    ).understand(conversation, turn(None))
 
     assert understood == Understanding(Intent.PLAN_APPROVAL, "yes")
     assert fake.requested == [(AgentRole.CONTEXT, "m")]
@@ -97,7 +98,7 @@ async def test_an_unparsable_classification_is_none(logger) -> None:
     _, models = _models(FakeLLM(parsed=[None]))
 
     assert (
-        await LangChainIntentClassifier(models, WINDOW, logger).understand(
+        await LangChainIntentClassifier(models, WINDOW, logger, prompts=PROMPTS).understand(
             Conversation("c1"), turn(None)
         )
         is None
@@ -117,7 +118,7 @@ async def test_the_planner_revises_the_pending_plan_and_ends_on_the_request(logg
     conversation = _talked()
     conversation.propose(PLAN)
 
-    plan = await LangChainPlanner(models, WINDOW, logger).plan(
+    plan = await LangChainPlanner(models, WINDOW, logger, prompts=PROMPTS).plan(
         conversation, turn(Intent.PLAN_REVISION), [ECHO]
     )
 
@@ -136,7 +137,7 @@ async def test_a_planned_tool_that_does_not_exist_becomes_a_step_without_a_tool(
         parsed=[PlanDto(steps=[PlanStepDto(action="x", tool="nope")], expected_result="")]
     )
 
-    plan = await LangChainPlanner(_models(llm)[1], WINDOW, logger).plan(
+    plan = await LangChainPlanner(_models(llm)[1], WINDOW, logger, prompts=PROMPTS).plan(
         Conversation("c1"), turn(Intent.TASK), [ECHO]
     )
 
@@ -146,7 +147,7 @@ async def test_a_planned_tool_that_does_not_exist_becomes_a_step_without_a_tool(
 async def test_an_unreadable_plan_is_none(logger) -> None:
     llm = FakeLLM(parsed=[None])
 
-    plan = await LangChainPlanner(_models(llm)[1], WINDOW, logger).plan(
+    plan = await LangChainPlanner(_models(llm)[1], WINDOW, logger, prompts=PROMPTS).plan(
         Conversation("c1"), turn(Intent.TASK), [ECHO]
     )
 
@@ -160,7 +161,7 @@ async def test_the_work_done_in_earlier_turns_is_shown_to_the_planner(logger) ->
         "c1", actions=[Action("file_writer", "file_path='report.md'", True, "written")]
     )
 
-    await LangChainPlanner(_models(llm)[1], WINDOW, logger).plan(
+    await LangChainPlanner(_models(llm)[1], WINDOW, logger, prompts=PROMPTS).plan(
         conversation, turn(Intent.TASK), [ECHO]
     )
 
@@ -258,7 +259,7 @@ async def test_the_reviewer_judges_the_draft_against_the_evidence_and_the_exchan
     current.observed([result(output="x" * 3_000)])
     current.drafted(answer("42 rows"))
 
-    verdict = await LangChainReviewer(models, logger).review(_talked(), current)
+    verdict = await LangChainReviewer(models, logger, prompts=PROMPTS).review(_talked(), current)
 
     assert verdict == Verdict(VerdictAction.RETRY, "wrong total")
     assert fake.requested == [(AgentRole.REFLECTION, "m")]
@@ -281,10 +282,10 @@ async def test_the_classifier_and_the_planner_see_a_paused_plan_with_its_progres
         parsed=[PlanDto(steps=[PlanStepDto(action="write", tool="echo")], expected_result="")]
     )
 
-    await LangChainIntentClassifier(_models(classifier_llm)[1], WINDOW, logger).understand(
-        conversation, turn(None)
-    )
-    await LangChainPlanner(_models(planner_llm)[1], WINDOW, logger).plan(
+    await LangChainIntentClassifier(
+        _models(classifier_llm)[1], WINDOW, logger, prompts=PROMPTS
+    ).understand(conversation, turn(None))
+    await LangChainPlanner(_models(planner_llm)[1], WINDOW, logger, prompts=PROMPTS).plan(
         conversation, turn(Intent.PLAN_REVISION), [ECHO]
     )
 
@@ -298,7 +299,7 @@ async def test_a_resumed_plan_is_reviewed_with_the_tool_calls_of_earlier_turns(l
     current.execute(REPORT, PriorRun(1, (Action("echo", "", True, "12 rows"),)))
     current.drafted(answer("12 rows, the report is in report.md"))
 
-    await LangChainReviewer(_models(llm)[1], logger).review(_talked(), current)
+    await LangChainReviewer(_models(llm)[1], logger, prompts=PROMPTS).review(_talked(), current)
 
     prompt = llm.prompt()
     assert "in earlier turns" in prompt and "- echo(): ok -> 12 rows" in prompt
@@ -321,7 +322,7 @@ async def test_without_evidence_the_reviewer_accepts_general_knowledge(logger) -
     current = turn(Intent.REWORK)
     current.drafted(answer("A KV cache stores keys and values."))
 
-    await LangChainReviewer(_models(llm)[1], logger).review(_talked(), current)
+    await LangChainReviewer(_models(llm)[1], logger, prompts=PROMPTS).review(_talked(), current)
 
     assert "may use general knowledge" in llm.prompt()
 
@@ -330,7 +331,7 @@ async def test_the_summarizer_merges_the_summary_with_the_older_messages(logger)
     llm = FakeLLM(replies=[text("  merged  ")])
     fake, models = _models(llm)
 
-    summary = await LangChainSummarizer(models, logger).summarize(
+    summary = await LangChainSummarizer(models, logger, prompts=PROMPTS).summarize(
         turn(), "before", _talked().messages
     )
 

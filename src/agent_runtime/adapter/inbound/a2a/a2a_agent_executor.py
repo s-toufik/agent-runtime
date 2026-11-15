@@ -13,6 +13,7 @@ from pycraftcore.context.request_id_context import request_id_context
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.inbound.a2a.a2a_task_presenter import A2aTaskPresenter
+from agent_runtime.adapter.inbound.a2a.turn_options_extension import requested_options
 from agent_runtime.application.port.inbound.run_a2a_task_port import RunA2aTaskPort
 from agent_runtime.domain.a2a.a2a_task_request import A2aTaskRequest
 
@@ -76,11 +77,10 @@ def _request(context: RequestContext, text: str, context_id: str) -> A2aTaskRequ
     message_metadata: dict[str, Any] = (
         json_format.MessageToDict(context.message.metadata) if context.message else {}
     )
-    metadata: dict[str, Any] = {**context.metadata, **message_metadata}
-    model: Any = metadata.get("model")
+    options = requested_options({**context.metadata, **message_metadata})
     return A2aTaskRequest(
         text=text,
         context_id=context_id,
-        model_name=model if isinstance(model, str) else "",
-        auto_approve=metadata.get("autoApprove") is True,
+        model_name=options.model,
+        auto_approve=options.auto_approve,
     )

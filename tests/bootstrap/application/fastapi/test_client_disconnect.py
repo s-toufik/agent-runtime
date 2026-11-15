@@ -39,7 +39,7 @@ async def test_a_client_disconnect_cancels_the_turn_and_frees_its_slot(logger) -
 
     async with running_server(app) as base_url:
         async with httpx.AsyncClient(base_url=base_url) as client:
-            async with client.stream("POST", "/v1/stream", json=BODY) as response:
+            async with client.stream("POST", "/v1/api2a", json=BODY) as response:
                 assert response.status_code == 200
                 await use_case.started.wait()
 

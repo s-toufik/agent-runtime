@@ -24,6 +24,8 @@ REQUIRED: dict[str, str] = {
 
 DEFAULTED: tuple[str, ...] = (
     "APP_ENV",
+    "AGENT",
+    "AGENTS_DIR",
     "CONFIGURATION_DIR",
     "LOG_LEVEL",
     "WEB_BASE_PATH",
@@ -34,6 +36,7 @@ DEFAULTED: tuple[str, ...] = (
     "A2A_MODEL",
     "A2A_URL",
     "A2A_TASK_TTL",
+    "A2A_TASKS_TABLE",
     "HOMELAB_LLM_API_KEY",
     "MCP_REFRESH_INTERVAL",
     "MCP_RETRY_DELAY",

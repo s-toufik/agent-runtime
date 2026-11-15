@@ -27,7 +27,7 @@ FINAL = {
 
 def _agent(handler, models_endpoint: str | None = "/v1/models") -> HttpAgent:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return HttpAgent(client, "http://agent:8001/", "/v1/stream", models_endpoint, "m", 30, {})
+    return HttpAgent(client, "http://agent:8001/", "/v1/api2a", models_endpoint, "m", 30, {})
 
 
 async def test_a_streamed_turn_becomes_a_reply() -> None:

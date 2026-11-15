@@ -7,10 +7,15 @@ from agent_runtime.adapter.inbound.exception.server_at_capacity_exception import
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
     StreamAgentController,
 )
+from agent_runtime.application.agent.peer_directory import PeerDirectory
+from agent_runtime.application.use_case.list_agents import ListAgents
+from agent_runtime.domain.agent.agent_routes import AgentRoutes
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.llm_model.model_listing import ModelListing
 from agent_runtime.domain.request.agent_request import AgentRequest
 from tests.agent_runtime.application.fakes import LISTING
 from tests.bootstrap.application.fastapi.support import fastapi_api
+from tests.support.agents import AGENT
 from tests.support.web import http_client
 
 BODY = {"message": "hi", "model_name": "qwen3-14b", "request_id": "r1"}
@@ -45,7 +50,7 @@ async def test_a_message_is_handed_to_the_agent_and_its_frames_are_streamed(logg
     agent = FakeAgent()
 
     async with http_client(app_with(logger, agent)) as client:
-        response = await client.post("/v1/stream", json=BODY)
+        response = await client.post("/v1/api2a", json=BODY)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
@@ -58,7 +63,7 @@ async def test_an_invalid_message_is_rejected_before_the_agent(logger) -> None:
     agent = FakeAgent()
 
     async with http_client(app_with(logger, agent)) as client:
-        response = await client.post("/v1/stream", json={"message": ""})
+        response = await client.post("/v1/api2a", json={"message": ""})
 
     assert response.status_code == 422
     assert agent.received is None
@@ -66,7 +71,7 @@ async def test_an_invalid_message_is_rejected_before_the_agent(logger) -> None:
 
 async def test_a_full_server_answers_503_with_a_detail(logger) -> None:
     async with http_client(app_with(logger, FakeAgent(at_capacity=True))) as client:
-        response = await client.post("/v1/stream", json=BODY)
+        response = await client.post("/v1/api2a", json=BODY)
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Server is at capacity, please retry."}
@@ -83,3 +88,33 @@ async def test_the_models_are_listed_with_their_pinned_steps(logger) -> None:
         ],
         "pinned_steps": {"understand": "small"},
     }
+
+
+async def test_the_agent_s_routes_decide_where_api2a_and_a2a_are_served(logger) -> None:
+    agent = FakeAgent()
+    routes = AgentRoutes(a2a="/agents/chat/a2a", api2a="/agents/chat/api2a")
+    app = fastapi_api(logger, lambda: cast(StreamAgentController, agent), FakeModels, routes=routes)
+
+    async with http_client(app) as client:
+        streamed = await client.post("/agents/chat/api2a", json=BODY)
+        old = await client.post("/v1/stream", json=BODY)
+        card = (await client.get("/.well-known/agent-card.json")).json()
+
+    assert streamed.status_code == 200
+    assert old.status_code == 404
+    assert card["supportedInterfaces"][0]["url"] == "http://test/agents/chat/a2a"
+
+
+async def test_the_agents_route_lists_the_agent_and_its_reachable_peers(logger) -> None:
+    directory = PeerDirectory()
+    directory.replace([PeerAgent("chat", "the conversation agent")])
+    agents = ListAgents(AGENT, directory)
+    app = fastapi_api(
+        logger, lambda: cast(StreamAgentController, FakeAgent()), FakeModels, agents=lambda: agents
+    )
+
+    async with http_client(app) as client:
+        listed = (await client.get("/v1/agents")).json()
+
+    assert [agent["name"] for agent in listed["agents"]] == ["agent-runtime", "chat"]
+    assert listed["agents"][0]["skills"][0]["id"] == "answer"

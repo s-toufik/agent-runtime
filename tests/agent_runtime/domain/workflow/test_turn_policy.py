@@ -3,8 +3,10 @@ import pytest
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.intent import Intent
 from agent_runtime.domain.turn.turn import Turn
+from agent_runtime.domain.workflow.conditions import always
 from agent_runtime.domain.workflow.step import Step
 from agent_runtime.domain.workflow.turn_policy import TurnPolicy
+from agent_runtime.domain.workflow.turn_shape import TurnShape
 from tests.agent_runtime.domain.builders import (
     PLAN,
     accept,
@@ -139,3 +141,71 @@ def test_an_unfinished_plan_out_of_steps_ends_the_turn() -> None:
     current = _acted(turn(Intent.PLAN_APPROVAL, max_steps=2, plan=PLAN), answer(), answer())
 
     assert POLICY.next(Step.ACT, current) == Step.FINISH
+
+
+VALID_SHAPES = [
+    TurnShape(direct, clarify, plan, review)
+    for direct in (True, False)
+    for clarify in (True, False)
+    for plan in (True, False)
+    for review in (True, False)
+    if direct or plan
+]
+
+
+@pytest.mark.parametrize("screen", [False, True], ids=["no_screen", "screen"])
+@pytest.mark.parametrize("shape", VALID_SHAPES, ids=lambda shape: "-".join(shape.routes))
+def test_every_step_a_shape_reaches_always_has_a_way_out(shape: TurnShape, screen: bool) -> None:
+    policy = TurnPolicy(shape, screen=screen)
+
+    for step in policy.steps():
+        rows = [row for row in policy.TRANSITIONS if row.source is step]
+        assert rows, f"{step} has no way out"
+        assert rows[-1].when is always, f"{step} can get stuck: its last row has a condition"
+    assert Step.FINISH in policy.steps()
+
+
+def test_the_orchestrator_shape_plans_what_others_answer_directly() -> None:
+    policy = TurnPolicy(TurnShape(direct=False, clarify=True, plan=True, review=True))
+
+    assert policy.next(Step.UNDERSTAND, turn(Intent.DIRECT)) == Step.PLAN
+    assert policy.next(Step.UNDERSTAND, turn(Intent.REWORK)) == Step.PLAN
+    assert policy.next(Step.UNDERSTAND, turn(Intent.AMBIGUOUS)) == Step.CLARIFY
+    assert policy.next(Step.UNDERSTAND, turn(Intent.PLAN_APPROVAL)) == Step.ACT
+
+
+def test_without_clarify_an_ambiguous_message_takes_the_best_reading() -> None:
+    answering = TurnPolicy(TurnShape(direct=True, clarify=False, plan=True, review=True))
+    planning = TurnPolicy(TurnShape(direct=False, clarify=False, plan=True, review=True))
+
+    assert answering.next(Step.UNDERSTAND, turn(Intent.AMBIGUOUS)) == Step.ACT
+    assert planning.next(Step.UNDERSTAND, turn(Intent.AMBIGUOUS)) == Step.PLAN
+    assert Step.CLARIFY not in answering.steps()
+
+
+def test_the_chat_shape_answers_a_task_directly_and_never_plans() -> None:
+    policy = TurnPolicy(TurnShape(direct=True, clarify=True, plan=False, review=True))
+
+    assert policy.next(Step.UNDERSTAND, turn(Intent.TASK)) == Step.ACT
+    assert policy.next(Step.ACT, _answered(Intent.TASK)) == Step.REVIEW
+    assert Step.PLAN not in policy.steps()
+    assert Step.RUN_TOOLS not in policy.steps()
+
+
+def test_without_review_an_answer_is_final() -> None:
+    policy = TurnPolicy(TurnShape(direct=True, clarify=True, plan=True, review=False))
+
+    assert policy.next(Step.ACT, _answered(Intent.TASK)) == Step.FINISH
+    assert Step.REVIEW not in policy.steps()
+    assert Step.FEEDBACK not in policy.steps()
+
+
+def test_the_full_shape_reaches_every_step_but_screen() -> None:
+    assert set(TurnPolicy().steps()) == set(Step) - {Step.END, Step.SCREEN}
+    assert Step.SCREEN in TurnPolicy(screen=True).steps()
+
+
+def _answered(intent: Intent) -> Turn:
+    answered = turn(intent)
+    answered.drafted(answer())
+    return answered

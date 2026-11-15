@@ -13,11 +13,13 @@ class TaskRetention:
     def __init__(
         self,
         engine: AsyncEngine,
+        task_model: type[TaskModel],
         ttl: timedelta,
         logger: Logger,
         interval: timedelta = PURGE_INTERVAL,
     ) -> None:
         self._engine = engine
+        self._task_model = task_model
         self._ttl = ttl
         self._logger = logger
         self._interval = interval
@@ -26,7 +28,7 @@ class TaskRetention:
         cutoff: datetime = datetime.now(UTC).replace(tzinfo=None) - self._ttl
         async with self._engine.begin() as connection:
             result = await connection.execute(
-                delete(TaskModel).where(TaskModel.last_updated < cutoff)
+                delete(self._task_model).where(self._task_model.last_updated < cutoff)
             )
         return result.rowcount
 

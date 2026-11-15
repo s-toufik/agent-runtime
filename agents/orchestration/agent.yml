@@ -1,0 +1,14 @@
+agent:
+  name: orchestration
+  description: the homelab's orchestrator, which splits each request between the specialist agents and puts their answers together
+  tool_scope: none
+  turns: [clarify, plan, review]
+  peers: [chat, observation, analysis, coding, security, kitchen, travel]
+  skills:
+    - id: route-requests
+      name: Route requests to the right agents
+      description: Splits a request into parts, asks the agents that own them (several at once when the parts are independent, one after another when one needs another's answer) and combines what they say.
+      tags: [orchestration, routing]
+      examples:
+        - Which pods restarted in the last hour, and is anything in the logs worrying?
+        - Count the users who signed up this week and write a short report.

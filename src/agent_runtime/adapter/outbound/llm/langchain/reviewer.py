@@ -4,6 +4,7 @@ from pycraftcore.logger.port import Logger
 from agent_runtime.adapter.outbound.llm.langchain.chat_models import ChatModels
 from agent_runtime.adapter.outbound.llm.langchain.dto import VerdictDto
 from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke_structured
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.prompts.review import (
     reflection_request,
     reflection_system_prompt,
@@ -24,7 +25,10 @@ class LangChainReviewer:
         logger: Logger,
         max_evidence_chars: int = 2_000,
         max_message_chars: int = 4_000,
+        *,
+        prompts: PromptBook,
     ) -> None:
+        self._prompts = prompts
         self._models = models
         self._logger = logger
         self._max_evidence_chars = max_evidence_chars
@@ -38,6 +42,7 @@ class LangChainReviewer:
         messages = [
             SystemMessage(
                 content=reflection_system_prompt(
+                    self._prompts,
                     VerdictDto.model_json_schema(),
                     has_evidence=bool(turn.evidence or prior_actions),
                 )

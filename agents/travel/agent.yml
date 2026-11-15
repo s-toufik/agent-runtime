@@ -1,0 +1,13 @@
+agent:
+  name: travel
+  description: the homelab's travel agent, which plans trips, routes and budgets
+  tool_scope: travel
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: plan-trips
+      name: Plan trips
+      description: Plans itineraries, compares routes and computes travel budgets and timings.
+      tags: [travel, itinerary, budget]
+      examples:
+        - Plan three days in Lisbon on a 600 euro budget.
+        - How long is the drive from Paris to Lyon with two stops?

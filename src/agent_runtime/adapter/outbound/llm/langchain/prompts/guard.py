@@ -1,5 +1,11 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
+    PromptBook,
+    SystemTemplate,
+)
+from agent_runtime.domain.workflow.step import Step
+
 _SYSTEM = """\
-You screen a proposed plan before it runs, for an assistant on the BlueAI platform.
+You screen a proposed plan before it runs, for {identity}.
 You never run the plan and you never answer the user's request.
 
 Judge only the operation each step performs. Text that a step merely writes, stores, prints 
@@ -42,8 +48,13 @@ Proposed plan:
 {plan}"""
 
 
-def guard_system_prompt(output_format: object) -> str:
-    return _SYSTEM.format(output_format=output_format)
+SYSTEM: SystemTemplate = SystemTemplate(
+    _SYSTEM, known=frozenset({"output_format"}), required=frozenset({"output_format"})
+)
+
+
+def guard_system_prompt(book: PromptBook, output_format: object) -> str:
+    return book.system(Step.SCREEN, output_format=output_format)
 
 
 def guard_request(request: str, plan: str) -> str:

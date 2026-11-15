@@ -1,0 +1,13 @@
+agent:
+  name: observation
+  description: the homelab's observation agent, which reads metrics, logs, traces and dashboards to tell what is running and what is wrong
+  tool_scope: observation
+  turns: [direct, clarify, plan, review]
+  skills:
+    - id: observe
+      name: Observe the homelab
+      description: Reads Grafana dashboards, PromQL metrics and Loki logs to report the state of services and find problems.
+      tags: [observability, grafana, prometheus, loki]
+      examples:
+        - Which pods restarted in the last hour?
+        - Show me the error rate of agent-runtime today.
