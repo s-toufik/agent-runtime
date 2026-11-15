@@ -1,6 +1,6 @@
 agent:
   name: observation
-  description: the homelab's observation agent, which reads metrics, logs, traces and dashboards to tell what is running and what is wrong
+  description: the homelab's observation agent, which reads metrics, logs, traces and dashboards to tell what is running and what is wrong; in Loki each service's logs are under its service_name, the agents' as agent-<name> (agent-orchestration, agent-chat…), and when a name matches nothing it lists the service_name values and takes the closest
   tool_scope: observation
   turns: [direct, clarify, plan, review]
   skills:
@@ -10,4 +10,4 @@ agent:
       tags: [observability, grafana, prometheus, loki]
       examples:
         - Which pods restarted in the last hour?
-        - Show me the error rate of agent-runtime today.
+        - Show me the last error logs of agent-orchestration.

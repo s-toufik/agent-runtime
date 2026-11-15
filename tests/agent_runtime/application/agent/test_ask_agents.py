@@ -12,9 +12,11 @@ from agent_runtime.domain.agent.agent_skill import AgentSkill
 from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.agent.peer_reply import PeerOutcome, PeerReply, PeerRequest
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 
 CHAT = PeerAgent("chat", "the conversation agent", (AgentSkill("answer", "Answer", "Explains."),))
 OBSERVATION = PeerAgent("observation", "the observation agent")
+CONTEXT = ToolContext(conversation="conversation-7", model="nemotron")
 
 
 class FakePeers:
@@ -52,13 +54,29 @@ async def test_the_requests_of_one_call_run_at_the_same_time_and_all_come_back()
     tool = AskAgentsTool((CHAT, OBSERVATION), peers)
 
     result = await tool.invoke(
-        call({"agent": "chat", "message": "explain"}, {"agent": "observation", "message": "pods?"})
+        call({"agent": "chat", "message": "explain"}, {"agent": "observation", "message": "pods?"}),
+        CONTEXT,
     )
 
     assert peers.most_at_once == 2
     assert result.error is None
     assert "## chat (answered)\nchat says hi" in result.output
     assert "## observation (answered)\nobservation says hi" in result.output
+
+
+async def test_every_agent_works_in_the_turn_s_model_and_conversation() -> None:
+    peers = FakePeers(CHAT, OBSERVATION)
+    tool = AskAgentsTool((CHAT, OBSERVATION), peers)
+
+    await tool.invoke(
+        call({"agent": "chat", "message": "explain"}, {"agent": "observation", "message": "pods?"}),
+        CONTEXT,
+    )
+
+    assert {(r.agent, r.conversation, r.model) for r in peers.asked} == {
+        ("chat", "conversation-7", "nemotron"),
+        ("observation", "conversation-7", "nemotron"),
+    }
 
 
 def test_the_tool_lists_the_agents_and_their_skills_and_accepts_only_them() -> None:
@@ -74,7 +92,7 @@ async def test_an_unknown_agent_is_answered_without_calling_anyone() -> None:
     peers = FakePeers(CHAT)
     tool = AskAgentsTool((CHAT,), peers)
 
-    result = await tool.invoke(call({"agent": "travel", "message": "Lisbon?"}))
+    result = await tool.invoke(call({"agent": "travel", "message": "Lisbon?"}), CONTEXT)
 
     assert peers.asked == []
     assert "## travel (unreachable)\nNo agent named so. Known: chat." in result.output
@@ -84,7 +102,7 @@ async def test_malformed_requests_are_a_tool_error() -> None:
     tool = AskAgentsTool((CHAT,), FakePeers(CHAT))
 
     for arguments in ({}, {"requests": "chat"}, {"requests": [{"agent": "chat"}]}):
-        result = await tool.invoke(ToolCall("c1", ASK_AGENTS, arguments))
+        result = await tool.invoke(ToolCall("c1", ASK_AGENTS, arguments), CONTEXT)
         assert result.error and "requests" in result.error
 
 

@@ -1,6 +1,7 @@
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
 from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.domain.tool.tool_call import ToolCall
+from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 
@@ -8,15 +9,18 @@ from agent_runtime.domain.tool.tool_specification import ToolSpecification
 class EchoTool:
     specification = ToolSpecification("echo", "Echoes.")
 
-    async def invoke(self, call: ToolCall) -> ToolResult:
+    async def invoke(self, call: ToolCall, context: ToolContext) -> ToolResult:
         return ToolResult(call.id, call.name, f"echo:{call.arguments['text']}")
 
 
 class BrokenTool:
     specification = ToolSpecification("broken", "Always raises.")
 
-    async def invoke(self, call: ToolCall) -> ToolResult:
+    async def invoke(self, call: ToolCall, context: ToolContext) -> ToolResult:
         raise RuntimeError("boom")
+
+
+CONTEXT = ToolContext(conversation="conversation-1", model="m")
 
 
 def _toolbox(logger) -> Toolbox:
@@ -28,20 +32,20 @@ def test_the_catalog_lists_every_discovered_tool(logger) -> None:
 
 
 async def test_a_call_runs_its_tool(logger) -> None:
-    result = await _toolbox(logger).run(ToolCall("1", "echo", {"text": "hi"}))
+    result = await _toolbox(logger).run(ToolCall("1", "echo", {"text": "hi"}), CONTEXT)
 
     assert result == ToolResult("1", "echo", "echo:hi")
 
 
 async def test_an_unknown_tool_is_a_failed_result_not_an_exception(logger) -> None:
-    result = await _toolbox(logger).run(ToolCall("1", "missing"))
+    result = await _toolbox(logger).run(ToolCall("1", "missing"), CONTEXT)
 
     assert result.error and "missing" in result.error
     assert logger.messages("warning")
 
 
 async def test_a_tool_that_raises_is_a_failed_result(logger) -> None:
-    result = await _toolbox(logger).run(ToolCall("1", "broken"))
+    result = await _toolbox(logger).run(ToolCall("1", "broken"), CONTEXT)
 
     assert result.error == "boom"
     assert result.content == "Error: boom"
@@ -54,6 +58,6 @@ async def test_an_unknown_tool_asks_for_the_catalog_to_be_refreshed(logger) -> N
         ToolRegistry([EchoTool()]), logger, on_unknown_tool=lambda: asked.append(True)
     )
 
-    await toolbox.run(ToolCall("1", "missing"))
+    await toolbox.run(ToolCall("1", "missing"), CONTEXT)
 
     assert asked == [True]
