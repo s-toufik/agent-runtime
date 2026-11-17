@@ -9,6 +9,7 @@ from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.turn.plan_progress import PlanProgress
 
 DETAIL_LIMIT: int = 160
+ERROR_LIMIT: int = 4000
 PROGRESS_KEY: str = "progress"
 
 
@@ -78,7 +79,7 @@ class Progress:
             call_id=result.call_id,
             name=result.tool_name,
             state=ToolState.FAILED if result.error is not None else ToolState.DONE,
-            detail=_short(result.error or ""),
+            detail=_whole(result.error or ""),
         )
 
     @classmethod
@@ -165,6 +166,11 @@ def _parse_step_state(value: Any) -> StepState:
         return StepState(value)
     except ValueError:
         return StepState.TO_DO
+
+
+def _whole(text: str) -> str:
+    kept = text.strip()
+    return kept if len(kept) <= ERROR_LIMIT else f"{kept[: ERROR_LIMIT - 1]}…"
 
 
 def _short(text: str) -> str:
