@@ -1,12 +1,14 @@
+import asyncio
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 import httpx
-from a2a.client import A2ACardResolver, ClientConfig, create_client
+from a2a.client import A2ACardResolver, Client, ClientConfig, create_client
 from a2a.helpers import new_text_message
 from a2a.types.a2a_pb2 import (
     AgentCard,
+    CancelTaskRequest,
     Role,
     SendMessageRequest,
     StreamResponse,
@@ -31,6 +33,8 @@ OUTCOMES: dict[int, PeerOutcome] = {
     TaskState.TASK_STATE_FAILED: PeerOutcome.FAILED,
     TaskState.TASK_STATE_CANCELED: PeerOutcome.FAILED,
 }
+
+CANCEL_TIMEOUT_SECONDS: float = 5.0
 
 PEER_CONTEXTS: uuid.UUID = uuid.uuid5(uuid.NAMESPACE_URL, "urn:agent-runtime:peer-context")
 
@@ -94,11 +98,25 @@ class A2aPeerAgents:
         message.context_id = peer_context(request.conversation, request.agent)
         message.metadata.update({AUTO_APPROVE_KEY: True, MODEL_KEY: request.model})
         run = _PeerRun()
-        async for response in client.send_message(SendMessageRequest(message=message)):
-            update: Progress | None = run.read(response)
-            if update is not None and progress is not None:
-                await progress(update)
+        try:
+            async for response in client.send_message(SendMessageRequest(message=message)):
+                update: Progress | None = run.read(response)
+                if update is not None and progress is not None:
+                    await progress(update)
+        except asyncio.CancelledError:
+            if run.task_id:
+                await self._cancel(client, request.agent, run.task_id)
+            raise
         return run
+
+    async def _cancel(self, client: Client, agent: str, task_id: str) -> None:
+        try:
+            async with asyncio.timeout(CANCEL_TIMEOUT_SECONDS):
+                await client.cancel_task(CancelTaskRequest(id=task_id))
+        except Exception as exception:
+            self._logger.warning(f"Agent '{agent}' kept task {task_id}: {exception}")
+        else:
+            self._logger.info(f"Agent '{agent}' cancelled task {task_id}")
 
     async def _card(self, name: str) -> AgentCard:
         await self.describe(name)
@@ -120,8 +138,9 @@ def _http_client(connector: A2aConnector) -> httpx.AsyncClient:
 
 @dataclass
 class _PeerRun:
-    """What a peer has said so far: its last state, its answer and its last status text."""
+    """What a peer has said so far: its task, last state, answer and last status text."""
 
+    task_id: str = ""
     state: int | None = None
     answer: list[str] = field(default_factory=list)
     status: list[str] = field(default_factory=list)
@@ -131,11 +150,13 @@ class _PeerRun:
             self._take_task(response.task)
         elif response.HasField("artifact_update"):
             update = response.artifact_update
+            self.task_id = self.task_id or update.task_id
             if not update.append:
                 self.answer.clear()
             self.answer.extend(part.text for part in update.artifact.parts)
         elif response.HasField("status_update"):
             update = response.status_update
+            self.task_id = self.task_id or update.task_id
             self.state = update.status.state
             if update.status.HasField("message"):
                 self.status = [part.text for part in update.status.message.parts]
@@ -148,6 +169,7 @@ class _PeerRun:
         return "\n".join(self.status)
 
     def _take_task(self, task: Task) -> None:
+        self.task_id = task.id
         self.state = task.status.state
         if task.artifacts:
             self.answer = [part.text for artifact in task.artifacts for part in artifact.parts]
