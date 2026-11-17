@@ -106,7 +106,7 @@ class WorkflowDI:
                 ),
                 toolbox,
             ),
-            RunToolsStep(toolbox),
+            RunToolsStep(toolbox, self.turn_events),
             ReviewStep(LangChainReviewer(models, logger, prompts=prompts), logger),
             FeedbackStep(logger),
             FinishStep(),

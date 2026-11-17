@@ -112,6 +112,26 @@ async def test_every_requested_tool_runs_and_its_result_is_kept() -> None:
     assert executor.contexts == [ToolContext("c1", current.model)] * 2
 
 
+class RecordedEvents:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    async def publish(self, event) -> None:
+        self.events.append(event)
+
+
+async def test_each_tool_call_is_told_when_it_starts_and_when_it_ends() -> None:
+    events, current = RecordedEvents(), turn(Intent.PLAN_APPROVAL, plan=PLAN)
+    current.drafted(calling("echo", "echo"))
+
+    await RunToolsStep(EchoExecutor(), events).run(Conversation("c1"), current)
+
+    told = [(e.progress.call_id, e.progress.state) for e in events.events]
+    assert len(told) == 4
+    for call_id in {call_id for call_id, _ in told}:
+        assert told.index((call_id, "running")) < told.index((call_id, "done"))
+
+
 async def test_an_unreadable_review_accepts_the_draft(logger) -> None:
     current = turn(Intent.REWORK)
 

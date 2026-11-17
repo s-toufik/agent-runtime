@@ -22,6 +22,9 @@ class SsePresenter:
                 return [_stream(MessageStreamType.STATUS, status)] if status else []
             case TurnEventKind.ANSWER_DELTA:
                 return [_stream(MessageStreamType.TOKEN, event.text)]
+            case TurnEventKind.PROGRESS:
+                progress = event.progress
+                return [_stream(MessageStreamType.PROGRESS, progress.to_json())] if progress else []
             case TurnEventKind.FINISHED:
                 return self._finished(event, session_id)
             case TurnEventKind.FAILED:

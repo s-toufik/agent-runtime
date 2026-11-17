@@ -9,13 +9,16 @@ from pycraftcore.application_configuration.model.operation import McpOperation
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents
+from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
+    LangGraphEventPublisher,
+)
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
 from agent_runtime.adapter.outbound.tool.mcp.scoped_endpoint import scoped_connector
 from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
     StreamableHttpSessionFactory,
 )
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
-from agent_runtime.application.agent.ask_agents_tool import AskAgentsProvider
+from agent_runtime.application.agent.delegate_tasks_tool import DelegateTasksProvider
 from agent_runtime.application.agent.peer_directory import PeerDirectory
 from agent_runtime.application.port.outbound.tool_provider import ToolSource
 from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRefresher
@@ -105,7 +108,10 @@ class ToolsDI:
             self._logger.info(f"Agents without a URL, not called: {', '.join(missing)}")
         if not self.peer_agents.names:
             return []
-        return [ToolSource(PEER_SOURCE, AskAgentsProvider(self.peer_agents, self.peer_directory))]
+        provider = DelegateTasksProvider(
+            self.peer_agents, self.peer_directory, LangGraphEventPublisher()
+        )
+        return [ToolSource(PEER_SOURCE, provider)]
 
     async def toolbox(self) -> Toolbox:
         await self.refresher.refresh()

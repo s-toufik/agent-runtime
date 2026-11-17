@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from agent_runtime.domain.event.progress import Progress
 from agent_runtime.domain.turn.answer import Answer
 from agent_runtime.domain.turn.draft import Draft
 from agent_runtime.domain.turn.token_usage import TokenUsage
@@ -11,6 +12,7 @@ from agent_runtime.domain.workflow.step import Step
 class TurnEventKind(StrEnum):
     STEP_STARTED = "step_started"
     ANSWER_DELTA = "answer_delta"
+    PROGRESS = "progress"
     FINISHED = "finished"
     FAILED = "failed"
 
@@ -28,6 +30,7 @@ class TurnEvent:
     model: str = ""
     usage: TokenUsage | None = None
     duration_ms: int = 0
+    progress: Progress | None = None
 
     @classmethod
     def entering(cls, step: Step, turn: Turn) -> TurnEvent:
@@ -52,6 +55,10 @@ class TurnEvent:
     @classmethod
     def answer_delta(cls, text: str) -> TurnEvent:
         return cls(TurnEventKind.ANSWER_DELTA, text=text)
+
+    @classmethod
+    def progressed(cls, progress: Progress) -> TurnEvent:
+        return cls(TurnEventKind.PROGRESS, progress=progress)
 
     @classmethod
     def failed(cls, error: str) -> TurnEvent:

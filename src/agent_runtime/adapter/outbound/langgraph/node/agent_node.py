@@ -7,11 +7,13 @@ from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import Turn
 from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
 from agent_runtime.application.step.step_handler import StepHandler
 from agent_runtime.domain.conversation.conversation import Conversation
+from agent_runtime.domain.event.progress import Progress
 from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.turn.turn import Turn
 from agent_runtime.domain.workflow.step import Step
 
 _tracer = trace.get_tracer("agent-runtime.workflow")
+_MOVES_THE_PLAN: frozenset[Step] = frozenset({Step.UNDERSTAND, Step.PLAN, Step.RUN_TOOLS})
 
 
 class AgentNode:
@@ -37,6 +39,8 @@ class AgentNode:
             span.set_attribute("agent.steps_taken", turn.steps_taken)
             await self._events.publish(TurnEvent.entering(self.step, turn))
             await self.work(conversation, turn)
+            if self.step in _MOVES_THE_PLAN and turn.progress is not None:
+                await self._events.publish(TurnEvent.progressed(Progress.plan(turn.progress)))
         return self._codec.encode(conversation, turn)
 
     async def work(self, conversation: Conversation, turn: Turn) -> None:

@@ -105,3 +105,33 @@ def test_an_agent_without_a_url_is_not_offered(logger) -> None:
     peers = A2aPeerAgents({"chat": _connector(""), "travel": _connector("http://travel")}, logger)
 
     assert peers.names == ("travel",)
+
+
+async def test_what_a_peer_does_arrives_while_it_works_and_its_answer_at_the_end(logger) -> None:
+    from agent_runtime.domain.event.progress import Progress
+    from agent_runtime.domain.event.turn_event import TurnEvent
+    from agent_runtime.domain.tool.tool_call import ToolCall
+    from agent_runtime.domain.tool.tool_result import ToolResult
+    from agent_runtime.domain.turn.plan import Plan, PlannedStep
+    from agent_runtime.domain.turn.plan_progress import PlanProgress
+    from tests.support.a2a import finished
+
+    plan = Plan("logs", (PlannedStep("Read caddy's logs", "loki_query"),))
+    working = [
+        Progress.plan(PlanProgress(plan, done=0)),
+        Progress.tool_started(ToolCall("c1", "loki_query", {"query": '{app="caddy"}'})),
+        Progress.tool_finished(ToolResult("c1", "loki_query", "3 lines")),
+        Progress.plan(PlanProgress(plan, done=1)),
+    ]
+    script = [TurnEvent.progressed(progress) for progress in working] + [finished("caddy is fine")]
+    peers = _peers(logger, _peer_app(logger, ScriptedUseCase(script)))
+    heard: list[Progress] = []
+
+    async def listen(progress: Progress) -> None:
+        heard.append(progress)
+
+    reply = await peers.ask(PeerRequest("chat", "caddy logs?", CONVERSATION, "m"), listen)
+
+    assert heard == working
+    assert (reply.outcome, reply.text) == (PeerOutcome.ANSWERED, "caddy is fine")
+    await peers.close()
