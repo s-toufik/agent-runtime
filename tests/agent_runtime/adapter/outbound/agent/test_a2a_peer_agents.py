@@ -1,4 +1,10 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import httpx
+import pytest
+import uvicorn
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.model.connector import A2aConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
@@ -135,3 +141,58 @@ async def test_what_a_peer_does_arrives_while_it_works_and_its_answer_at_the_end
     assert heard == working
     assert (reply.outcome, reply.text) == (PeerOutcome.ANSWERED, "caddy is fine")
     await peers.close()
+
+
+class _WorksThenHangs:
+    def __init__(self, progress) -> None:
+        self._progress = progress
+        self.cancelled = asyncio.Event()
+
+    async def handle(self, request, events) -> None:
+        from agent_runtime.domain.event.turn_event import TurnEvent
+
+        await events.publish(TurnEvent.progressed(self._progress))
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            self.cancelled.set()
+            raise
+
+
+@asynccontextmanager
+async def _served(app) -> AsyncIterator[str]:
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error"))
+    serving = asyncio.create_task(server.serve())
+    while not server.started:
+        await asyncio.sleep(0.01)
+    port: int = server.servers[0].sockets[0].getsockname()[1]
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        await serving
+
+
+async def test_a_peer_stops_its_task_when_the_one_asking_stops_waiting(logger) -> None:
+    from agent_runtime.domain.event.progress import Progress
+    from agent_runtime.domain.tool.tool_call import ToolCall
+
+    working = Progress.tool_started(ToolCall("c1", "write_file", {"path": "hello.py"}))
+    peer = _WorksThenHangs(working)
+    async with _served(_peer_app(logger, peer)) as url:
+        peers = A2aPeerAgents({"coding": _connector(url)}, logger)
+        heard = asyncio.Event()
+
+        async def listen(progress: Progress) -> None:
+            heard.set()
+
+        asking = asyncio.create_task(
+            peers.ask(PeerRequest("coding", "hello world", CONVERSATION, "m"), listen)
+        )
+        await asyncio.wait_for(heard.wait(), 5)
+        asking.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await asking
+        await asyncio.wait_for(peer.cancelled.wait(), 5)
+        await peers.close()
