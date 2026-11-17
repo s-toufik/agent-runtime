@@ -1,6 +1,7 @@
 import asyncio
 
 from agent_runtime.application.agent.peer_directory import PeerDirectory
+from agent_runtime.application.port.outbound.delegation_meter import DelegationMeter
 from agent_runtime.application.port.outbound.peer_agents import PeerAgentsPort
 from agent_runtime.application.port.outbound.tool_provider import ToolPort
 from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
@@ -28,10 +29,12 @@ class DelegateTasksTool:
         peers: tuple[PeerAgent, ...],
         client: PeerAgentsPort,
         events: TurnEventPublisher | None = None,
+        meter: DelegationMeter | None = None,
     ) -> None:
         self._peers = {peer.name: peer for peer in peers}
         self._client = client
         self._events = events
+        self._meter = meter
 
     @property
     def specification(self) -> ToolSpecification:
@@ -77,7 +80,13 @@ class DelegateTasksTool:
 
     async def _delegate(self, request: PeerRequest) -> PeerReply:
         await self._tell(Progress.agent_started(request.agent, request.message))
-        reply: PeerReply = await self._ask(request)
+        if self._meter is not None:
+            self._meter.started(request.agent)
+        try:
+            reply: PeerReply = await self._ask(request)
+        finally:
+            if self._meter is not None:
+                self._meter.ended(request.agent)
         await self._tell(Progress.agent_finished(reply))
         return reply
 
@@ -104,10 +113,12 @@ class DelegateTasksProvider:
         client: PeerAgentsPort,
         directory: PeerDirectory,
         events: TurnEventPublisher | None = None,
+        meter: DelegationMeter | None = None,
     ) -> None:
         self._client = client
         self._directory = directory
         self._events = events
+        self._meter = meter
 
     async def tools(self) -> list[ToolPort]:
         found = await asyncio.gather(
@@ -116,7 +127,7 @@ class DelegateTasksProvider:
         )
         peers: tuple[PeerAgent, ...] = tuple(peer for peer in found if isinstance(peer, PeerAgent))
         self._directory.replace(peers)
-        return [DelegateTasksTool(peers, self._client, self._events)] if peers else []
+        return [DelegateTasksTool(peers, self._client, self._events, self._meter)] if peers else []
 
 
 def _requests(arguments: dict, context: ToolContext) -> list[PeerRequest] | None:

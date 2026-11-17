@@ -12,6 +12,7 @@ from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgen
 from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
     LangGraphEventPublisher,
 )
+from agent_runtime.adapter.outbound.telemetry.otel_delegation_meter import OtelDelegationMeter
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
 from agent_runtime.adapter.outbound.tool.mcp.scoped_endpoint import scoped_connector
 from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
@@ -109,7 +110,7 @@ class ToolsDI:
         if not self.peer_agents.names:
             return []
         provider = DelegateTasksProvider(
-            self.peer_agents, self.peer_directory, LangGraphEventPublisher()
+            self.peer_agents, self.peer_directory, LangGraphEventPublisher(), OtelDelegationMeter()
         )
         return [ToolSource(PEER_SOURCE, provider)]
 

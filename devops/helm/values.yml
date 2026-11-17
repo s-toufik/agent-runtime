@@ -11,6 +11,7 @@ env:
   DEPLOYMENT_ENVIRONMENT: homelab
   OTEL_HOST: otel-collector
   OTEL_PORT: "4317"
+  OTEL_METRIC_EXPORT_INTERVAL: "5000"
   TOOLBOX_URL: http://agent-toolbox:8001/mcp
   NVIDIA_LLM_BASE_URL: https://integrate.api.nvidia.com/v1
   WEB_DOCS: "true"

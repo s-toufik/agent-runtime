@@ -164,3 +164,29 @@ async def test_each_task_reports_its_agent_starting_working_and_answering() -> N
     starts = [i for i, s in enumerate(seen) if s[0] == "agent" and s[3] == "working"]
     ends = [i for i, s in enumerate(seen) if s[0] == "agent" and s[3] == "answered"]
     assert max(starts) < min(ends)
+
+
+class CountingMeter:
+    def __init__(self) -> None:
+        self.active: dict[str, int] = {}
+        self.most: dict[str, int] = {}
+
+    def started(self, agent: str) -> None:
+        self.active[agent] = self.active.get(agent, 0) + 1
+        self.most[agent] = max(self.most.get(agent, 0), self.active[agent])
+
+    def ended(self, agent: str) -> None:
+        self.active[agent] -= 1
+
+
+async def test_each_delegation_is_counted_while_its_agent_works() -> None:
+    meter = CountingMeter()
+    tool = DelegateTasksTool((CHAT, OBSERVATION), FakePeers(CHAT, OBSERVATION), meter=meter)
+
+    await tool.invoke(
+        call({"agent": "chat", "task": "explain"}, {"agent": "observation", "task": "pods?"}),
+        CONTEXT,
+    )
+
+    assert meter.most == {"chat": 1, "observation": 1}
+    assert meter.active == {"chat": 0, "observation": 0}

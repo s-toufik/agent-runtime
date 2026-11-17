@@ -13,6 +13,7 @@ from pycraftcore.repository.port import AsyncRepositoryFactory
 from pycraftcore.telemetry.adapter import OpenTelemetryProvider
 from pycraftcore.telemetry.port import TelemetryProvider
 
+from agent_runtime.adapter.outbound.telemetry.provider_meters import register_meters
 from bootstrap.configuration.application_configuration import SetApplicationConfiguration
 from bootstrap.configuration.application_logger import create_logger
 from bootstrap.configuration.settings import ProcessSettings
@@ -53,6 +54,7 @@ class BaseDI:
         )
         self._telemetry_log_handler = provider.log_handler()
         logging.getLogger().addHandler(self._telemetry_log_handler)
+        register_meters(provider)
         return provider
 
     def _register_client(self, client: AsyncHttpFactory) -> AsyncHttpFactory:

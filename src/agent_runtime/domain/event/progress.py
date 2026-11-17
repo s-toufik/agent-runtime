@@ -43,7 +43,6 @@ class PlanStepView:
 
 @dataclass(frozen=True, slots=True)
 class Progress:
-
     kind: ProgressKind
     path: tuple[str, ...] = ()
     steps: tuple[PlanStepView, ...] = field(default_factory=tuple)
