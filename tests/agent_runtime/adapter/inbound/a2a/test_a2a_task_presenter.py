@@ -92,3 +92,17 @@ async def test_a_refusal_or_a_failure_ends_the_task_with_its_reason(update, stat
 
     assert status.status.state == state
     assert _text(status) == text
+
+
+async def test_progress_travels_as_working_status_metadata_without_a_message() -> None:
+    from agent_runtime.domain.event.progress import PROGRESS_KEY, Progress
+    from agent_runtime.domain.tool.tool_call import ToolCall
+
+    progress = Progress.tool_started(ToolCall("c1", "loki_query", {"query": "x"}))
+    [event] = await _present(TaskUpdate.after(TurnEvent.progressed(progress)))
+
+    assert isinstance(event, TaskStatusUpdateEvent)
+    assert event.status.state == TaskState.TASK_STATE_WORKING
+    assert not event.status.HasField("message")
+    metadata = json_format.MessageToDict(event.metadata)
+    assert Progress.from_json(metadata[PROGRESS_KEY]) == progress

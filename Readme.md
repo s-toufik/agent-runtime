@@ -24,9 +24,9 @@ The model only answers. Everything around it is the harness: a routing table pic
        │        │                         │                │
        │        │                         └─► run tools ───│──── MCP ──────────► agent-toolbox
        │        │                                          │                    (or any MCP server)
-       └────────│  SSE: status · token · final · complete  │──── storage ──────► MongoDB / SQLite
+       └────────│  SSE: status · progress · token · final  │──── storage ──────► MongoDB / SQLite
                 │                                          │
-  other agents◄►│  A2A: card · tasks · ask_agents          │──── agents/<name>/ ► which agent it is
+  other agents◄►│  A2A: card · tasks · delegate_tasks      │──── agents/<name>/ ► which agent it is
                 └──────────────────────────────────────────┘
 ```
 
@@ -80,7 +80,7 @@ agents/<name>/
 | `skills` | The A2A skills its card advertises (`id`, `name`, `description`, `tags`, `examples`) |
 | `tool_scope` | The toolbox scope it connects to (`TOOLBOX_URL` + `/<scope>`); `all` for every tool, `none` for no toolbox |
 | `turns` | The routes its turns may take: `direct` (answer without a plan), `clarify` (ask back), `plan` (plan, then run tools), `review` (check the answer). At least `direct` or `plan` |
-| `peers` | The agents it may call (`ask_agents`), each reached through the connector `agent_<peer>` |
+| `peers` | The agents it may hand tasks to (`delegate_tasks`), each reached through the connector `agent_<peer>` |
 | `routes` | Where its endpoints are: `a2a` (default `/a2a`) and `api2a` (default `/v1/api2a`) |
 | `model` | Optional: the model this agent always uses, a name from `GET /v1/models` (e.g. `nvidia/nemotron-3.5-lightning-30b-a3b`). Every turn runs on it whatever the request asks (the UI menu, A2A metadata, the supervisor's model), and `GET /v1/models` and the card list only it. The server's pinned steps still apply. A model no provider serves stops the agent at boot. Without it, the request chooses |
 | `guardrail` | `true` (the default) screens every plan before it runs and refuses unsafe ones; `false` runs approved plans unscreened. Every agent of the repository says it explicitly |
@@ -94,7 +94,7 @@ agents/<name>/
 
 - **Prompts.** `adapter/outbound/llm/langchain/prompts/` keeps a generic system prompt per step; an agent's `prompts/<step>.md` replaces it for that step. At boot each one is checked: it may only use the step's `{placeholders}` (plus `{identity}`), and must use the ones the step can't work without (`{output_format}` where the answer is parsed, `{tools}` for plan, `{mode}` for act). Write a literal brace as `{{` or `}}`.
 - **Turns.** The routing table keeps only the rows of the allowed routes, and the graph only the steps they reach. Without `direct`, a direct question or a rework is planned; without `plan`, a task is answered directly and the agent is never offered `request_plan`; without `clarify`, an ambiguous message takes the best reading; without `review`, an answer is final.
-- **Peers.** An agent with `peers` reads their cards at boot and every minute after (an agent that comes up joins without a restart) and gets one tool, `ask_agents`: a list of `{agent, message}` sent at once, every answer coming back marked `answered`, `needs_input`, `refused`, `failed` or `unreachable`. Its plan puts independent parts in one step (parallel) and dependent parts in later steps (serial). Your approval of its plan covers the agents it calls: they run with `autoApprove` and the model of your turn (the tool gets the turn's conversation and model, `ToolContext`), each in its own part of the conversation: a `contextId` that is a UUID made from the conversation and the peer's name, the same one every time, within the 36 characters the A2A task table allows.
+- **Peers.** An agent with `peers` reads their cards at boot and every minute after (an agent that comes up joins without a restart) and gets one tool, `delegate_tasks`: a list of `{agent, task}` sent at once, every answer coming back marked `answered`, `needs_input`, `refused`, `failed` or `unreachable`. Its plan puts independent parts in one step (parallel) and dependent parts in later steps (serial). Your approval of its plan covers the agents it calls: they run with `autoApprove` and the model of your turn (the tool gets the turn's conversation and model, `ToolContext`), each in its own part of the conversation: a `contextId` that is a UUID made from the conversation and the peer's name, the same one every time, within the 36 characters the A2A task table allows. It asks them with `SendStreamingMessage` and passes on, as its own `progress` events, everything they report while they work (see [Read the reply](#read-the-reply)), so a person sees each agent it asked, that agent's plan and its tool calls, and several agents working at once.
 - **Guardrail.** Each agent's `guardrail` decides whether its plans are screened. It matters most for the agents the supervisor calls: they run auto-approved, so their own screening is the only check of the concrete steps before they run.
 - **One agent per process, named once.** Everything per agent comes from its name: its MongoDB database `agent_<name>` and its A2A tasks table `tasks_<name>` (`{agent}` in `operation/database.yml`, a `-` becoming `_`), its service name `agent-<name>`, and the connector to each peer, built from `peers` and the template `agent_peer` in `connector/a2a.yml`, at the address in `AGENT_<PEER>_URL`.
 
@@ -136,11 +136,27 @@ The reply is a server-sent event stream: each frame is `event: <type>` + `data: 
 
 | Event | What to do with it |
 |---|---|
-| `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader"…): show it as an indicator |
+| `status` | Progress ("Comprehending the request", "Formulating a plan", "Running file_reader", "Handing tasks to other agents"…): show it as an indicator |
+| `progress` | What the agent, or an agent it handed a task to, is doing: `content` is JSON (below) |
 | `token` | A piece of the answer as it is written (only for answers that need no review, with `AGENT_ANSWER_DELIVERY=stream`): append the pieces |
 | `final` | The complete answer: show it, replacing any `token` pieces |
 | `error` | The request failed. An expected failure is one short sentence: the model server is down or too slow, it rejected the request (wrong address or key), or the model is unknown. Anything else comes with its full trace |
 | `complete` | Always last |
+
+A `progress` event's `content` is one JSON object:
+
+| Field | Meaning |
+|---|---|
+| `kind` | `plan`, `tool` or `agent` |
+| `path` | The agents between this one and the one doing the work: `[]` for this agent, `["observation"]` for what the observation agent does on a task this agent gave it, and so on down |
+| `steps` | `plan` only: every step of the plan as `{number, action, tool, state}`, `state` being `done`, `current` or `todo`. Sent again whenever a step ends, and once more when the plan is complete |
+| `callId`, `name`, `state`, `detail` | `tool`: the call, the tool, `running` then `done` or `failed`, and its arguments (or its error) on one line of at most 160 characters. `agent`: the agent handed a task (`name`), `working` with the task in `detail`, then `answered`, `needs_input`, `refused`, `failed` or `unreachable` |
+
+```json
+{"kind": "agent", "path": [], "name": "observation", "state": "working", "detail": "Show caddy's last logs"}
+{"kind": "plan", "path": ["observation"], "steps": [{"number": 1, "action": "Read caddy's logs", "tool": "loki_query", "state": "current"}]}
+{"kind": "tool", "path": ["observation"], "callId": "c1", "name": "loki_query", "state": "running", "detail": "{\"query\": \"{app=\\\"caddy\\\"}\"}"}
+```
 
 During a long model call, the stream sends a `: heartbeat` comment every 15 seconds so proxies keep it open; SSE clients ignore it.
 
@@ -196,7 +212,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | Method | Supported |
 |---|---|
 | `SendMessage` | Yes. `configuration.returnImmediately: true` answers at once with the task; follow it with `GetTask` or `SubscribeToTask` |
-| `SendStreamingMessage` | Yes: the task, a `statusUpdate` per step, the `answer` `artifactUpdate`, the last `statusUpdate`. Closing the stream does not stop the task: it keeps running until it ends or `CancelTask` stops it |
+| `SendStreamingMessage` | Yes: the task, a `statusUpdate` per step, a `working` `statusUpdate` with no message and `metadata.progress` (the same JSON as the SSE `progress` event) for each step of the plan and each tool call, the `answer` `artifactUpdate`, the last `statusUpdate`. Closing the stream does not stop the task: it keeps running until it ends or `CancelTask` stops it |
 | `GetTask`, `CancelTask`, `ListTasks`, `SubscribeToTask` | Yes, for the tasks of the last `A2A_TASK_TTL` (a week), kept in PostgreSQL, or in SQLite when PostgreSQL is unreachable; they survive a restart |
 | Push notifications, extended card | No: `PushNotificationNotSupportedError` (`-32003`) or `UnsupportedOperationError` (`-32004`) |
 
@@ -363,7 +379,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/adapter/inbound/web/` | `StreamAgentController` and `SsePresenter`: one stream per request, whatever web framework serves it |
 | `src/agent_runtime/domain/agent/` | `Agent` (name, description, `AgentSkill`s, `ToolScope`, `TurnShape`, peers, `AgentRoutes`, `AgentPrompts`), `PeerAgent`, `PeerRequest`, `PeerReply` |
 | `src/agent_runtime/domain/a2a/` | `TaskState` (and the rule from an `Outcome` to a task state), `TaskUpdate`, `A2aTaskRequest`, `TurnOptions` and the turn-options extension's keys. Plain Python: the SDK never reaches the domain |
-| `src/agent_runtime/application/agent/` | `AskAgentsTool` (the `ask_agents` tool: one call, several agents at once) and its provider, `PeerDirectory` (the agents last found); `ListAgents` is in `use_case/` |
+| `src/agent_runtime/application/agent/` | `DelegateTasksTool` (the `delegate_tasks` tool: one call, several agents at once, each reporting its progress) and its provider, `PeerDirectory` (the agents last found); `ListAgents` is in `use_case/` |
 | `src/agent_runtime/adapter/outbound/agent/a2a/` | `A2aPeerAgents`: reads peers' cards and sends them messages with the SDK's client (the only client-side SDK code) |
 | `src/agent_runtime/application/use_case/run_a2a_task.py` | `RunA2aTask`, behind `RunA2aTaskPort`: picks the model, runs `HandleMessage` in the task's conversation, and reports each event as a `TaskUpdate` |
 | `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`; the served card adds the `TurnOptions` from `DescribeA2aOptions` as the turn-options extension), `turn_options_extension` (the extension's URI, its card entry, and reading its metadata keys), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes the tasks of the store's table older than the `ttl` of the chosen operation). The SDK does JSON-RPC, the task store, streaming and cancel |

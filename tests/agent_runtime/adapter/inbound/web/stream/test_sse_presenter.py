@@ -110,3 +110,29 @@ def test_the_stream_ends_with_complete() -> None:
 
 def test_a_streaming_failure_is_an_error_event_the_ui_shows() -> None:
     assert _frames([PRESENTER.error("trace")]) == [("error", {"type": "error", "content": "trace"})]
+
+
+def test_progress_is_its_own_event_with_the_progress_as_json() -> None:
+    from agent_runtime.domain.event.progress import Progress
+
+    progress = Progress.plan(
+        PlanProgress(Plan("logs", (PlannedStep("Read logs", "loki_query"),)), done=0)
+    ).under("observation")
+
+    [(event, data)] = _frames(PRESENTER.present(TurnEvent.progressed(progress), "c1"))
+
+    assert event == "progress"
+    assert json.loads(data["content"]) == {
+        "kind": "plan",
+        "path": ["observation"],
+        "steps": [{"number": 1, "action": "Read logs", "tool": "loki_query", "state": "current"}],
+    }
+
+
+def test_delegating_is_said_in_words() -> None:
+    turn = Turn("hi", "m")
+    turn.drafted(Draft("", (ToolCall("1", "delegate_tasks"),)))
+
+    frames = _frames(PRESENTER.present(TurnEvent.entering(Step.RUN_TOOLS, turn), "c1"))
+
+    assert frames[0][1]["content"] == "Handing tasks to other agents"

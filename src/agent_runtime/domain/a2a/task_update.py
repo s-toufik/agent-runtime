@@ -12,7 +12,7 @@ class TaskUpdate:
     @classmethod
     def after(cls, event: TurnEvent) -> TaskUpdate:
         match event.kind:
-            case TurnEventKind.STEP_STARTED | TurnEventKind.ANSWER_DELTA:
+            case TurnEventKind.STEP_STARTED | TurnEventKind.ANSWER_DELTA | TurnEventKind.PROGRESS:
                 return cls(TaskState.WORKING, event)
             case TurnEventKind.FAILED:
                 return cls(TaskState.FAILED, event)

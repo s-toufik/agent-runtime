@@ -5,6 +5,7 @@ from a2a.types.a2a_pb2 import TaskState as SdkTaskState
 from agent_runtime.adapter.inbound.turn_status import step_status
 from agent_runtime.domain.a2a.task_state import TaskState
 from agent_runtime.domain.a2a.task_update import TaskUpdate
+from agent_runtime.domain.event.progress import PROGRESS_KEY
 from agent_runtime.domain.event.turn_event import TurnEvent, TurnEventKind
 from agent_runtime.domain.turn.outcome import Outcome
 
@@ -27,6 +28,12 @@ class A2aTaskPresenter:
     async def present(self, updater: TaskUpdater, update: TaskUpdate) -> None:
         event: TurnEvent | None = update.event
         if update.state is TaskState.WORKING:
+            if event and event.kind is TurnEventKind.PROGRESS and event.progress:
+                await updater.update_status(
+                    SDK_STATES[TaskState.WORKING],
+                    metadata={PROGRESS_KEY: event.progress.to_json()},
+                )
+                return
             status = (
                 step_status(event) if event and event.kind is TurnEventKind.STEP_STARTED else None
             )

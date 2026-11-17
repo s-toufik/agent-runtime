@@ -1,9 +1,9 @@
 import asyncio
 
-from agent_runtime.application.agent.ask_agents_tool import (
-    ASK_AGENTS,
-    AskAgentsProvider,
-    AskAgentsTool,
+from agent_runtime.application.agent.delegate_tasks_tool import (
+    DELEGATE_TASKS,
+    DelegateTasksProvider,
+    DelegateTasksTool,
 )
 from agent_runtime.application.agent.peer_directory import PeerDirectory
 from agent_runtime.application.use_case.list_agents import ListAgents
@@ -11,6 +11,8 @@ from agent_runtime.domain.agent.agent import Agent
 from agent_runtime.domain.agent.agent_skill import AgentSkill
 from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.agent.peer_reply import PeerOutcome, PeerReply, PeerRequest
+from agent_runtime.domain.event.progress import Progress, ProgressKind
+from agent_runtime.domain.event.turn_event import TurnEvent
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.tool.tool_context import ToolContext
 
@@ -36,25 +38,27 @@ class FakePeers:
             raise ConnectionError(f"{name} is down")
         return self._peers[name]
 
-    async def ask(self, request: PeerRequest) -> PeerReply:
+    async def ask(self, request: PeerRequest, progress=None) -> PeerReply:
         self.asked.append(request)
         self.running += 1
         self.most_at_once = max(self.most_at_once, self.running)
+        if progress is not None:
+            await progress(Progress(ProgressKind.TOOL, call_id="t1", name="loki", state="running"))
         await asyncio.sleep(0.01)
         self.running -= 1
         return PeerReply(request.agent, PeerOutcome.ANSWERED, f"{request.agent} says hi")
 
 
 def call(*requests: dict) -> ToolCall:
-    return ToolCall("c1", ASK_AGENTS, {"requests": list(requests)})
+    return ToolCall("c1", DELEGATE_TASKS, {"tasks": list(requests)})
 
 
 async def test_the_requests_of_one_call_run_at_the_same_time_and_all_come_back() -> None:
     peers = FakePeers(CHAT, OBSERVATION)
-    tool = AskAgentsTool((CHAT, OBSERVATION), peers)
+    tool = DelegateTasksTool((CHAT, OBSERVATION), peers)
 
     result = await tool.invoke(
-        call({"agent": "chat", "message": "explain"}, {"agent": "observation", "message": "pods?"}),
+        call({"agent": "chat", "task": "explain"}, {"agent": "observation", "task": "pods?"}),
         CONTEXT,
     )
 
@@ -66,10 +70,10 @@ async def test_the_requests_of_one_call_run_at_the_same_time_and_all_come_back()
 
 async def test_every_agent_works_in_the_turn_s_model_and_conversation() -> None:
     peers = FakePeers(CHAT, OBSERVATION)
-    tool = AskAgentsTool((CHAT, OBSERVATION), peers)
+    tool = DelegateTasksTool((CHAT, OBSERVATION), peers)
 
     await tool.invoke(
-        call({"agent": "chat", "message": "explain"}, {"agent": "observation", "message": "pods?"}),
+        call({"agent": "chat", "task": "explain"}, {"agent": "observation", "task": "pods?"}),
         CONTEXT,
     )
 
@@ -80,35 +84,35 @@ async def test_every_agent_works_in_the_turn_s_model_and_conversation() -> None:
 
 
 def test_the_tool_lists_the_agents_and_their_skills_and_accepts_only_them() -> None:
-    specification = AskAgentsTool((CHAT, OBSERVATION), FakePeers()).specification
+    specification = DelegateTasksTool((CHAT, OBSERVATION), FakePeers()).specification
 
-    assert specification.name == "ask_agents"
+    assert specification.name == "delegate_tasks"
     assert "- chat: the conversation agent (Answer: Explains.)" in specification.description
-    agents = specification.parameters["properties"]["requests"]["items"]["properties"]["agent"]
+    agents = specification.parameters["properties"]["tasks"]["items"]["properties"]["agent"]
     assert agents["enum"] == ["chat", "observation"]
 
 
 async def test_an_unknown_agent_is_answered_without_calling_anyone() -> None:
     peers = FakePeers(CHAT)
-    tool = AskAgentsTool((CHAT,), peers)
+    tool = DelegateTasksTool((CHAT,), peers)
 
-    result = await tool.invoke(call({"agent": "travel", "message": "Lisbon?"}), CONTEXT)
+    result = await tool.invoke(call({"agent": "travel", "task": "Lisbon?"}), CONTEXT)
 
     assert peers.asked == []
     assert "## travel (unreachable)\nNo agent named so. Known: chat." in result.output
 
 
 async def test_malformed_requests_are_a_tool_error() -> None:
-    tool = AskAgentsTool((CHAT,), FakePeers(CHAT))
+    tool = DelegateTasksTool((CHAT,), FakePeers(CHAT))
 
-    for arguments in ({}, {"requests": "chat"}, {"requests": [{"agent": "chat"}]}):
-        result = await tool.invoke(ToolCall("c1", ASK_AGENTS, arguments), CONTEXT)
-        assert result.error and "requests" in result.error
+    for arguments in ({}, {"tasks": "chat"}, {"tasks": [{"agent": "chat"}]}):
+        result = await tool.invoke(ToolCall("c1", DELEGATE_TASKS, arguments), CONTEXT)
+        assert result.error and "tasks" in result.error
 
 
 async def test_the_provider_offers_the_reachable_agents_and_records_them() -> None:
     directory = PeerDirectory()
-    provider = AskAgentsProvider(FakePeers(CHAT, down=("observation",)), directory)
+    provider = DelegateTasksProvider(FakePeers(CHAT, down=("observation",)), directory)
 
     [tool] = await provider.tools()
 
@@ -119,7 +123,7 @@ async def test_the_provider_offers_the_reachable_agents_and_records_them() -> No
 async def test_without_a_reachable_agent_there_is_no_tool() -> None:
     directory = PeerDirectory()
 
-    assert await AskAgentsProvider(FakePeers(down=("chat",)), directory).tools() == []
+    assert await DelegateTasksProvider(FakePeers(down=("chat",)), directory).tools() == []
     assert directory.peers == ()
 
 
@@ -131,3 +135,32 @@ async def test_the_list_of_agents_starts_with_the_agent_itself() -> None:
     agents = await ListAgents(orchestration, directory).handle()
 
     assert [agent.name for agent in agents] == ["orchestration", "chat"]
+
+
+class Events:
+    def __init__(self) -> None:
+        self.progress: list[Progress] = []
+
+    async def publish(self, event: TurnEvent) -> None:
+        assert event.progress is not None
+        self.progress.append(event.progress)
+
+
+async def test_each_task_reports_its_agent_starting_working_and_answering() -> None:
+    events = Events()
+    tool = DelegateTasksTool((CHAT, OBSERVATION), FakePeers(CHAT, OBSERVATION), events)
+
+    await tool.invoke(
+        call({"agent": "chat", "task": "explain"}, {"agent": "observation", "task": "pods?"}),
+        CONTEXT,
+    )
+
+    seen = [(p.kind.value, p.path, p.name, p.state, p.detail) for p in events.progress]
+    for agent, task in (("chat", "explain"), ("observation", "pods?")):
+        started = ("agent", (), agent, "working", task)
+        inside = ("tool", (agent,), "loki", "running", "")
+        answered = ("agent", (), agent, "answered", "")
+        assert seen.index(started) < seen.index(inside) < seen.index(answered)
+    starts = [i for i, s in enumerate(seen) if s[0] == "agent" and s[3] == "working"]
+    ends = [i for i, s in enumerate(seen) if s[0] == "agent" and s[3] == "answered"]
+    assert max(starts) < min(ends)
