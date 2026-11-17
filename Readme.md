@@ -150,7 +150,7 @@ A `progress` event's `content` is one JSON object:
 | `kind` | `plan`, `tool` or `agent` |
 | `path` | The agents between this one and the one doing the work: `[]` for this agent, `["observation"]` for what the observation agent does on a task this agent gave it, and so on down |
 | `steps` | `plan` only: every step of the plan as `{number, action, tool, state}`, `state` being `done`, `current` or `todo`. Sent again whenever a step ends, and once more when the plan is complete |
-| `callId`, `name`, `state`, `detail` | `tool`: the call, the tool, `running` then `done` or `failed`, and its arguments (or its error) on one line of at most 160 characters. `agent`: the agent handed a task (`name`), `working` with the task in `detail`, then `answered`, `needs_input`, `refused`, `failed` or `unreachable` |
+| `callId`, `name`, `state`, `detail` | `tool`: the call, the tool, `running` then `done` or `failed`, its arguments on one line of at most 160 characters while it runs, then, if it failed, its whole error with its line breaks (up to 4,000 characters). `agent`: the agent handed a task (`name`), `working` with the task in `detail`, then `answered`, `needs_input`, `refused`, `failed` or `unreachable` |
 
 ```json
 {"kind": "agent", "path": [], "name": "observation", "state": "working", "detail": "Show caddy's last logs"}

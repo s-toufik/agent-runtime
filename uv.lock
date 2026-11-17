@@ -29,7 +29,7 @@ fastapi = [
 
 [[package]]
 name = "agent-runtime"
-version = "2.3.0"
+version = "2.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "a2a-sdk", extra = ["fastapi"] },
@@ -687,7 +687,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.163.1"
+version = "0.163.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -698,9 +698,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/62/19000d0f3699cacaeffe8a3c4cc7046d87aac3291163ffeb2ef08b82d859/fastapi-0.163.1.tar.gz", hash = "sha256:3d364b02a68b67292e833ff2dfed3b8dc3aeadf73e271c15316c6c166668792f", size = 544796, upload-time = "2026-11-15T09:51:31.271Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/2f/d173f9bf5aba1285067ff47fd06b7e35bb922e3a1e52588fb7b31319d4ad/fastapi-0.163.2.tar.gz", hash = "sha256:e605c4c9b94be78b43aa8239a62ccf7b6684346cdc9e053633feab0ab21b87c7", size = 547696, upload-time = "2026-11-17T18:29:03.57Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/b6/2424da1e40825d3fc54539621811f34e21472499677c9490e4967270e38e/fastapi-0.163.1-py3-none-any.whl", hash = "sha256:68f2d8050f5c3583121c0d203046cc7def5c16a7d6c43a0e7707a8ea610fe2d3", size = 154541, upload-time = "2026-11-15T09:51:29.726Z" },
+    { url = "https://files.pythonhosted.org/packages/58/ef/bf79bc47e914dfabc56657bb6a2d33340b1faa5a514b0b92e842aa088d1e/fastapi-0.163.2-py3-none-any.whl", hash = "sha256:825a8fdd18d7bfcb1b86735e9805c59b7400d55c4060d3df5331b62ae452f004", size = 154717, upload-time = "2026-11-17T18:29:02.025Z" },
 ]
 
 [[package]]
@@ -1649,7 +1649,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "3.52.0"
+version = "3.53.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1659,9 +1659,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/d9/2ef76a717f5cd5d42857ae3424db2f16bf5f01070edfd63ea9347e7d041f/openai-3.52.0.tar.gz", hash = "sha256:258a4fec3e40b412c58672526ed33f20738c2e4ea27601792e73843af62466af", size = 2417464, upload-time = "2026-11-16T22:41:08.028Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/43/f2e44205e33d648482eac6696951e2e34b2566e8f958d0926a5a9458ab2e/openai-3.53.0.tar.gz", hash = "sha256:ade02e38795eec9a8aae5336d38bce30a68aea5095a4d92b7c285ed0ceb1d4c6", size = 2420396, upload-time = "2026-11-17T18:41:14.567Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/14/e6e4ee80bcca7c89377e4263ff9125ed5d6fe656f34215675669449fb3a2/openai-3.52.0-py3-none-any.whl", hash = "sha256:fc220b5f06d354e8f48ab38a64410ec1537957a47d6e584b77cee8c21b7cb84e", size = 2446605, upload-time = "2026-11-16T22:41:05.869Z" },
+    { url = "https://files.pythonhosted.org/packages/92/2e/42624955f681d7173fcaca94b1a846aebe195370592cb707c0f5df26b22f/openai-3.53.0-py3-none-any.whl", hash = "sha256:7fc5e457bcf191f93d54c71fa0977b494878aa19f5954735272e0bcba5f9eff3", size = 2448700, upload-time = "2026-11-17T18:41:11.956Z" },
 ]
 
 [[package]]
@@ -1949,11 +1949,11 @@ wheels = [
 
 [[package]]
 name = "platformdirs"
-version = "4.14.5"
+version = "4.14.6"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d7/9a/8475be631fb33ca1466915e70fd594c42a4e84b512db650eaa14f90fe75d/platformdirs-4.14.5.tar.gz", hash = "sha256:32e9921db7385aa8169bee4fe9501923e5715ba9fb7ea3b9c69b0d8e0639f7a1", size = 71464, upload-time = "2026-11-04T16:54:50.358Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/a9/8bd4abc337acc2f84729beb1061db06df6112bbf5c8ed16cfcd5cddcf9c2/platformdirs-4.14.6.tar.gz", hash = "sha256:2fabae4441a016e262d87ef88f677c0d76c1999227e068eba2e8a81cf6fb4b30", size = 75062, upload-time = "2026-11-17T18:25:09.715Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/ae/ecbbbfd0e4343a6a521d49b3c8656fb4643dee2a4f6eaf941cf3280391a8/platformdirs-4.14.5-py3-none-any.whl", hash = "sha256:8e778c6fa421516f4d3369449f8df3b0e1b72c0e0005fe88e3ec772d0a14e750", size = 35402, upload-time = "2026-11-04T16:54:48.875Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/80/c4c5bcb7280579a021d71d35894230926202ce8f09aa051ced447189f652/platformdirs-4.14.6-py3-none-any.whl", hash = "sha256:57d7bbea7c41e86b2063409934372f3ea3a396ec5e4bad595c6cb50cbc5449bd", size = 89596, upload-time = "2026-11-17T18:25:08.441Z" },
 ]
 
 [[package]]

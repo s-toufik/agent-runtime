@@ -42,7 +42,24 @@ def test_a_tool_call_says_what_it_runs_and_how_it_ended() -> None:
     assert Progress.tool_finished(ToolResult("c1", "loki_query", "ok")).state == "done"
 
 
-def test_long_details_are_cut_to_one_line() -> None:
+def test_a_tool_error_comes_whole_with_its_lines() -> None:
+    error = "Error executing tool file_writer:\n" + "the path is outside the allowed folder. " * 20
+
+    failed = Progress.tool_finished(ToolResult.failure("c1", "file_writer", error))
+
+    assert failed.detail == error.strip()
+    assert "\n" in failed.detail
+    assert len(failed.detail) > 160
+
+
+def test_a_runaway_tool_error_stops_at_four_thousand_characters() -> None:
+    failed = Progress.tool_finished(ToolResult.failure("c1", "file_writer", "x" * 9000))
+
+    assert len(failed.detail) == 4000
+    assert failed.detail.endswith("…")
+
+
+def test_long_arguments_are_cut_to_one_line() -> None:
     progress = Progress.tool_started(ToolCall("c1", "echo", {"text": "word\n" * 100}))
 
     assert "\n" not in progress.detail
