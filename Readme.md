@@ -318,6 +318,18 @@ connector:
       key_value: ${oc.env:ANALYTICS_MCP_TOKEN,''}
 ```
 
+A server that wants more headers gets them from an `mcp` operation on its connector, in `config/<APP_ENV>/operation/` and listed under `operation:` in `config/root.yml`:
+
+```yaml
+operation:
+  external_mcp_analytics_calls:
+    name: external_mcp_analytics_calls
+    type: mcp
+    connector: ${connector.external_mcp_analytics}
+    headers:
+      X-Tenant: homelab
+```
+
 ### Logs
 
 One format for every line; the third column is the request id (the conversation id on `/v1/api2a`, the `contextId` on `/a2a`), `-` outside a request:
@@ -354,6 +366,8 @@ Health checks (`/actuator`) are not traced. Log lines written during a span carr
 
 Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph or MCP. `tests/architecture/test_boundaries.py` fails the build if an import crosses a boundary.
 
+MCP is reached the way the web framework is: through pycraftcore. `McpTool` and `McpToolProvider` speak to pycraftcore's `McpClient` port (`pycraftcore.mcp`), and only `ToolsDI` builds the implementation, `SdkMcpClient` from `pycraftcore.mcp_sdk` (the official SDK: transport, retries, auth and request-id headers). Nothing under `src/agent_runtime/` imports `mcp` or `pycraftcore.mcp_sdk`, and a test checks it; changing the MCP library changes that one line of wiring.
+
 ```text
   ┌─ bootstrap ──────────────────────────────────────────────────────────────┐
   │  configuration, dependency wiring (bootstrap/di/), the FastAPI API       │
@@ -386,7 +400,7 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`; the served card adds the `TurnOptions` from `DescribeA2aOptions` as the turn-options extension), `turn_options_extension` (the extension's URI, its card entry, and reading its metadata keys), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes the tasks of the store's table older than the `ttl` of the chosen operation). The SDK does JSON-RPC, the task store, streaming and cancel |
 | `src/agent_runtime/adapter/inbound/exception/`, `turn_status.py` | What every inbound adapter shares: `ServerAtCapacityException` (503) and the step labels. Inbound adapters never import each other, and a test checks it |
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, `ModelCatalog`, and `langchain/prompts/`: the generic system prompts and `PromptBook` (each step's prompt: the agent's, else the generic one, checked at boot) |
-| `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (MCP sessions, discovery and calls) |
+| `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (discovery and calls through pycraftcore's `McpClient`, and the scope's toolbox endpoint) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
 | `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
 | `agents/` | One folder per agent (see [Agents](#agents)) |
