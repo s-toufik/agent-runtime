@@ -156,3 +156,7 @@ def test_only_the_tools_wiring_builds_the_mcp_sdk_client_in_bootstrap() -> None:
     assert [
         violation for violation in _violations(SOURCE / "bootstrap", MCP_SDK) if violation != wiring
     ] == []
+
+
+def test_nothing_imports_the_source_folder_as_a_package() -> None:
+    assert _violations(SOURCE, {"src"}) == []

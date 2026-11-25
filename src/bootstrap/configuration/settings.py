@@ -6,6 +6,7 @@ import dotenv
 
 DEFAULT_AGENT: str = "supervisor"
 DEFAULT_AGENTS_DIRECTORY: Path = Path("./agents")
+DEFAULT_DEPLOYMENT_ENVIRONMENT: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +15,7 @@ class ProcessSettings:
     configuration_directory: Path
     agent: str = DEFAULT_AGENT
     agents_directory: Path = DEFAULT_AGENTS_DIRECTORY
+    deployment_environment: str = DEFAULT_DEPLOYMENT_ENVIRONMENT
 
     @property
     def service_name(self) -> str:
@@ -29,4 +31,6 @@ class ProcessSettings:
             configuration_directory=Path(directory),
             agent=os.getenv("AGENT", "").strip() or DEFAULT_AGENT,
             agents_directory=Path(os.getenv("AGENTS_DIR", "").strip() or DEFAULT_AGENTS_DIRECTORY),
+            deployment_environment=os.getenv("DEPLOYMENT_ENVIRONMENT", "").strip()
+            or DEFAULT_DEPLOYMENT_ENVIRONMENT,
         )

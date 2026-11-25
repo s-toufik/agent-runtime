@@ -235,7 +235,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `APP_ENV` | `debug` | Which `config/<APP_ENV>/` folder is read |
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
-| `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
+| `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info`; telemetry's `deployment.environment` comes from `APP_ENV` |
 | `AGENT` | `supervisor` | Which agent this process is: the folder `agents/<AGENT>/` |
 | `AGENTS_DIR` | `./agents` | Where the agent folders are |
 | `AGENT_<NAME>_URL` | empty | Where the agent `<name>` answers (its root, e.g. `http://agent-observation:8000`), for an agent that calls it; empty: not called |
@@ -403,7 +403,7 @@ MCP is reached the way the web framework is: through pycraftcore. `McpTool` and 
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, `ModelCatalog`, and `langchain/prompts/`: the generic system prompts and `PromptBook` (each step's prompt: the agent's, else the generic one, checked at boot) |
 | `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (discovery and calls through pycraftcore's `McpClient`, and the scope's toolbox endpoint) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
+| `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, `create_agent_application`, which Granian calls, and `application/application_metadata.py` (name, version and authors, read from the installed package) |
 | `agents/` | One folder per agent (see [Agents](#agents)) |
 | `src/bootstrap/di/` | One wiring class per kind, each given what it needs: `ToolsDI` (MCP tools), `ModelsDI` (model providers and clients), `StorageDI` (conversation checkpointer, A2A task database, each with its SQLite fallback), `WorkflowDI` (steps and graph), `A2aDI` (card, request handler, task store, cleanup). `AgentDI` composes them and builds the use cases |
 | `src/bootstrap/application/fastapi/` | The API: `router/` (`/v1` routes; the A2A card route and the SDK's JSON-RPC route), `schema/` (request and response bodies, pydantic), `fastapi_api.py` (the app, built with `pycraftcore.web_fastapi`, traced with the OpenTelemetry FastAPI instrumentation) |
