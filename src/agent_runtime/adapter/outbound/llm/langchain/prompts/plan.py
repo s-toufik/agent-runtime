@@ -24,11 +24,9 @@ How to plan:
 - Use only the tools listed. Use the fewest steps that get the job done.
 - Reuse the work done earlier in this conversation (files written, results found)
   instead of doing it again.
-- For large or heavy results (many rows, aggregation, joins, statistics), plan a 
-  python_executor step: every other tool is callable as a function inside it, and a 
-  direct tool call returns the whole dataset into a context whereas tools called inside 
-  the python tool executor keep their results out of context. Fetch and compute there, write the 
-  full output to a file, and return a summary plus the path.
+- A direct tool call brings its whole result into your context. For large or heavy work
+  (many rows, many tool calls, joins, statistics), plan a step with the tool whose
+  description says it keeps results out of your context, returning a summary or a path.
 - To put a plot in a Markdown report, save the image in the working directory and link
   it from the report: ![Title](plot.svg).
 

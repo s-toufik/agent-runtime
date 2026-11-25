@@ -50,29 +50,14 @@ Progress (✓ done, → current, · to do):
 {progress}
 {prior}
 How to work:
-- A tool you call directly returns its whole result into your context. Fine for a 
-  few rows or one value; a large result set will overflow your context window.
-- Inside python_executor every other tool is callable as a Python function (same
-  name, keyword arguments). Results of tools you call there stay in the sandbox and 
-  do NOT enter your context: only what you assign to 'result' and what you print
-  comes back to you.
-- So for large or heavy work (many rows, aggregation, joins, statistics), plan a 
-  python_executor: fetch and compute inside the script, write the full output to a 
-  file (or a Confluence page), and return only a short summary plus the file path or 
-  link. This keeps the big data out of your context instead of streaming it through. 
+- A tool you call directly returns its whole result into your context: fine for a few
+  rows or one value, not for large data. For heavy work, use the tool whose description
+  says it keeps results out of your context, and follow its description.
 - The working directory is your file storage: save large results there and read
   them back later. Use paths relative to it (e.g. "report.md"): they name the same
   file in your code and in tool calls. Give the file path in your answer.
 - To show a plot in a Markdown report, save the image in the working directory and
-  link it from the report: ![Title](plot.svg).
-
-Example inside python_executor (heavy analysis only):
-    import pandas as pd
-    file = file_reader(file_path="eqd_positions.csv")
-    df = pd.DataFrame(file["content"]["rows"])
-    ... do some analysis ...
-    saved = file_writer(file_path="report.md", data=report_text)
-    result = saved["path"]"""
+  link it from the report: ![Title](plot.svg)."""
 
 _FINISHED = """\
 All steps of the approved plan are done:

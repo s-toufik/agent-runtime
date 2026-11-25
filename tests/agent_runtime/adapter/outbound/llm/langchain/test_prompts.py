@@ -255,3 +255,12 @@ def test_an_agent_that_does_not_plan_is_not_offered_request_plan() -> None:
 
     assert "you do not write plans" in prompt
     assert "request_plan" not in prompt
+
+
+def test_the_generic_prompts_leave_how_to_use_a_tool_to_its_description() -> None:
+    for prompt in (
+        plan_system_prompt(PROMPTS, "q", TOOLS, "SCHEMA"),
+        act_system_prompt(PROMPTS, "q", STARTED, TOOLS),
+    ):
+        assert "python_executor" not in prompt
+        assert "keeps results out of your context" in prompt
