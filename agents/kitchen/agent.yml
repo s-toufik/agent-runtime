@@ -3,7 +3,6 @@ agent:
   description: the homelab's kitchen agent, which plans meals, adapts recipes and computes quantities
   tool_scope: kitchen
   guardrail: true
-  model: nvidia/nemotron-3.5-lightning-30b-a3b
   turns: [direct, clarify, plan, review]
   skills:
     - id: cook
