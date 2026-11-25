@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 from agent_runtime.application.step.step_handler import StepHandler
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.conversation.message import Message
 from agent_runtime.domain.event.turn_event import TurnEvent
@@ -28,6 +29,7 @@ class Scripted:
     def __init__(self, *replies: Any) -> None:
         self._replies = list(replies)
         self.calls: list[tuple[Conversation, Turn]] = []
+        self.peers: list[tuple[PeerAgent, ...]] = []
 
     def _next(self, conversation: Conversation, turn: Turn) -> Any:
         self.calls.append((copy.deepcopy(conversation), copy.deepcopy(turn)))
@@ -43,13 +45,27 @@ class FakeClassifier(Scripted):
 
 
 class FakePlanner(Scripted):
-    async def plan(self, conversation, turn, tools: list[ToolSpecification]) -> Plan | None:
+    async def plan(
+        self,
+        conversation,
+        turn,
+        tools: list[ToolSpecification],
+        peers: tuple[PeerAgent, ...] = (),
+    ) -> Plan | None:
+        self.peers.append(peers)
         steps: tuple[PlannedStep, ...] | None = self._next(conversation, turn)
         return None if steps is None else Plan(task=turn.query, steps=steps)
 
 
 class FakeActor(Scripted):
-    async def act(self, conversation, turn, tools: list[ToolSpecification]) -> Draft:
+    async def act(
+        self,
+        conversation,
+        turn,
+        tools: list[ToolSpecification],
+        peers: tuple[PeerAgent, ...] = (),
+    ) -> Draft:
+        self.peers.append(peers)
         return self._next(conversation, turn)
 
 

@@ -1,9 +1,11 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.agent_roster import agent_roster
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
     PromptBook,
     SystemTemplate,
 )
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import planning_catalog
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.pending_plan import PendingPlan
 from agent_runtime.domain.workflow.step import Step
@@ -17,7 +19,7 @@ Task:
 {revision}
 Tools available when the plan runs:
 {tools}
-
+{agents}
 How to plan:
 - Each step makes exactly one tool call: name that tool exactly as listed above.
   A step that only reasons over earlier results has no tool (null).
@@ -49,7 +51,7 @@ The steps marked ✓ have run: plan only the work that is left, and reuse their 
 
 SYSTEM: SystemTemplate = SystemTemplate(
     _SYSTEM,
-    known=frozenset({"task", "revision", "tools", "output_format", "now"}),
+    known=frozenset({"task", "revision", "tools", "agents", "output_format", "now"}),
     required=frozenset({"tools", "output_format"}),
 )
 
@@ -60,12 +62,14 @@ def plan_system_prompt(
     tools: list[ToolSpecification],
     output_format: object,
     previous: PendingPlan | None = None,
+    peers: tuple[PeerAgent, ...] = (),
 ) -> str:
     return book.system(
         Step.PLAN,
         task=task,
         revision=_revision(previous),
         tools=planning_catalog(tools),
+        agents=agent_roster(peers),
         output_format=output_format,
         now=utc_now(),
     )

@@ -56,6 +56,7 @@ class AgentDI(BaseDI):
             answer_delivery=self._server_parameters.answer_delivery,
             prompts=self._prompts,
             shape=self._agent.turns,
+            peers=self._tools.peer_directory,
         )
 
     async def _handle_message(self) -> HandleMessage:

@@ -26,6 +26,7 @@ from agent_runtime.adapter.outbound.llm.langchain.reply.whole_reply import Whole
 from agent_runtime.adapter.outbound.llm.langchain.reviewer import LangChainReviewer
 from agent_runtime.adapter.outbound.llm.langchain.summarizer import LangChainSummarizer
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.conversation.message import Message, Speaker
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
@@ -179,6 +180,29 @@ async def test_outside_a_plan_the_actor_lists_its_tools_but_binds_only_the_plan_
     assert llm.tool_bindings == [[REQUEST_PLAN_TOOL]]
     assert "- echo: Echoes." in llm.prompt()
     assert "cannot run tools" in llm.prompt()
+
+
+async def test_the_planner_and_the_actor_tell_the_model_which_agents_it_can_hand_tasks_to(
+    logger,
+) -> None:
+    observation = PeerAgent("observation", "reads the cluster's metrics and logs")
+    planner_llm = FakeLLM(
+        parsed=[
+            PlanDto(steps=[PlanStepDto(action="ask", tool="echo")], expected_result="An answer.")
+        ]
+    )
+    actor_llm = FakeLLM(replies=[text("hello")])
+
+    await LangChainPlanner(_models(planner_llm)[1], WINDOW, logger, prompts=PROMPTS).plan(
+        Conversation("c1"), turn(Intent.TASK), [ECHO], (observation,)
+    )
+    await _actor(actor_llm, logger).act(
+        Conversation("c1"), turn(Intent.DIRECT), [ECHO], (observation,)
+    )
+
+    roster = "- observation: reads the cluster's metrics and logs"
+    assert roster in str(planner_llm.calls[0][0].content)
+    assert roster in actor_llm.prompt()
 
 
 async def test_under_a_plan_the_actor_binds_tools_and_replays_the_work(logger) -> None:

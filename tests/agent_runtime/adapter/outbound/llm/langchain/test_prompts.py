@@ -4,6 +4,10 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.act import (
     act_system_prompt,
     next_step_request,
 )
+from agent_runtime.adapter.outbound.llm.langchain.prompts.agent_roster import (
+    ROSTER_LEAD,
+    agent_roster,
+)
 from agent_runtime.adapter.outbound.llm.langchain.prompts.context import (
     context_request,
     context_system_prompt,
@@ -21,6 +25,8 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import (
     summary,
     tool_catalog,
 )
+from agent_runtime.domain.agent.agent_skill import AgentSkill
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.tool.tool_result import ToolResult
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.action import Action
@@ -255,6 +261,29 @@ def test_an_agent_that_does_not_plan_is_not_offered_request_plan() -> None:
 
     assert "you do not write plans" in prompt
     assert "request_plan" not in prompt
+
+
+OBSERVATION = PeerAgent(
+    "observation",
+    "reads the cluster's metrics and logs",
+    (AgentSkill("logs", "Read logs", "Finds errors in logs."),),
+)
+ROSTER = (
+    f"{ROSTER_LEAD}\n"
+    "- observation: reads the cluster's metrics and logs (Read logs: Finds errors in logs.)"
+)
+
+
+def test_the_plan_and_act_prompts_list_the_agents_it_can_hand_tasks_to() -> None:
+    assert ROSTER in plan_system_prompt(PROMPTS, "q", TOOLS, "SCHEMA", peers=(OBSERVATION,))
+    assert ROSTER in act_system_prompt(PROMPTS, "q", None, TOOLS, peers=(OBSERVATION,))
+    assert ROSTER in act_system_prompt(PROMPTS, "q", STARTED, TOOLS, peers=(OBSERVATION,))
+
+
+def test_an_agent_without_peers_gets_no_roster() -> None:
+    assert agent_roster(()) == ""
+    assert ROSTER_LEAD not in plan_system_prompt(PROMPTS, "q", TOOLS, "SCHEMA")
+    assert ROSTER_LEAD not in act_system_prompt(PROMPTS, "q", STARTED, TOOLS)
 
 
 def test_the_generic_prompts_leave_how_to_use_a_tool_to_its_description() -> None:

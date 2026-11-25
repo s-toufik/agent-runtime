@@ -36,6 +36,7 @@ from agent_runtime.adapter.outbound.llm.langchain.token_counter import (
 )
 from agent_runtime.adapter.outbound.llm.langchain.usage_meter import LangChainUsageMeter
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
+from agent_runtime.application.agent.peer_directory import PeerDirectory
 from agent_runtime.application.port.outbound.turn_event_publisher import TurnEventPublisher
 from agent_runtime.application.port.outbound.workflow_runner import WorkflowRunner
 from agent_runtime.application.step.act_step import ActStep
@@ -63,8 +64,10 @@ class WorkflowDI:
         answer_delivery: AnswerDelivery,
         prompts: PromptBook,
         shape: TurnShape,
+        peers: PeerDirectory,
     ) -> None:
         self._prompts = prompts
+        self._peers = peers
         self._policy = TurnPolicy(shape)
         self._models = models
         self._logger = logger
@@ -92,7 +95,9 @@ class WorkflowDI:
             UnderstandStep(
                 LangChainIntentClassifier(models, window, logger, prompts=prompts), logger
             ),
-            PlanStep(LangChainPlanner(models, window, logger, prompts=prompts), toolbox),
+            PlanStep(
+                LangChainPlanner(models, window, logger, prompts=prompts), toolbox, self._peers
+            ),
             ClarifyStep(),
             ActStep(
                 LangChainActor(
@@ -105,6 +110,7 @@ class WorkflowDI:
                     can_plan=self._policy.shape.plan,
                 ),
                 toolbox,
+                self._peers,
             ),
             RunToolsStep(toolbox, self.turn_events),
             ReviewStep(LangChainReviewer(models, logger, prompts=prompts), logger),

@@ -1,10 +1,12 @@
 from agent_runtime.adapter.outbound.llm.langchain.plan_request import REQUEST_PLAN
+from agent_runtime.adapter.outbound.llm.langchain.prompts.agent_roster import agent_roster
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
     PromptBook,
     SystemTemplate,
 )
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import tool_catalog
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.plan_progress import PlanProgress
 from agent_runtime.domain.turn.prior_run import PriorRun
@@ -21,7 +23,7 @@ Request: {request}
 
 Your tools (run only as part of a plan the user approved):
 {tools}
-
+{agents}
 {mode}
 
 Answer in well-structured Markdown
@@ -103,7 +105,7 @@ Write the corrected answer. Fix only what the critique flags."""
 
 SYSTEM: SystemTemplate = SystemTemplate(
     _SYSTEM,
-    known=frozenset({"request", "tools", "mode", "diagrams", "now"}),
+    known=frozenset({"request", "tools", "agents", "mode", "diagrams", "now"}),
     required=frozenset({"mode"}),
 )
 
@@ -115,11 +117,13 @@ def act_system_prompt(
     tools: list[ToolSpecification],
     prior: PriorRun | None = None,
     can_plan: bool = True,
+    peers: tuple[PeerAgent, ...] = (),
 ) -> str:
     return book.system(
         Step.ACT,
         request=request,
         tools=tool_catalog(tools),
+        agents=agent_roster(peers),
         mode=_mode(progress, prior, can_plan),
         diagrams=_DIAGRAMS,
         now=utc_now(),
