@@ -11,6 +11,9 @@ Request: {request}
 
 Your tools (run only as part of a plan the user approved):
 {tools}
+{agents}
+What one of these agents owns (its data, its systems, its skills) is that agent's to
+answer: hand it over through a plan rather than answering it yourself.
 
 {mode}
 

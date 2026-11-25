@@ -81,8 +81,8 @@ def test_the_supervisor_answers_directly_or_plans_for_the_other_agents() -> None
     assert (supervisor.turns.direct, supervisor.turns.plan) == (True, True)
     assert supervisor.tool_scope == ToolScope("none")
     assert set(supervisor.peers) == set(NAMES) - {"supervisor"}
-    assert supervisor.prompts.for_step(Step.PLAN)
-    assert supervisor.prompts.for_step(Step.ACT)
+    assert "{agents}" in (supervisor.prompts.for_step(Step.PLAN) or "")
+    assert "{agents}" in (supervisor.prompts.for_step(Step.ACT) or "")
 
 
 def test_a_folder_becomes_an_agent(tmp_path) -> None:
