@@ -248,6 +248,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `NVIDIA_LLM_BASE_URL`, `NVIDIA_LLM_API_KEY` | one provider required | NVIDIA's API, `https://integrate.api.nvidia.com/v1`, and its `nvapi-…` key |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
+| `TOOLBOX_TOKEN` | required | The toolbox's bearer token, sent as `Authorization: Bearer <token>`: get one from the toolbox's `POST /auth/token` (as its `JWT_USERNAME`, with `"expire": "never"` for a deployed agent) |
 | `DB_MONGO_CHECKPOINT_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | required | Conversation storage in MongoDB |
 | `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name); A2A tasks fall back to `a2a_tasks.db` in the same folder |
 | `DB_POSTGRES_A2A_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | empty, `5432`, `agent_runtime` | A2A task storage in PostgreSQL; no host: SQLite |

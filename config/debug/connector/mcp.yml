@@ -6,7 +6,9 @@ connector:
     timeout: 30
     transport: streamable_http
     auth:
-      type: none
+      type: token
+      key_name: Authorization
+      key_value: Bearer ${oc.env:TOOLBOX_TOKEN}
     refresh:
       interval: ${oc.env:MCP_REFRESH_INTERVAL,60}
       retry_delay: ${oc.env:MCP_RETRY_DELAY,5}

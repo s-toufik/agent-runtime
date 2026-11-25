@@ -4,6 +4,7 @@ import pytest
 
 REQUIRED: dict[str, str] = {
     "TOOLBOX_URL": "http://127.0.0.1:9/mcp",
+    "TOOLBOX_TOKEN": "test",
     "DB_MONGO_CHECKPOINT_HOST": "localhost",
     "DB_MONGO_CHECKPOINT_PORT": "27017",
     "DB_MONGO_CHECKPOINT_USERNAME": "test",
