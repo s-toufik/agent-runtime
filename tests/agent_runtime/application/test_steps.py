@@ -1,3 +1,4 @@
+from agent_runtime.application.agent.peer_directory import PeerDirectory
 from agent_runtime.application.step.act_step import ActStep
 from agent_runtime.application.step.clarify_step import ClarifyStep
 from agent_runtime.application.step.feedback_step import NO_CRITIQUE, FeedbackStep
@@ -7,6 +8,7 @@ from agent_runtime.application.step.review_step import ReviewStep
 from agent_runtime.application.step.run_tools_step import RunToolsStep
 from agent_runtime.application.step.summarize_step import KEEP_LAST_MESSAGES, SummarizeStep
 from agent_runtime.application.step.understand_step import UnderstandStep
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.conversation.message import Message, Speaker
 from agent_runtime.domain.tool.tool_context import ToolContext
@@ -43,6 +45,9 @@ from tests.agent_runtime.domain.builders import (
 ECHO_STEPS = (PlannedStep("echo", "echo"),)
 
 
+OBSERVATION = PeerAgent("observation", "reads the cluster's metrics and logs")
+
+
 async def test_understanding_is_recorded_through_the_conversation(logger) -> None:
     conversation, current = Conversation("c1"), turn(None)
     conversation.propose(PLAN)
@@ -67,7 +72,9 @@ async def test_an_unreadable_message_is_understood_as_a_task(logger) -> None:
 async def test_a_plan_is_proposed_and_shown_for_approval() -> None:
     conversation, current = Conversation("c1"), turn(Intent.TASK)
 
-    await PlanStep(FakePlanner(ECHO_STEPS), FakeCatalog(ECHO)).run(conversation, current)
+    await PlanStep(FakePlanner(ECHO_STEPS), FakeCatalog(ECHO), PeerDirectory()).run(
+        conversation, current
+    )
 
     assert conversation.pending_plan is not None
     assert conversation.pending_plan.steps == ECHO_STEPS
@@ -78,7 +85,7 @@ async def test_a_plan_is_proposed_and_shown_for_approval() -> None:
 async def test_a_plan_that_could_not_be_written_is_said_plainly() -> None:
     conversation, current = Conversation("c1"), turn(Intent.TASK)
 
-    await PlanStep(FakePlanner(None), FakeCatalog(ECHO)).run(conversation, current)
+    await PlanStep(FakePlanner(None), FakeCatalog(ECHO), PeerDirectory()).run(conversation, current)
 
     assert current.answer == Answer(NO_PLAN, Outcome.BEST_EFFORT)
     assert conversation.pending_plan is None and current.plan is None
@@ -96,9 +103,21 @@ async def test_a_clarifying_question_is_the_answer() -> None:
 async def test_acting_records_the_draft_and_sees_the_catalog() -> None:
     actor, current = FakeActor(answer("hi")), turn()
 
-    await ActStep(actor, FakeCatalog(ECHO)).run(Conversation("c1"), current)
+    await ActStep(actor, FakeCatalog(ECHO), PeerDirectory()).run(Conversation("c1"), current)
 
     assert current.last_draft == answer("hi")
+
+
+async def test_planning_and_acting_see_the_agents_the_directory_last_found() -> None:
+    directory = PeerDirectory()
+    directory.replace([OBSERVATION])
+    planner, actor = FakePlanner(ECHO_STEPS), FakeActor(answer("hi"))
+
+    await PlanStep(planner, FakeCatalog(ECHO), directory).run(Conversation("c1"), turn(Intent.TASK))
+    directory.replace([])
+    await ActStep(actor, FakeCatalog(ECHO), directory).run(Conversation("c1"), turn())
+
+    assert (planner.peers, actor.peers) == ([(OBSERVATION,)], [()])
 
 
 async def test_every_requested_tool_runs_and_its_result_is_kept() -> None:
@@ -249,7 +268,9 @@ async def test_a_plan_runs_at_once_when_the_user_auto_approves() -> None:
     conversation, current = Conversation("c1"), turn(Intent.TASK)
     current.options = TurnOptions(auto_approve=True)
 
-    await PlanStep(FakePlanner(ECHO_STEPS), FakeCatalog(ECHO)).run(conversation, current)
+    await PlanStep(FakePlanner(ECHO_STEPS), FakeCatalog(ECHO), PeerDirectory()).run(
+        conversation, current
+    )
 
     assert current.plan is not None and current.plan.steps == ECHO_STEPS
     assert current.answer is None

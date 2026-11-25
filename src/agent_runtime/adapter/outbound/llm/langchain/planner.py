@@ -8,6 +8,7 @@ from agent_runtime.adapter.outbound.llm.langchain.model_call import invoke_struc
 from agent_runtime.adapter.outbound.llm.langchain.prompts.plan import plan_system_prompt
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.plan import Plan
@@ -24,10 +25,19 @@ class LangChainPlanner:
         self._logger = logger
 
     async def plan(
-        self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
+        self,
+        conversation: Conversation,
+        turn: Turn,
+        tools: list[ToolSpecification],
+        peers: tuple[PeerAgent, ...] = (),
     ) -> Plan | None:
         system = plan_system_prompt(
-            self._prompts, turn.query, tools, PlanDto.model_json_schema(), conversation.pending
+            self._prompts,
+            turn.query,
+            tools,
+            PlanDto.model_json_schema(),
+            conversation.pending,
+            peers,
         )
         settings = turn.settings
         budget: int = input_budget(

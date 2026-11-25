@@ -83,11 +83,12 @@ async def test_every_agent_works_in_the_turn_s_model_and_conversation() -> None:
     }
 
 
-def test_the_tool_lists_the_agents_and_their_skills_and_accepts_only_them() -> None:
+def test_the_tool_accepts_only_the_agents_it_found_and_leaves_their_roster_to_the_prompts() -> None:
     specification = DelegateTasksTool((CHAT, OBSERVATION), FakePeers()).specification
 
     assert specification.name == "delegate_tasks"
-    assert "- chat: the conversation agent (Answer: Explains.)" in specification.description
+    assert specification.description.startswith("Hand tasks to other agents.")
+    assert "the conversation agent" not in specification.description
     agents = specification.parameters["properties"]["tasks"]["items"]["properties"]["agent"]
     assert agents["enum"] == ["chat", "observation"]
 

@@ -15,6 +15,7 @@ from agent_runtime.adapter.outbound.llm.langchain.prompts.act import (
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import PromptBook
 from agent_runtime.adapter.outbound.llm.langchain.reply.reply_reader import ReplyReader
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.conversation.conversation import Conversation
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.draft import Draft
@@ -43,11 +44,21 @@ class LangChainActor:
         self._final_reply = final_reply
 
     async def act(
-        self, conversation: Conversation, turn: Turn, tools: list[ToolSpecification]
+        self,
+        conversation: Conversation,
+        turn: Turn,
+        tools: list[ToolSpecification],
+        peers: tuple[PeerAgent, ...] = (),
     ) -> Draft:
         progress = turn.progress
         system = act_system_prompt(
-            self._prompts, turn.query, progress, tools, turn.prior, can_plan=self._can_plan
+            self._prompts,
+            turn.query,
+            progress,
+            tools,
+            turn.prior,
+            can_plan=self._can_plan,
+            peers=peers,
         )
         tail = [HumanMessage(content=turn.request), *from_work(turn.work)]
         next_step = next_step_request(progress) if progress else None

@@ -1,9 +1,11 @@
+from agent_runtime.adapter.outbound.llm.langchain.prompts.agent_roster import agent_roster
 from agent_runtime.adapter.outbound.llm.langchain.prompts.clock import utc_now
 from agent_runtime.adapter.outbound.llm.langchain.prompts.prompt_book import (
     PromptBook,
     SystemTemplate,
 )
 from agent_runtime.adapter.outbound.llm.langchain.prompts.tool_catalog import planning_catalog
+from agent_runtime.domain.agent.peer_agent import PeerAgent
 from agent_runtime.domain.tool.tool_specification import ToolSpecification
 from agent_runtime.domain.turn.pending_plan import PendingPlan
 from agent_runtime.domain.workflow.step import Step
@@ -17,18 +19,16 @@ Task:
 {revision}
 Tools available when the plan runs:
 {tools}
-
+{agents}
 How to plan:
 - Each step makes exactly one tool call: name that tool exactly as listed above.
   A step that only reasons over earlier results has no tool (null).
 - Use only the tools listed. Use the fewest steps that get the job done.
 - Reuse the work done earlier in this conversation (files written, results found)
   instead of doing it again.
-- For large or heavy results (many rows, aggregation, joins, statistics), plan a 
-  python_executor step: every other tool is callable as a function inside it, and a 
-  direct tool call returns the whole dataset into a context whereas tools called inside 
-  the python tool executor keep their results out of context. Fetch and compute there, write the 
-  full output to a file, and return a summary plus the path.
+- A direct tool call brings its whole result into your context. For large or heavy work
+  (many rows, many tool calls, joins, statistics), plan a step with the tool whose
+  description says it keeps results out of your context, returning a summary or a path.
 - To put a plot in a Markdown report, save the image in the working directory and link
   it from the report: ![Title](plot.svg).
 
@@ -51,7 +51,7 @@ The steps marked ✓ have run: plan only the work that is left, and reuse their 
 
 SYSTEM: SystemTemplate = SystemTemplate(
     _SYSTEM,
-    known=frozenset({"task", "revision", "tools", "output_format", "now"}),
+    known=frozenset({"task", "revision", "tools", "agents", "output_format", "now"}),
     required=frozenset({"tools", "output_format"}),
 )
 
@@ -62,12 +62,14 @@ def plan_system_prompt(
     tools: list[ToolSpecification],
     output_format: object,
     previous: PendingPlan | None = None,
+    peers: tuple[PeerAgent, ...] = (),
 ) -> str:
     return book.system(
         Step.PLAN,
         task=task,
         revision=_revision(previous),
         tools=planning_catalog(tools),
+        agents=agent_roster(peers),
         output_format=output_format,
         now=utc_now(),
     )

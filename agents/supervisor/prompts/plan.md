@@ -8,7 +8,7 @@ Task:
 {revision}
 Tools available when the plan runs:
 {tools}
-
+{agents}
 How to plan:
 - Each step makes exactly one tool call: name that tool exactly as listed above.
   A step that only combines earlier answers has no tool (null).

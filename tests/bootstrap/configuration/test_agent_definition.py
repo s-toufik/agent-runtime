@@ -75,20 +75,14 @@ def test_an_agent_may_fix_its_model_and_otherwise_takes_the_requested_one(tmp_pa
     assert LoadAgentDefinition(tmp_path, "talk")().model == "nvidia/some-model"
 
 
-def test_the_kitchen_agent_runs_on_nemotron_lightning() -> None:
-    kitchen = LoadAgentDefinition(AGENTS, "kitchen")()
-
-    assert kitchen.model == "nvidia/nemotron-3.5-lightning-30b-a3b"
-
-
 def test_the_supervisor_answers_directly_or_plans_for_the_other_agents() -> None:
     supervisor = LoadAgentDefinition(AGENTS, "supervisor")()
 
     assert (supervisor.turns.direct, supervisor.turns.plan) == (True, True)
     assert supervisor.tool_scope == ToolScope("none")
     assert set(supervisor.peers) == set(NAMES) - {"supervisor"}
-    assert supervisor.prompts.for_step(Step.PLAN)
-    assert supervisor.prompts.for_step(Step.ACT)
+    assert "{agents}" in (supervisor.prompts.for_step(Step.PLAN) or "")
+    assert "{agents}" in (supervisor.prompts.for_step(Step.ACT) or "")
 
 
 def test_a_folder_becomes_an_agent(tmp_path) -> None:

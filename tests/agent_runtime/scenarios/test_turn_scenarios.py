@@ -17,6 +17,7 @@ from agent_runtime.adapter.outbound.langgraph.langgraph_workflow_runner import (
 )
 from agent_runtime.adapter.outbound.langgraph.node.agent_nodes import agent_nodes
 from agent_runtime.adapter.outbound.langgraph.state.turn_state_codec import TurnStateCodec
+from agent_runtime.application.agent.peer_directory import PeerDirectory
 from agent_runtime.application.step.act_step import ActStep
 from agent_runtime.application.step.clarify_step import ClarifyStep
 from agent_runtime.application.step.feedback_step import FeedbackStep
@@ -79,9 +80,9 @@ class Agent:
         catalog = FakeCatalog(ECHO)
         self.steps = steps = [
             UnderstandStep(self.classifier, logger),
-            PlanStep(self.planner, catalog),
+            PlanStep(self.planner, catalog, PeerDirectory()),
             ClarifyStep(),
-            ActStep(self.actor, catalog),
+            ActStep(self.actor, catalog, PeerDirectory()),
             RunToolsStep(self.executor),
             ReviewStep(self.reviewer, logger),
             FeedbackStep(logger),
