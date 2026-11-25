@@ -39,7 +39,8 @@ def test_a_tool_call_says_what_it_runs_and_how_it_ended() -> None:
         '{"query": "{app=\\"caddy\\"}"}',
     )
     assert (failed.state, failed.detail) == ("failed", "Loki timed out")
-    assert Progress.tool_finished(ToolResult("c1", "loki_query", "ok")).state == "done"
+    finished = Progress.tool_finished(ToolResult("c1", "loki_query", "ok"))
+    assert (finished.state, finished.detail) == ("done", "ok")
 
 
 def test_a_tool_error_comes_whole_with_its_lines() -> None:

@@ -79,7 +79,7 @@ class Progress:
             call_id=result.call_id,
             name=result.tool_name,
             state=ToolState.FAILED if result.error is not None else ToolState.DONE,
-            detail=_whole(result.error or ""),
+            detail=_whole(result.error or result.output),
         )
 
     @classmethod
