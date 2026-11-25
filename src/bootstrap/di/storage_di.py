@@ -6,7 +6,7 @@ import aiosqlite
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pycraftcore.application_configuration import ApplicationConfiguration
-from pycraftcore.application_configuration.model.operation import DatabaseOperation
+from pycraftcore.application_configuration.model import DatabaseOperation
 from pycraftcore.logger.port import Logger
 from pycraftcore.repository.adapter import (
     MongoRepositoryFactory,

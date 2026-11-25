@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 
 from agent_runtime.domain.agent.tool_scope import ToolScope
 

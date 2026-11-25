@@ -1,5 +1,5 @@
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import A2aConnector
+from pycraftcore.application_configuration.model import A2aConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 
 from bootstrap.configuration.peer_connectors import peer_connectors, peer_url_variable

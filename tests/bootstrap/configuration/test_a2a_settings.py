@@ -1,8 +1,7 @@
 import pytest
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.enum.operation_type import OperationType
-from pycraftcore.application_configuration.model.connector import A2aConnector
-from pycraftcore.application_configuration.model.operation import A2aOperation
+from pycraftcore.application_configuration.model import A2aConnector, A2aOperation
 from pycraftcore.authentication.model.no_auth import NoAuth
 
 from bootstrap.configuration.a2a_settings import A2aSettings

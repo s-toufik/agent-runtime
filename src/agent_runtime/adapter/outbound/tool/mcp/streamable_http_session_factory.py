@@ -8,8 +8,7 @@ import httpx2
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
-from pycraftcore.application_configuration.model.connector import McpConnector
-from pycraftcore.application_configuration.model.operation import McpOperation
+from pycraftcore.application_configuration.model import McpConnector, McpOperation
 from pycraftcore.authentication import AuthTyping
 from pycraftcore.authentication.model.basic_auth import BasicAuth
 from pycraftcore.authentication.model.token_auth import TokenAuth

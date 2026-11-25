@@ -1,6 +1,5 @@
 from pycraftcore.application_configuration.enum import ConnectorType, OperationType
-from pycraftcore.application_configuration.model.connector import ApiConnector
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model import ApiConnector, ApiOperation
 from pycraftcore.authentication import NoAuth
 from pycraftcore.authentication.model.auth_type import AuthType
 from pycraftcore.authentication.model.token_auth import TokenAuth

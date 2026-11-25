@@ -8,7 +8,7 @@ from a2a.server.request_handlers import RequestHandler
 from a2a.server.tasks import TaskStore
 from a2a.types.a2a_pb2 import AgentCard
 from pycraftcore.application_configuration import ApplicationConfiguration
-from pycraftcore.application_configuration.model.server import AsgiServer
+from pycraftcore.application_configuration.model import AsgiServer
 from pycraftcore.logger.port import Logger
 from pycraftcore.web.actuator import Actuator
 

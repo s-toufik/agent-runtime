@@ -4,8 +4,7 @@ from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import A2aConnector, McpConnector
-from pycraftcore.application_configuration.model.operation import McpOperation
+from pycraftcore.application_configuration.model import A2aConnector, McpConnector, McpOperation
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents

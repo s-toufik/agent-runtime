@@ -6,7 +6,7 @@ import pytest
 import uvicorn
 from mcp.server.mcpserver.exceptions import ToolError
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 from pydantic import BaseModel
 

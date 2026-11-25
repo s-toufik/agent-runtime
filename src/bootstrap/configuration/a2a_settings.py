@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from pycraftcore.application_configuration.model.operation import A2aOperation
+from pycraftcore.application_configuration.model import A2aOperation
 
 SERVED_BINDING: str = "JSONRPC"
 

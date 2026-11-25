@@ -8,7 +8,7 @@ import pytest
 import uvicorn
 from a2a.server.tasks.database_task_store import DatabaseTaskStore
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (

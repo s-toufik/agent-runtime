@@ -6,14 +6,14 @@ from pathlib import Path
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.enum import ConnectorType, RunTypeEnvironment
 from pycraftcore.application_configuration.enum.run_type_application import RunTypeApplication
-from pycraftcore.application_configuration.model.connector import (
+from pycraftcore.application_configuration.model import (
     ConnectorRegistry,
     ConnectorTyping,
     McpConnector,
     McpRefresh,
+    OperationRegistry,
+    ServerRegistry,
 )
-from pycraftcore.application_configuration.model.operation import OperationRegistry
-from pycraftcore.application_configuration.model.server import ServerRegistry
 from pycraftcore.authentication.model.no_auth import NoAuth
 from pycraftcore.logger.enum import LogLevel
 

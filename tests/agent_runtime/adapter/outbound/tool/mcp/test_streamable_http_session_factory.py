@@ -4,7 +4,7 @@ from typing import Literal
 
 import pytest
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 from pycraftcore.authentication.model.basic_auth import BasicAuth
 from pycraftcore.authentication.model.no_auth import NoAuth
 from pycraftcore.authentication.model.token_auth import TokenAuth
