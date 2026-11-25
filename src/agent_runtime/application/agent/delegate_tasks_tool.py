@@ -19,7 +19,7 @@ _DESCRIPTION: str = (
     "Hand tasks to other agents. Each task goes to one agent and must stand on its own (the "
     "agent does not see this conversation). Tasks in one call run at the same time: put "
     "independent parts of the work together. Every result comes back, marked answered, "
-    "needs_input, refused, failed or unreachable.\nAgents:\n{agents}"
+    "needs_input, refused, failed or unreachable."
 )
 
 
@@ -40,9 +40,7 @@ class DelegateTasksTool:
     def specification(self) -> ToolSpecification:
         return ToolSpecification(
             name=DELEGATE_TASKS,
-            description=_DESCRIPTION.format(
-                agents="\n".join(f"- {peer.render()}" for peer in self._peers.values())
-            ),
+            description=_DESCRIPTION,
             parameters={
                 "type": "object",
                 "properties": {
