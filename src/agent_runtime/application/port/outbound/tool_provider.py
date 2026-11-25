@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
+from pycraftcore.application_configuration.model import McpRefresh
+
 from agent_runtime.domain.tool.tool_call import ToolCall
 from agent_runtime.domain.tool.tool_context import ToolContext
 from agent_runtime.domain.tool.tool_result import ToolResult
@@ -25,4 +26,4 @@ class ToolProviderPort(Protocol):
 class ToolSource:
     name: str
     provider: ToolProviderPort
-    policy: RefreshPolicy = field(default_factory=RefreshPolicy)
+    policy: McpRefresh = field(default_factory=McpRefresh)

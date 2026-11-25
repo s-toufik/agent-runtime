@@ -1,9 +1,10 @@
 import asyncio
 
+from pycraftcore.application_configuration.model import McpRefresh
+
 from agent_runtime.application.port.outbound.tool_provider import ToolSource
 from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRefresher
 from agent_runtime.application.tool.tool_registry import ToolRegistry
-from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
 from tests.agent_runtime.application.tool.test_tool_registry import StubTool
 
 
@@ -81,8 +82,8 @@ async def test_each_server_keeps_its_own_pace(logger) -> None:
     toolbox, grafana = Server("echo"), Server("grafana_search", up=False)
     refresher = ToolCatalogRefresher(
         [
-            ToolSource("toolbox", toolbox, RefreshPolicy(interval=30, retry_delay=5)),
-            ToolSource("grafana", grafana, RefreshPolicy(interval=30, retry_delay=0.01)),
+            ToolSource("toolbox", toolbox, McpRefresh(interval=30, retry_delay=5)),
+            ToolSource("grafana", grafana, McpRefresh(interval=30, retry_delay=0.01)),
         ],
         ToolRegistry(),
         logger,
@@ -102,7 +103,7 @@ async def test_waking_it_refreshes_at_once_instead_of_waiting(logger) -> None:
     toolbox = Server("echo", up=False)
     registry = ToolRegistry()
     refresher = ToolCatalogRefresher(
-        [ToolSource("toolbox", toolbox, RefreshPolicy(interval=30, retry_delay=30))],
+        [ToolSource("toolbox", toolbox, McpRefresh(interval=30, retry_delay=30))],
         registry,
         logger,
     )

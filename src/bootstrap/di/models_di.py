@@ -3,8 +3,7 @@ from functools import cached_property
 
 from httpx import AsyncClient
 from pycraftcore.application_configuration import ApplicationConfiguration
-from pycraftcore.application_configuration.model.connector import ApiConnector
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model import ApiConnector, ApiOperation
 from pycraftcore.circuit_breaker.configuration import CircuitBreakerSettings
 from pycraftcore.http.configuration import HttpClientSettings, LimitsSettings
 from pycraftcore.http.policy.http_error_policy import is_business_error

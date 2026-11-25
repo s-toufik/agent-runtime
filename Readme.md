@@ -235,7 +235,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `APP_ENV` | `debug` | Which `config/<APP_ENV>/` folder is read |
 | `CONFIGURATION_DIR` | `./config` | Where `config/` is |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
-| `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info` and on telemetry |
+| `DEPLOYMENT_ENVIRONMENT` | `unknown` | Label shown by `/actuator/info`; telemetry's `deployment.environment` comes from `APP_ENV` |
 | `AGENT` | `supervisor` | Which agent this process is: the folder `agents/<AGENT>/` |
 | `AGENTS_DIR` | `./agents` | Where the agent folders are |
 | `AGENT_<NAME>_URL` | empty | Where the agent `<name>` answers (its root, e.g. `http://agent-observation:8000`), for an agent that calls it; empty: not called |
@@ -248,6 +248,7 @@ The reply is a task. Its `contextId` is the conversation (it becomes `request_id
 | `HOMELAB_LLM_BASE_URL`, `HOMELAB_LLM_API_KEY` | one provider required | The homelab's model server, e.g. `http://<llm-server>:<port>/v1`, and its key (empty for a local server) |
 | `NVIDIA_LLM_BASE_URL`, `NVIDIA_LLM_API_KEY` | one provider required | NVIDIA's API, `https://integrate.api.nvidia.com/v1`, and its `nvapi-…` key |
 | `TOOLBOX_URL` | required | The MCP server, e.g. `http://<toolbox-host>:<port>/mcp` |
+| `TOOLBOX_TOKEN` | required | The toolbox's bearer token, sent as `Authorization: Bearer <token>`: get one from the toolbox's `POST /auth/token` (as its `JWT_USERNAME`, with `"expire": "never"` for a deployed agent) |
 | `DB_MONGO_CHECKPOINT_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | required | Conversation storage in MongoDB |
 | `DB_SQLITE_CHECKPOINT_HOST` / `_NAME` | required | SQLite fallback (folder and file name); A2A tasks fall back to `a2a_tasks.db` in the same folder |
 | `DB_POSTGRES_A2A_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | empty, `5432`, `agent_runtime` | A2A task storage in PostgreSQL; no host: SQLite |
@@ -318,6 +319,18 @@ connector:
       key_value: ${oc.env:ANALYTICS_MCP_TOKEN,''}
 ```
 
+A server that wants more headers gets them from an `mcp` operation on its connector, in `config/<APP_ENV>/operation/` and listed under `operation:` in `config/root.yml`:
+
+```yaml
+operation:
+  external_mcp_analytics_calls:
+    name: external_mcp_analytics_calls
+    type: mcp
+    connector: ${connector.external_mcp_analytics}
+    headers:
+      X-Tenant: homelab
+```
+
 ### Logs
 
 One format for every line; the third column is the request id (the conversation id on `/v1/api2a`, the `contextId` on `/a2a`), `-` outside a request:
@@ -354,6 +367,8 @@ Health checks (`/actuator`) are not traced. Log lines written during a span carr
 
 Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph or MCP. `tests/architecture/test_boundaries.py` fails the build if an import crosses a boundary.
 
+MCP is reached the way the web framework is: through pycraftcore. `McpTool` and `McpToolProvider` speak to pycraftcore's `McpClient` port (`pycraftcore.mcp`), and only `ToolsDI` builds the implementation, `SdkMcpClient` from `pycraftcore.mcp_sdk` (the official SDK: transport, retries, auth and request-id headers). Nothing under `src/agent_runtime/` imports `mcp` or `pycraftcore.mcp_sdk`, and a test checks it; changing the MCP library changes that one line of wiring.
+
 ```text
   ┌─ bootstrap ──────────────────────────────────────────────────────────────┐
   │  configuration, dependency wiring (bootstrap/di/), the FastAPI API       │
@@ -386,9 +401,9 @@ Hexagonal: the rules in the middle know nothing about HTTP, LangChain, LangGraph
 | `src/agent_runtime/adapter/inbound/a2a/` | The only code that knows the SDK: `A2aAgentExecutor` (the SDK's `AgentExecutor`, calls `RunA2aTask`), `A2aTaskPresenter` (a `TaskUpdate` → `TaskUpdater` calls), `agent_card` (an `AgentProfile` → the SDK's `AgentCard`; the served card adds the `TurnOptions` from `DescribeA2aOptions` as the turn-options extension), `turn_options_extension` (the extension's URI, its card entry, and reading its metadata keys), `DelegatingTaskStore` (the store chosen at boot, behind the handler built before it), `TaskRetention` (deletes the tasks of the store's table older than the `ttl` of the chosen operation). The SDK does JSON-RPC, the task store, streaming and cancel |
 | `src/agent_runtime/adapter/inbound/exception/`, `turn_status.py` | What every inbound adapter shares: `ServerAtCapacityException` (503) and the step labels. Inbound adapters never import each other, and a test checks it |
 | `src/agent_runtime/adapter/outbound/llm/` | One LangChain adapter per model role, `ModelCatalog`, and `langchain/prompts/`: the generic system prompts and `PromptBook` (each step's prompt: the agent's, else the generic one, checked at boot) |
-| `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (MCP sessions, discovery and calls) |
+| `src/agent_runtime/adapter/outbound/tool/` | `Toolbox` (the tools the steps see) and `mcp/` (discovery and calls through pycraftcore's `McpClient`, and the scope's toolbox endpoint) |
 | `src/agent_runtime/adapter/outbound/langgraph/` | The graph: one node per step, edges built from `TurnPolicy`, state codec, checkpointer |
-| `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, and `create_agent_application`, which Granian calls |
+| `src/bootstrap/` | Settings, the agent definition (`configuration/agent_definition.py`, read with pycraftcore's `OmegaTreeReader`), the wiring (`di/`), the container, `create_agent_application`, which Granian calls, and `application/application_metadata.py` (name, version and authors, read from the installed package) |
 | `agents/` | One folder per agent (see [Agents](#agents)) |
 | `src/bootstrap/di/` | One wiring class per kind, each given what it needs: `ToolsDI` (MCP tools), `ModelsDI` (model providers and clients), `StorageDI` (conversation checkpointer, A2A task database, each with its SQLite fallback), `WorkflowDI` (steps and graph), `A2aDI` (card, request handler, task store, cleanup). `AgentDI` composes them and builds the use cases |
 | `src/bootstrap/application/fastapi/` | The API: `router/` (`/v1` routes; the A2A card route and the SDK's JSON-RPC route), `schema/` (request and response bodies, pydantic), `fastapi_api.py` (the app, built with `pycraftcore.web_fastapi`, traced with the OpenTelemetry FastAPI instrumentation) |

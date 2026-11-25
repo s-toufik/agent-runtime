@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 from starlette.applications import Starlette
 
 

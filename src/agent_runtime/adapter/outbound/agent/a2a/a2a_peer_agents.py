@@ -16,7 +16,7 @@ from a2a.types.a2a_pb2 import (
     TaskState,
 )
 from google.protobuf import json_format
-from pycraftcore.application_configuration.model.connector import A2aConnector
+from pycraftcore.application_configuration.model import A2aConnector
 from pycraftcore.logger.port import Logger
 
 from agent_runtime.application.port.outbound.peer_agents import ProgressListener

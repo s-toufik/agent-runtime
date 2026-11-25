@@ -5,10 +5,10 @@ from contextlib import asynccontextmanager
 from pycraftcore.web.asgi import ASGIApp
 from pycraftcore.web.schema import ApiSettings
 
+from bootstrap.application.application_metadata import APPLICATION_VERSION
 from bootstrap.application.fastapi.fastapi_api import create_fastapi_api
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
-from src import APPLICATION_VERSION
 
 
 @asynccontextmanager

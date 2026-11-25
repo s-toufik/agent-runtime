@@ -2,18 +2,20 @@ import asyncio
 import socket
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import uvicorn
 from a2a.server.tasks.database_task_store import DatabaseTaskStore
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import McpConnector
+from pycraftcore.application_configuration.model import McpConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 
 from agent_runtime.adapter.inbound.web.stream.stream_agent_controller import (
     StreamAgentController,
 )
+from bootstrap.application.application_metadata import APPLICATION_NAME, APPLICATION_VERSION
 from bootstrap.configuration.settings import ProcessSettings
 from bootstrap.container.agent_container import AgentContainer
 from tests.support.agents import TEST_AGENT, TEST_AGENTS
@@ -99,6 +101,18 @@ def test_the_a2a_handler_and_card_exist_before_boot() -> None:
 
     assert container.a2a_request_handler is container.a2a_request_handler
     assert container.a2a_agent_card.name == container.agent.name == "assistant"
+
+
+def test_the_actuator_describes_the_application_and_its_deployment() -> None:
+    settings = replace(make_settings(), deployment_environment="homelab")
+
+    info = AgentContainer(settings).actuator.info()
+
+    assert (info.name, info.version, info.environment) == (
+        APPLICATION_NAME,
+        APPLICATION_VERSION,
+        "homelab",
+    )
 
 
 def test_the_actuator_reports_the_readiness_of_the_container() -> None:

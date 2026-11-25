@@ -141,3 +141,22 @@ def test_only_the_a2a_adapters_import_the_a2a_sdk_in_the_agent() -> None:
         if not violation.startswith(adapters)
     ]
     assert outside == []
+
+
+MCP_SDK = {"mcp", "pycraftcore.mcp_sdk"}
+MCP_CLIENT_WIRING = SOURCE / "bootstrap" / "di" / "tools_di.py"
+
+
+def test_the_agent_reaches_mcp_servers_only_through_pycraftcore_ports() -> None:
+    assert _violations(PACKAGE, MCP_SDK) == []
+
+
+def test_only_the_tools_wiring_builds_the_mcp_sdk_client_in_bootstrap() -> None:
+    wiring = f"{MCP_CLIENT_WIRING.relative_to(SOURCE)} imports pycraftcore.mcp_sdk"
+    assert [
+        violation for violation in _violations(SOURCE / "bootstrap", MCP_SDK) if violation != wiring
+    ] == []
+
+
+def test_nothing_imports_the_source_folder_as_a_package() -> None:
+    assert _violations(SOURCE, {"src"}) == []

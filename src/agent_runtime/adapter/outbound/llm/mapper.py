@@ -1,8 +1,7 @@
 import os
 from typing import cast
 
-from pycraftcore.application_configuration.model.connector import ApiConnector
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model import ApiConnector, ApiOperation
 from pycraftcore.authentication.model.token_auth import TokenAuth
 from pydantic import SecretStr
 

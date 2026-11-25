@@ -4,8 +4,7 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks.database_task_store import DatabaseTaskStore
 from pycraftcore.application_configuration.enum import ConnectorType
 from pycraftcore.application_configuration.enum.operation_type import OperationType
-from pycraftcore.application_configuration.model.connector import DatabaseConnector
-from pycraftcore.application_configuration.model.operation import DatabaseOperation
+from pycraftcore.application_configuration.model import DatabaseConnector, DatabaseOperation
 from pycraftcore.authentication.model.no_auth import NoAuth
 from sqlalchemy.ext.asyncio import create_async_engine
 

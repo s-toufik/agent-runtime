@@ -6,7 +6,7 @@ import httpx
 import pytest
 import uvicorn
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import A2aConnector
+from pycraftcore.application_configuration.model import A2aConnector
 from pycraftcore.authentication.model.no_auth import NoAuth
 
 from agent_runtime.adapter.inbound.a2a.a2a_agent_executor import A2aAgentExecutor

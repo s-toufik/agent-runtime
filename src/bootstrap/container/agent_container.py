@@ -8,7 +8,7 @@ from a2a.server.request_handlers import RequestHandler
 from a2a.server.tasks import TaskStore
 from a2a.types.a2a_pb2 import AgentCard
 from pycraftcore.application_configuration import ApplicationConfiguration
-from pycraftcore.application_configuration.model.server import AsgiServer
+from pycraftcore.application_configuration.model import AsgiServer
 from pycraftcore.logger.port import Logger
 from pycraftcore.web.actuator import Actuator
 
@@ -26,15 +26,14 @@ from agent_runtime.application.use_case.describe_a2a_options import DescribeA2aO
 from agent_runtime.application.use_case.list_agents import ListAgents
 from agent_runtime.application.use_case.run_a2a_task import RunA2aTask
 from agent_runtime.domain.agent.agent import Agent
-from bootstrap.configuration.a2a_settings import A2aSettings
-from bootstrap.di.a2a_di import A2aDI
-from bootstrap.di.agent_di import AgentDI
-from src import (
-    APPLICATION_AUTHORS_EMAIL,
-    APPLICATION_DEPLOYMENT_ENVIRONMENT,
+from bootstrap.application.application_metadata import (
+    APPLICATION_AUTHORS,
     APPLICATION_NAME,
     APPLICATION_VERSION,
 )
+from bootstrap.configuration.a2a_settings import A2aSettings
+from bootstrap.di.a2a_di import A2aDI
+from bootstrap.di.agent_di import AgentDI
 
 NOT_BOOTED: str = "The agent container is not booted"
 A2A_OPERATION: str = "a2a"
@@ -99,8 +98,8 @@ class AgentContainer(AgentDI):
         return Actuator(
             name=APPLICATION_NAME,
             version=APPLICATION_VERSION,
-            environment=APPLICATION_DEPLOYMENT_ENVIRONMENT,
-            authors=APPLICATION_AUTHORS_EMAIL,
+            environment=self._settings.deployment_environment,
+            authors=APPLICATION_AUTHORS,
             is_ready=lambda: self.is_ready,
         )
 

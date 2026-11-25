@@ -4,9 +4,9 @@ from functools import cached_property
 
 from pycraftcore.application_configuration import ApplicationConfiguration
 from pycraftcore.application_configuration.enum import ConnectorType
-from pycraftcore.application_configuration.model.connector import A2aConnector, McpConnector
-from pycraftcore.application_configuration.model.operation import McpOperation
+from pycraftcore.application_configuration.model import A2aConnector, McpConnector, McpOperation
 from pycraftcore.logger.port import Logger
+from pycraftcore.mcp_sdk import SdkMcpClient
 
 from agent_runtime.adapter.outbound.agent.a2a.a2a_peer_agents import A2aPeerAgents
 from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
@@ -15,9 +15,6 @@ from agent_runtime.adapter.outbound.langgraph.langgraph_event_publisher import (
 from agent_runtime.adapter.outbound.telemetry.otel_delegation_meter import OtelDelegationMeter
 from agent_runtime.adapter.outbound.tool.mcp.mcp_tool_provider import McpToolProvider
 from agent_runtime.adapter.outbound.tool.mcp.scoped_endpoint import scoped_connector
-from agent_runtime.adapter.outbound.tool.mcp.streamable_http_session_factory import (
-    StreamableHttpSessionFactory,
-)
 from agent_runtime.adapter.outbound.tool.toolbox import Toolbox
 from agent_runtime.application.agent.delegate_tasks_tool import DelegateTasksProvider
 from agent_runtime.application.agent.peer_directory import PeerDirectory
@@ -25,7 +22,6 @@ from agent_runtime.application.port.outbound.tool_provider import ToolSource
 from agent_runtime.application.tool.tool_catalog_refresher import ToolCatalogRefresher
 from agent_runtime.application.tool.tool_registry import ToolRegistry
 from agent_runtime.domain.agent.tool_scope import ToolScope
-from agent_runtime.domain.tool.refresh_policy import RefreshPolicy
 from bootstrap.configuration.peer_connectors import PEER_TEMPLATE, peer_connectors
 
 MCP_CONNECTOR_NAME: str = "toolbox"
@@ -55,12 +51,8 @@ class ToolsDI:
         connectors: dict[str, McpConnector] = self.connectors
         return ToolCatalogRefresher(
             [
-                ToolSource(
-                    name,
-                    McpToolProvider(factory, required=False),
-                    refresh_policy(connectors.get(name)),
-                )
-                for name, factory in self.session_factories.items()
+                ToolSource(name, McpToolProvider(client, required=False), connectors[name].refresh)
+                for name, client in self.clients.items()
             ]
             + self._peer_sources(),
             self.registry,
@@ -81,14 +73,10 @@ class ToolsDI:
         return {MCP_CONNECTOR_NAME: toolbox, **external}
 
     @cached_property
-    def session_factories(self) -> dict[str, StreamableHttpSessionFactory]:
+    def clients(self) -> dict[str, SdkMcpClient]:
         operations: dict[str, McpOperation] = self._operations
         return {
-            name: StreamableHttpSessionFactory(
-                connector=connector,
-                logger=self._logger,
-                operation=operations.get(connector.name),
-            )
+            name: SdkMcpClient(connector, operations.get(connector.name), self._logger)
             for name, connector in self.connectors.items()
         }
 
@@ -126,7 +114,6 @@ class ToolsDI:
         return Toolbox(self.registry, self._logger, on_unknown_tool=self.refresher.wake)
 
     async def close(self) -> None:
-        self.__dict__.pop("session_factories", None)
         peers: A2aPeerAgents | None = self.__dict__.pop("peer_agents", None)
         if peers is not None:
             await peers.close()
@@ -138,13 +125,3 @@ class ToolsDI:
             for operation in self._configuration.operation.by_name.values()
             if isinstance(operation, McpOperation)
         }
-
-
-def refresh_policy(connector: McpConnector | None) -> RefreshPolicy:
-    if connector is None:
-        return RefreshPolicy()
-    return RefreshPolicy(
-        interval=connector.refresh.interval,
-        retry_delay=connector.refresh.retry_delay,
-        max_retry_delay=connector.refresh.max_retry_delay,
-    )

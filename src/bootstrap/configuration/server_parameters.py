@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from pycraftcore.application_configuration.model.server import AsgiServer
+from pycraftcore.application_configuration.model import AsgiServer
 
 from agent_runtime.adapter.outbound.llm.enum.answer_delivery import AnswerDelivery
 

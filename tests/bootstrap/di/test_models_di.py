@@ -1,4 +1,4 @@
-from pycraftcore.application_configuration.model.operation import ApiOperation
+from pycraftcore.application_configuration.model import ApiOperation
 
 from agent_runtime.adapter.outbound.llm.model_catalog import AgentRole
 from agent_runtime.adapter.outbound.llm.retry_policy import should_retry_model_call

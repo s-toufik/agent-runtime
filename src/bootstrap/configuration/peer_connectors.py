@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import replace
 
-from pycraftcore.application_configuration.model.connector import A2aConnector
+from pycraftcore.application_configuration.model import A2aConnector
 
 PEER_TEMPLATE: str = "agent_peer"
 
